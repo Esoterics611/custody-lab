@@ -1,0 +1,32 @@
+# Shared PDF settings for every chapter. A chapter's front matter carries only title and date.
+project:
+  type: default
+
+format:
+  pdf:
+    documentclass: scrartcl
+    pdf-engine: lualatex
+    toc: true
+    number-sections: true
+    code-line-numbers: true
+    fig-format: pdf
+    include-in-header:
+      text: |
+        % Wrap long code lines instead of running off the page. Cell output does not wrap:
+        % keep printed lines under 80 characters. Highlighting exists only in chapters with code.
+        \usepackage{fvextra}
+        % A page may break between a heading and a longtable; start a new page instead when
+        % too few lines remain for the heading, a table header and one row.
+        \usepackage{needspace}
+        \usepackage{etoolbox}
+        \pretocmd{\section}{\needspace{16\baselineskip}}{}{}
+        \pretocmd{\subsection}{\needspace{9\baselineskip}}{}{}
+        \ifdefined\Highlighting
+          \RecustomVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,commandchars=\\\{\}}
+        \fi
+
+jupyter: python3
+
+execute:
+  echo: true
+  error: false   # a raising code cell fails the render: the manual is tested like code

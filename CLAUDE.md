@@ -1,0 +1,159 @@
+# custody-lab
+
+This is the authoritative project spine. Update it in the same change as the work it describes.
+
+## Purpose
+
+An institutional digital-asset custody demo and learning lab. It has two outputs of equal weight:
+
+1. A demo that runs end to end.
+2. A manual (one PDF per module) plus the `atlas/` knowledge base, together teaching every concept
+   the demo uses.
+
+The reader is a senior backend/QA engineer with 20+ years in fintech (FIX gateways, a wholesale/retail
+CBDC for the Bank of Israel), new to applied cryptography.
+
+**Depth target: training, initial exposure, and a showcase.** Choose breadth and a working demo
+over protocol depth. State results and cite proofs; do not reproduce them. When a topic starts
+pulling toward research depth, stop and cut it to a chapter paragraph.
+
+**Assume no cryptography background.** Every term is defined in bold at first use and listed in
+`atlas/glossary.md`. A chapter that introduces cryptography or chain mechanics builds it in a
+First principles section before the formal treatment, with one toy example per idea asserted
+in a cell.
+
+## Conventions (non-negotiable)
+
+- **Languages: Python, TypeScript, Rust only.** No C++, Go or other toolchains. A library in another
+  language is covered as reading material, not built.
+- Python is managed with uv. Monetary values are `Decimal`; convert to integer base units (satoshis)
+  only at the chain boundary.
+- No `time.sleep` in business logic (enforced by ruff `TID251`). Time is an injected clock.
+- The policy engine is default-deny.
+- Every module ships with tests. QA is a first-class deliverable. Every educational implementation
+  is checked against an external oracle: a published test vector set or an independent verifier.
+- Verify that a library exists and does what is claimed before designing around it. Record the
+  evidence class (observed / reported / unverified) in `atlas/project/`.
+- Label toy implementations **EDUCATIONAL, NOT PRODUCTION**. Where an audited library exists in an
+  allowed language, show both the from-scratch version and the library on the same inputs.
+- Persistent documentation lives in `atlas/`. `atlas/project/session-log.md` is kept current as part
+  of the work.
+- Mark time-sensitive facts (company status, regulation, audits, versions) **verify current**.
+
+## Architecture
+
+The demo story: a FIX order is filled, then a settlement instruction is created, then policy
+evaluates it, then an MPC threshold signature is produced, then the transaction is broadcast to
+regtest, then a proof-of-reserves snapshot is published after each settlement batch.
+
+```
+toy exchange ──FIX──▶ trading ──fills──▶ settlement batch (netted)
+                                             │ instruction
+                                             ▼
+                        approvers ──signed approvals──▶ policy engine (default-deny)
+                                             │ signed authorisation
+                                             ▼
+             signer A ◀─┐                coordinator ──FROST rounds──▶ 2 of {A, B, C}
+             signer B ◀─┼─ one share each  │ BIP340 signature
+             signer C ◀─┘                  ▼
+                                      bitcoind regtest ──▶ proof-of-reserves snapshot
+                                             │
+                          dashboard (TypeScript) ◀── event stream (FastAPI)
+```
+
+- **Two quorums, deliberately separate.**
+  - Approval quorum: people approve an instruction in the policy engine.
+  - Signing quorum: machines hold key shares.
+  - A signer refuses any request that lacks the policy engine's signed authorisation.
+- **Each signer is its own process holding one share.** No process ever holds the whole key; the
+  dashboard shows which process holds which share.
+
+## Repository layout
+
+| Path | Contents |
+|------|----------|
+| `src/custody_lab/` | Python package, one subpackage per demo module (`foundations`, `mpc`, `policy`, `trading`, `settlement`, `reserves`, `pq`) |
+| `tests/` | pytest + Hypothesis |
+| `atlas/` | knowledge base; `atlas/index.md` is the index; `atlas/glossary.md` defines every term the manual uses; `atlas/project/` holds the plan, feasibility notes and session log |
+| `manual/` | chapter sources; `manual/_quarto.yml` holds the shared PDF settings; `manual/chapter-template.qmd` is the template; chapters go in `manual/chapters/NN-slug.qmd`; `00-orientation.qmd` is the plain-language entry point. Code lines wrap; printed output does not, so keep it under 80 characters |
+| `rust/custody-frost/` | PyO3 extension over ZF `frost-secp256k1-tr`; a uv workspace member built by maturin on `uv sync` |
+| `web/` | Dashboard: Vite + React + TypeScript (scaffold) |
+| `scripts/` | `regtest.sh` (start / stop / cli) and `bitcoin-regtest.conf` |
+| `var/` | local runtime data, gitignored (`var/regtest`) |
+
+## Toolchain
+
+| Concern | Choice |
+|---------|--------|
+| Python | 3.12, uv; default groups `dev` (pytest, hypothesis, ruff, mypy strict) and `docs` (quarto-cli, ipykernel, nbclient, pyyaml) |
+| Manual | Quarto 1.10.18 (from the `docs` group) with lualatex from TinyTeX (TeX Live 2026, in `~/.TinyTeX`) |
+| Rust | stable via rustup (1.98.1 at setup), `~/.cargo`; maturin 1.15, PyO3 0.29 (abi3-py312) |
+| Threshold signing | from-scratch Python (teaching) + ZF `frost-secp256k1-tr` 3.0.0 via PyO3 (demo) |
+| FIX | FIX 5.0 SP2 on FIXT.1.1 (`8=FIXT.1.1`, Logon `1137=9`), `simplefix` over asyncio TCP; message shape follows `~/code/fix-client/ROE.md` (no AvgPx) |
+| Chain | Bitcoin Core 31.1 in `~/.local/opt/bitcoin-31.1`, symlinked into `~/.local/bin`; regtest, Taproot key-path spends |
+| CLI / dashboard | Typer; FastAPI event stream; Vite 8 + React 19 + TypeScript 6, Node 24 |
+
+**Why Quarto for the manual.**
+- Chapters are Markdown (`.qmd`).
+- Math goes through LaTeX, which is the reference renderer for the notation in this subject.
+- Python cells execute against this project's environment at render time, with `error: false`.
+  Every listing in the PDF is code that ran, and a broken listing fails the build. That makes the
+  manual part of QA rather than a copy of the code that drifts.
+- Mermaid diagrams, callouts (used for the EDUCATIONAL banner), cross-references and per-chapter
+  PDFs are built in.
+
+Runner-up: plain Pandoc + LaTeX. It gives the same math quality, but code does not execute, so
+listings can drift from the repo. Quarto's Typst engine is the fallback if TinyTeX is a burden; how
+it handles this manual's math has not been checked.
+
+## Commands
+
+```bash
+uv sync                                  # environment; also builds rust/custody-frost (needs cargo on PATH)
+uv run pytest                            # tests
+uv run ruff check && uv run mypy         # lint, types
+uv run quarto render manual/chapters/NN-slug.qmd --to pdf
+scripts/regtest.sh start                 # regtest node; data in var/regtest
+scripts/regtest.sh cli getblockchaininfo
+scripts/regtest.sh stop
+npm --prefix web run dev                 # dashboard dev server; `run build` to type-check and bundle
+```
+
+Mermaid blocks in PDF output need Chrome: `quarto install chrome-headless-shell` needs `unzip`, which
+this host lacks (`sudo apt install -y unzip`).
+
+## Module status
+
+| # | Module | Code | Chapter | Atlas |
+|---|--------|------|---------|-------|
+| 0 | Toolchain | done; Mermaid in PDF blocked on `unzip` | n/a | n/a |
+| 1 | Foundations | done: `ec`, `hashing`, `ecdsa`, `schnorr`, `shamir`; tests pass | draft with first-principles section; renders (20 pages) | 6 entries, draft |
+| 2 | MPC custody | done: `paillier`, `lindell17`, `frost`, `dkg` (teaching); `cluster` + `rust/custody-frost` (demo signing path); tests pass | draft with first-principles section; renders (22 pages) | 8 entries, draft |
+| 3 | Key storage (chapter only) | n/a | not started | planned |
+| 4 | Policy and authorisation | done: `model`, `audit`, `authorisation`, `engine`; signers enforce authorisations; tests pass | draft; renders (12 pages) | 5 entries, draft |
+| 5 | Trading to settlement | done: FIX 5.0 SP2 `trading/fix`; `settlement/` netting, BIP341/BIP86 transactions, regtest node; FROST-signed spends confirm on regtest; tests pass | draft with first-principles section; renders (15 pages; settles a real regtest transaction) | 4 entries, draft |
+| 6 | Proof of reserves | skeleton | not started | planned |
+| 7 | Post-quantum | skeleton | not started | planned |
+| 8 | Industry and regulation (chapter only) | n/a | not started | planned |
+| 9 | Capstone (chapter only) | n/a | not started | planned |
+
+Plan, dependencies and estimates: `atlas/project/build-plan.md`.
+
+## Decisions log
+
+Newest first. **Proposed** entries await review; they become **Accepted** or are replaced.
+
+| Date | Decision | Status |
+|------|----------|--------|
+| 2026-09-25 | Chapters assume no cryptography background: a First principles section before the formal treatment, every term defined at first use, and `atlas/glossary.md` | Accepted (owner) |
+| 2026-09-24 | Dashboard front end is React (Vite `react-ts` template) | Accepted (owner) |
+| 2026-09-24 | The Rust extension is a uv workspace member and a runtime dependency of `custody-lab`, so `uv sync` needs a Rust toolchain | Accepted (owner) |
+| 2026-09-24 | `docs` dependency group is installed by default so `uv run quarto` works without flags | Accepted (owner) |
+| 2026-09-24 | Languages limited to Python, TypeScript, Rust | Accepted (owner) |
+| 2026-09-24 | cb-mpc is reading material, not built: C++, no Python binding, patched OpenSSL. See `atlas/project/threshold-signing-feasibility.md` | Accepted (owner) |
+| 2026-09-24 | Demo signs with ZF `frost-secp256k1-tr` 2-of-3 via PyO3. That crate is outside the NCC audit scope and is labelled so | Accepted (owner) |
+| 2026-09-24 | Local chain is Bitcoin regtest (Taproot key-path spend) | Accepted (owner) |
+| 2026-09-24 | Manual toolchain is Quarto with LaTeX | Accepted (owner) |
+| 2026-09-24 | FIX via `simplefix`, not QuickFIX (sdist-only on PyPI, C++ build at install) | Accepted (owner) |
+| 2026-09-24 | Build a thin end-to-end slice (M0, M1, M2, M4, M5, demo) before deepening | Accepted (owner) |
+| 2026-09-24 | Policy approval quorum and signing quorum are separate; signers require a signed authorisation | Accepted (owner) |

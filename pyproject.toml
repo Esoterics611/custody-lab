@@ -1,0 +1,68 @@
+[project]
+name = "custody-lab"
+version = "0.1.0"
+description = "Institutional digital-asset custody demo and learning lab (EDUCATIONAL, NOT PRODUCTION)."
+readme = "README.md"
+authors = [
+    { name = "Ronnie Rendel", email = "192616319+Esoterics611@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "cryptography>=50.0.1",
+    "custody-frost",
+    "fastapi>=0.141.1",
+    "simplefix>=1.0.17",
+    "typer>=0.27.2",
+    "uvicorn>=0.53.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "hypothesis",
+    "mypy",
+    "pytest",
+    "ruff",
+]
+docs = [
+    "ipykernel>=7.3.0",
+    "matplotlib>=3.11.2",
+    "nbclient>=0.11.0",
+    "pyyaml>=6.0.3",
+    "quarto-cli>=1.10.18",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config"]
+markers = ["regtest: starts a Bitcoin Core regtest node (skipped if bitcoind is not on PATH)"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["simplefix"]  # ships no type information
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "TID"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"time.sleep".msg = "No time.sleep in business logic; wait on an event or a condition."
+
+[tool.uv]
+default-groups = ["dev", "docs"]
+
+[tool.uv.workspace]
+members = ["rust/custody-frost"]
+
+[tool.uv.sources]
+custody-frost = { workspace = true }

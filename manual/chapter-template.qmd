@@ -1,0 +1,95 @@
+---
+# Copy to manual/chapters/NN-slug.qmd. Render: uv run quarto render manual/chapters/NN-slug.qmd
+title: "Module N: Title"
+subtitle: "custody-lab manual"
+date: last-modified
+---
+
+::: {.callout-warning}
+## EDUCATIONAL, NOT PRODUCTION
+The from-scratch code in this chapter is written to be read, not deployed. The production
+counterpart is named in the code walkthrough. Delete this callout in chapters with no code.
+:::
+
+## Learning objectives
+
+<!-- 3 to 5 outcomes, each checked by at least one exercise. Start with a verb. -->
+
+- Explain ...
+- Compute ...
+- Identify ...
+
+## Intuition
+
+<!-- The idea in plain words and one diagram, before any notation. Where a
+trading-infrastructure analogue exists (FIX sequence numbers vs nonces, four-eyes
+approval vs quorum, clearing vs netting), state it and state where it breaks. -->
+
+```{mermaid}
+flowchart LR
+  A[Input] --> B[Step] --> C[Output]
+```
+
+## First principles
+
+<!-- Build every term the chapter uses from what earlier chapters taught. Chapter 1 assumes school
+algebra only. Put each term in bold where it is first defined, give each idea one toy example,
+and assert its numbers in a cell. Add every new term to atlas/glossary.md. Delete this section
+in a chapter that introduces no cryptography or chain mechanics. -->
+
+## Formal treatment
+
+<!-- Definitions, the algorithm, the property it provides and the assumption it rests on.
+State results and cite the proof; do not reproduce proofs. -->
+
+**Definition.** ...
+
+$$
+s = k^{-1}\,(z + r\,d) \bmod n
+$$
+
+## Worked example
+
+<!-- Toy parameters first (a curve over a small prime field) with every intermediate value
+shown, so the reader can check it by hand. Then the same steps on real parameters, in code. -->
+
+| Step | Value |
+|------|-------|
+| ...  | ...   |
+
+## Code walkthrough
+
+<!-- Import from custody_lab; do not paste logic into the chapter. Show the educational
+version, then the real library on the same inputs, and check both with one verifier. -->
+
+```{python}
+#| label: walkthrough-educational
+# from custody_lab.<module> import ...
+```
+
+```{python}
+#| label: walkthrough-library
+# Same inputs, real library.
+```
+
+## How this shows up in production
+
+<!-- Who ships this, what goes wrong in practice, operational cost. Mark every
+time-sensitive fact (company status, regulation, audit, version) with **verify current**. -->
+
+## Exercises
+
+1. <!-- Recall: one answer, checkable. -->
+2. <!-- Compute: a numeric exercise on toy parameters. -->
+3. <!-- Apply: change the demo and predict the result. -->
+4. <!-- Design: a short written answer about a trade-off. -->
+
+## Solutions
+
+1. ...
+
+## Further reading
+
+<!-- Primary sources first (paper, RFC, FIPS, library spec). One line each on why to read it. -->
+
+- ...

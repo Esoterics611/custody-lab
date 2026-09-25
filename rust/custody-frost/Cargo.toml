@@ -1,0 +1,17 @@
+[package]
+name = "custody-frost"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "custody_frost"
+crate-type = ["cdylib"]
+
+[dependencies]
+# frost-secp256k1-tr is outside the NCC Group audit scope of the ZF FROST crates; see
+# atlas/project/threshold-signing-feasibility.md.
+frost-secp256k1-tr = "3.0.0"
+# OsRng for nonces and DKG polynomials.
+rand_core = { version = "0.6", features = ["getrandom"] }
+pyo3 = { version = "0.29", features = ["abi3-py312"] }
