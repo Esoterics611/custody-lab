@@ -24,7 +24,7 @@ Client assets can be lost in four ways. The demo builds a separate control for e
 | The key is stolen | Malware on the signing server copies the key | The key never exists on one machine. It is created in pieces (distributed key generation) and used in pieces (threshold signing) | 2 |
 | The key is lost | A data centre is destroyed | Any 2 of the 3 pieces can sign. Pieces are refreshed and backed up separately | 2 |
 | The key signs the wrong payment | An insider raises a payment to their own address | A default-deny policy engine, approvals signed by people, and an authorisation that the signing machines check | 4 |
-| The custodian does not hold what it reports | Client balances exceed the coins held | Proof of reserves: a published liabilities total that each client can check its own balance against, and a signature proving control of the coins | 6 (not yet written) |
+| The custodian does not hold what it reports | Client balances exceed the coins held | Proof of reserves: a published liabilities total that each client can check its own balance against, and a signature proving control of the coins | 6 |
 
 Chapters 1 and 2 contain the mathematics. Chapters 4 and 5 cover controls and message flow; a
 FIX engineer will recognise their structure.
@@ -51,7 +51,8 @@ Nothing touches a public network.
 | 8. Broadcast | Bitcoin Core accepts the transaction and a block is mined over it: one confirmation | Blocks and confirmation | 5 |
 | 9. Reserves | A snapshot publishes total client liabilities and the coins held, signed by the same threshold key | Merkle sum trees, proof of control | 6 |
 
-Rendering chapter 5 runs steps 1 to 8 against a real node during the build:
+Rendering chapter 5 runs steps 1 to 8 against a real node during the build, and rendering
+chapter 6 runs all nine:
 
 ```bash
 uv run quarto render manual/chapters/05-settlement.qmd --to pdf
@@ -128,7 +129,9 @@ Four components are third-party software: the FROST library, Bitcoin Core, `cryp
 3. **Chapter 4, Policy and authorisation** — the controls that run before the signature.
 4. **Chapter 5, Trading to settlement** — the FIX session, netting and the Bitcoin transaction,
    ending with a real settlement on regtest.
+5. **Chapter 6, Proof of reserves** — how a custodian shows that it holds what it owes, and what
+   that proof leaves out.
 
-Chapter 3 (key storage in HSMs and enclaves) and chapters 6 to 9 are not yet written.
+Chapter 3 (key storage in HSMs and enclaves) and chapters 7 to 9 are not yet written.
 `atlas/glossary.md` defines every term in one sentence and names the section that teaches it.
 `atlas/index.md` lists one short entry per concept, for lookup.

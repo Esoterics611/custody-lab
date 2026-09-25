@@ -72,7 +72,7 @@ toy exchange ──FIX──▶ trading ──fills──▶ settlement batch (n
 
 | Path | Contents |
 |------|----------|
-| `src/custody_lab/` | Python package, one subpackage per demo module (`foundations`, `mpc`, `policy`, `trading`, `settlement`, `reserves`, `pq`) |
+| `src/custody_lab/` | Python package, one subpackage per demo module (`foundations`, `mpc`, `policy`, `trading`, `settlement`, `reserves`, `pq`); `demo/pipeline.py` runs all of them end to end |
 | `tests/` | pytest + Hypothesis |
 | `atlas/` | knowledge base; `atlas/index.md` is the index; `atlas/glossary.md` defines every term the manual uses; `atlas/project/` holds the plan, feasibility notes and session log |
 | `manual/` | chapter sources; `manual/_quarto.yml` holds the shared PDF settings; `manual/chapter-template.qmd` is the template; chapters go in `manual/chapters/NN-slug.qmd`; `00-orientation.qmd` is the plain-language entry point. Code lines wrap; printed output does not, so keep it under 80 characters |
@@ -132,7 +132,7 @@ this host lacks (`sudo apt install -y unzip`).
 | 3 | Key storage (chapter only) | n/a | not started | planned |
 | 4 | Policy and authorisation | done: `model`, `audit`, `authorisation`, `engine`; signers enforce authorisations; tests pass | draft; renders (12 pages) | 5 entries, draft |
 | 5 | Trading to settlement | done: FIX 5.0 SP2 `trading/fix`; `settlement/` netting, BIP341/BIP86 transactions, regtest node; FROST-signed spends confirm on regtest; tests pass | draft with first-principles section; renders (15 pages; settles a real regtest transaction) | 4 entries, draft |
-| 6 | Proof of reserves | skeleton | not started | planned |
+| 6 | Proof of reserves | done: `merkle_sum`, `snapshot`; `demo/pipeline` runs all nine steps; tests pass | draft; renders (13 pages; runs the whole demo) | 4 entries, draft |
 | 7 | Post-quantum | skeleton | not started | planned |
 | 8 | Industry and regulation (chapter only) | n/a | not started | planned |
 | 9 | Capstone (chapter only) | n/a | not started | planned |
@@ -145,6 +145,7 @@ Newest first. **Proposed** entries await review; they become **Accepted** or are
 
 | Date | Decision | Status |
 |------|----------|--------|
+| 2026-09-25 | The Merkle-sum tree has no published test vectors. Its oracles are an independent hashlib derivation of the root, the Hu, Zhang and Guo (2019) attack (which must fail), and Hypothesis properties | Proposed |
 | 2026-09-25 | Chapters assume no cryptography background: a First principles section before the formal treatment, every term defined at first use, and `atlas/glossary.md` | Accepted (owner) |
 | 2026-09-24 | Dashboard front end is React (Vite `react-ts` template) | Accepted (owner) |
 | 2026-09-24 | The Rust extension is a uv workspace member and a runtime dependency of `custody-lab`, so `uv sync` needs a Rust toolchain | Accepted (owner) |

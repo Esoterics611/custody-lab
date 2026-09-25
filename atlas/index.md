@@ -78,9 +78,10 @@ teaches it.
 
 | Entry | Status |
 |-------|--------|
-| `reserves/merkle-sum-tree.md` | planned |
-| `reserves/inclusion-proofs.md` | planned |
-| `reserves/zk-proof-of-liabilities.md` | planned |
+| [`reserves/merkle-sum-tree.md`](reserves/merkle-sum-tree.md) — hash tree with committed sums | draft |
+| [`reserves/inclusion-proofs.md`](reserves/inclusion-proofs.md) — one sibling per level | draft |
+| [`reserves/proof-of-control.md`](reserves/proof-of-control.md) — signing under the custody key | draft |
+| [`reserves/zk-proof-of-liabilities.md`](reserves/zk-proof-of-liabilities.md) — hidden sums, range proofs | draft |
 
 ## 7. Post-quantum
 

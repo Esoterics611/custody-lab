@@ -2,6 +2,85 @@
 
 Newest first.
 
+## 2026-09-25: Module 6, proof of reserves; first commit
+
+**Changed.**
+- First commit, `489194e`: everything up to the previous entry. Rendered PDFs are now ignored
+  (`manual/.gitignore`).
+- Reviewed the uncommitted Module 6 code from 2026-09-24 before changing it:
+  - `reserves/merkle_sum.py` hashes both children's sums into each parent and rejects negative
+    sibling sums;
+  - `reserves/snapshot.py` signs a tagged hash of the canonical statement;
+  - `PolicyEngine.authorise_attestation` issues a token for that message without approvals.
+
+  No defects found. No source file changed.
+- Tests added, 9 in total:
+  - `tests/reserves/test_merkle_sum.py`: the root against an independent hashlib derivation;
+    Hypothesis over arbitrary ledgers; altered balance, salt, id and negative sibling; the Hu,
+    Zhang and Guo total-only attack, passing a total-only tree and failing this one;
+  - `tests/reserves/test_snapshot.py`: the published file verifies with the standard library and a
+    BIP340 verifier; an attestation token signs its attestation and is refused for a sighash;
+  - `tests/demo/test_pipeline.py` (regtest): all nine steps complete, the snapshot signature
+    verifies, and the snapshot's audit head is in the exported log.
+- Wrote `manual/chapters/06-reserves.qmd`:
+  - First principles: hash trees, sum trees, the total-only attack, salts and leaks, proof of
+    control with domain separation, and what a proof of reserves does not show;
+  - Formal treatment: the leaf and node layout, verification, the snapshot, and a zero-knowledge
+    section without code (Pedersen commitments, range proofs, Provisions, DAPOL+);
+  - the worked example on the demo's ledger, and a code walkthrough that runs the whole demo and
+    verifies the published snapshot from the file.
+- Added four atlas entries under `atlas/reserves/` and 14 glossary terms (96 in total). Also
+  updated:
+  - the orientation chapter (chapter 6 in the reading order);
+  - the audit-trail atlas entry (the head is now anchored);
+  - `CLAUDE.md` module status and layout, and one **Proposed** decision on the Merkle-sum test
+    oracle.
+
+**Verified.**
+- `pytest`: 134 passed, up from 125. `ruff` and `mypy` are clean (54 files).
+- The pipeline, run from a file, completed all nine steps:
+  - 0.85 BTC settled with one confirmation and a 310-sat fee;
+  - liabilities 4.15 BTC, assets 4.1599969 BTC, reserve ratio 1.00241;
+  - all inclusion proofs and the proof-of-control signature verify.
+
+  Run from stdin, it failed when the signer processes started. Inferred, not confirmed: `spawn`
+  re-imports `__main__`, which stdin cannot provide.
+- Chapter 6 renders to 13 pages and runs the full demo on regtest during the build. Its pages were
+  rasterised and inspected; no page in chapters 0 or 6 ends on a heading.
+- Every chapter section cited in the glossary exists.
+- Citations checked by web search:
+  - Hu, Zhang and Guo, *Computers & Security* 2019, ePrint 2018/1139 (reported);
+  - Dagher et al., CCS 2015;
+  - Ji and Chalkias, CCS 2021;
+  - Chalkias, Chatzigiannis and Ji, ePrint 2022/043.
+
+  The `dapol` Rust crate is reported by the same search (GitHub, docs.rs) and was not built.
+
+**Decided.**
+- Chapter 6 covers zero-knowledge proofs of liabilities as a section with no code, as the build
+  plan says.
+- The Merkle-sum test oracle is recorded as Proposed in `CLAUDE.md`.
+
+**Open.**
+- The pipeline has no CLI or dashboard entry point; the docstring describes both.
+- The Mazars pause and exchange zk-SNARK proofs in chapter 6 are marked **verify current**.
+- The remaining modules: key storage (chapter 3), post-quantum (Module 7), industry (Module 8)
+  and the capstone.
+
+### Deliverables
+
+- The repository has its first commit, with rendered PDFs excluded.
+- Proof of reserves works end to end. After each settlement the demo publishes the following,
+  and a third party can verify the file with the standard library and a BIP340 verifier:
+  - a Merkle-sum commitment to client liabilities;
+  - the custody key's on-chain balance;
+  - a 2-of-3 FROST proof-of-control signature;
+  - the anchored policy audit head.
+- New tests show that the liabilities tree resists the published attack on total-only sum trees,
+  and that an attestation authorisation cannot be used to sign a transaction.
+- Chapter 6 teaches the topic from first principles and runs the whole demo during its build.
+  Four atlas entries and 14 glossary terms cover the topic.
+
 ## 2026-09-25: First principles in chapters 2 and 5, glossary, depth rule
 
 **Changed.**
