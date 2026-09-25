@@ -77,6 +77,7 @@ toy exchange ──FIX──▶ trading ──fills──▶ settlement batch (n
 | `atlas/` | knowledge base; `atlas/index.md` is the index; `atlas/glossary.md` defines every term the manual uses; `atlas/project/` holds the plan, feasibility notes and session log |
 | `manual/` | chapter sources; `manual/_quarto.yml` holds the shared PDF settings; `manual/chapter-template.qmd` is the template; chapters go in `manual/chapters/NN-slug.qmd`; `00-orientation.qmd` is the plain-language entry point. Code lines wrap; printed output does not, so keep it under 80 characters |
 | `rust/custody-frost/` | PyO3 extension over ZF `frost-secp256k1-tr`; a uv workspace member built by maturin on `uv sync` |
+| `rust/custody-pq/` | PyO3 extension over RustCrypto `slh-dsa` (FIPS 205); a uv workspace member, like `custody-frost` |
 | `web/` | Dashboard: Vite + React + TypeScript (scaffold) |
 | `scripts/` | `regtest.sh` (start / stop / cli) and `bitcoin-regtest.conf` |
 | `var/` | local runtime data, gitignored (`var/regtest`) |
@@ -89,6 +90,7 @@ toy exchange ──FIX──▶ trading ──fills──▶ settlement batch (n
 | Manual | Quarto 1.10.18 (from the `docs` group) with lualatex from TinyTeX (TeX Live 2026, in `~/.TinyTeX`) |
 | Rust | stable via rustup (1.98.1 at setup), `~/.cargo`; maturin 1.15, PyO3 0.29 (abi3-py312) |
 | Threshold signing | from-scratch Python (teaching) + ZF `frost-secp256k1-tr` 3.0.0 via PyO3 (demo) |
+| Post-quantum | ML-DSA, ML-KEM from `cryptography` (OpenSSL 4.0.2); SLH-DSA from RustCrypto `slh-dsa` 0.1.0 via PyO3 (`signature` pinned to 2.3.0-pre.4); WOTS+/XMSS from scratch; oracle: NIST ACVP vectors |
 | FIX | FIX 5.0 SP2 on FIXT.1.1 (`8=FIXT.1.1`, Logon `1137=9`), `simplefix` over asyncio TCP; message shape follows `~/code/fix-client/ROE.md` (no AvgPx) |
 | Chain | Bitcoin Core 31.1 in `~/.local/opt/bitcoin-31.1`, symlinked into `~/.local/bin`; regtest, Taproot key-path spends |
 | CLI / dashboard | Typer; FastAPI event stream; Vite 8 + React 19 + TypeScript 6, Node 24 |
@@ -133,7 +135,7 @@ this host lacks (`sudo apt install -y unzip`).
 | 4 | Policy and authorisation | done: `model`, `audit`, `authorisation`, `engine`; signers enforce authorisations; tests pass | draft; renders (12 pages) | 5 entries, draft |
 | 5 | Trading to settlement | done: FIX 5.0 SP2 `trading/fix`; `settlement/` netting, BIP341/BIP86 transactions, regtest node; FROST-signed spends confirm on regtest; tests pass | draft with first-principles section; renders (15 pages; settles a real regtest transaction) | 4 entries, draft |
 | 6 | Proof of reserves | done: `merkle_sum`, `snapshot`; `demo/pipeline` runs all nine steps; tests pass | draft; renders (13 pages; runs the whole demo) | 4 entries, draft |
-| 7 | Post-quantum | skeleton | not started | planned |
+| 7 | Post-quantum | done: `wots` (teaching); `rust/custody-pq` (SLH-DSA); hybrid authorisation tokens; tests pass | draft; renders (18 pages) | 6 entries, draft |
 | 8 | Industry and regulation (chapter only) | n/a | not started | planned |
 | 9 | Capstone (chapter only) | n/a | not started | planned |
 
@@ -145,6 +147,9 @@ Newest first. **Proposed** entries await review; they become **Accepted** or are
 
 | Date | Decision | Status |
 |------|----------|--------|
+| 2026-09-25 | SLH-DSA comes from RustCrypto `slh-dsa` via PyO3 in `rust/custody-pq`, not PyPI `slhdsa` | Accepted (owner) |
+| 2026-09-25 | Lamport is a chapter illustration, not a module: no published vectors exist | Accepted (owner) |
+| 2026-09-25 | Policy authorisation tokens are hybrid: Ed25519 and ML-DSA-65, both required by every signer | Accepted (owner) |
 | 2026-09-25 | The Merkle-sum tree has no published test vectors. Its oracles are an independent hashlib derivation of the root, the Hu, Zhang and Guo (2019) attack (which must fail), and Hypothesis properties | Proposed |
 | 2026-09-25 | Chapters assume no cryptography background: a First principles section before the formal treatment, every term defined at first use, and `atlas/glossary.md` | Accepted (owner) |
 | 2026-09-24 | Dashboard front end is React (Vite `react-ts` template) | Accepted (owner) |

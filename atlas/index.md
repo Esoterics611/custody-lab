@@ -87,12 +87,12 @@ teaches it.
 
 | Entry | Status |
 |-------|--------|
-| `pq/lattices-lwe.md` | planned |
-| `pq/ml-kem.md` — FIPS 203 | planned |
-| `pq/ml-dsa.md` — FIPS 204 | planned |
-| `pq/hash-based-signatures.md` — Lamport, WOTS+, XMSS, SLH-DSA (FIPS 205) | planned |
-| `pq/threshold-pq.md` — why PQ schemes resist MPC | planned |
-| `pq/migration-design.md` | planned |
+| [`pq/lattices-lwe.md`](pq/lattices-lwe.md) — learning with errors | draft |
+| [`pq/ml-kem.md`](pq/ml-kem.md) — FIPS 203 | draft |
+| [`pq/ml-dsa.md`](pq/ml-dsa.md) — FIPS 204 | draft |
+| [`pq/hash-based-signatures.md`](pq/hash-based-signatures.md) — Lamport, WOTS+, XMSS, SLH-DSA (FIPS 205) | draft |
+| [`pq/threshold-pq.md`](pq/threshold-pq.md) — why PQ schemes resist MPC | draft |
+| [`pq/migration-design.md`](pq/migration-design.md) | draft |
 
 ## 8. Industry and regulation
 

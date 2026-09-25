@@ -62,7 +62,7 @@ imports from Python). The largest open risk is now the Taproot transaction libra
 
 | Library | Use | Status |
 |---------|-----|--------|
-| `cryptography` 50.0.1 | ECDSA verify oracle, Ed25519 approvals, ML-DSA, ML-KEM | ML-DSA-65 sign/verify **observed** on this host; ML-KEM module present; no SLH-DSA |
+| `cryptography` 50.0.1 | ECDSA verify oracle, Ed25519 approvals, ML-DSA, ML-KEM | Linked against OpenSSL 4.0.2. ML-DSA-44/65/87 and ML-KEM-768/1024 present, each with `from_seed_bytes`; no ML-KEM-512 and no SLH-DSA module (**observed**, 2026-09-25). ML-DSA-65 sign/verify (randomised signing; 1952-byte key, 3309-byte signature) and ML-KEM-768 encapsulate/decapsulate (1088-byte ciphertext) round trips **observed** |
 | `frost-secp256k1-tr` 3.0.0 | Demo threshold signing | DKG and 2-of-3 signing across three processes; signatures verify with the independent BIP340 verifier (**observed**, `tests/mpc/test_signing_cluster.py`). Taproot tweak functions present, not yet used |
 | `simplefix` 1.0.17 | FIX 5.0 SP2 encode/parse | computes BodyLength/CheckSum, parses incrementally (**observed**); ships no type information; last release 2023-09-12 |
 | `quickfix` 1.16.0 | Not planned | sdist only on PyPI, compiles C++ at install (**observed**) |
@@ -70,7 +70,8 @@ imports from Python). The largest open risk is now the Taproot transaction libra
 | Bitcoin Core 31.1 | Regtest chain | SHA256 matched `SHA256SUMS` (GPG signature on that file not checked); start, mine to a bech32m address, stop (**observed**) |
 | FastAPI, Typer, Hypothesis | Dashboard API, CLI, property tests | on PyPI (**observed**) |
 | Taproot transactions | Build the regtest spend | written in `settlement/bitcoin.py` from BIP 341; all BIP 341 wallet vectors pass; Bitcoin Core accepts and mines the spends (**observed**) |
-| SLH-DSA | Module 7 | **open**: the `pqcrypto` 1.0.0 wheel exposed no algorithm submodules on first inspection; `liboqs-python` needs a CMake build of liboqs |
+| SLH-DSA | Module 7 | **Chosen**: RustCrypto `slh-dsa` 0.1.0 via PyO3 (`rust/custody-pq`). It needs `signature = "=2.3.0-pre.4"`; cargo otherwise resolves 2.3.0-pre.7, which does not compile with it (**observed**). Its README states it has never been independently audited (**observed**). Key generation for all 12 parameter sets, verification and deterministic signing match the NIST ACVP vectors (**observed**, `tests/pq/test_pq_vectors.py`). Rejected: PyPI `slh-dsa` 0.2.5 (LGPL-3.0, single maintainer), `pqcrypto` 1.0.0 (empty on this platform), `pyspx` (pre-FIPS 205), `liboqs-python` (C build) |
+| NIST ACVP vectors | Module 7 oracles | `usnistgov/ACVP-Server` `gen-val/json-files` has ML-DSA keyGen/sigGen/sigVer, ML-KEM keyGen/encapDecap, SLH-DSA keyGen/sigGen/sigVer and LMS. SLH-DSA keyGen gives skSeed, skPrf, pkSeed and the expected pk for all 12 parameter sets, 10 cases for SHA2-128f (**observed**) |
 
 ## Quality gates per module
 

@@ -2,6 +2,112 @@
 
 Newest first.
 
+## 2026-09-25: Module 7, post-quantum
+
+**Changed.**
+- `rust/custody-pq`: a PyO3 binding to RustCrypto `slh-dsa` 0.1.0 covering all 12 FIPS 205
+  parameter sets. It exposes key generation (random and from seeds), and sign and verify in both
+  the internal form and the context form. It is a uv workspace member and a runtime dependency.
+  `signature` is pinned to `=2.3.0-pre.4`, because cargo otherwise picks pre.7, which does not
+  compile with this `slh-dsa`.
+- `src/custody_lab/pq/wots.py` (EDUCATIONAL) implements the FIPS 205 pieces for
+  SLH-DSA-SHA2-128f:
+  - address (ADRS) and its compressed form;
+  - SHA-256 tweakable hashes and hash chains;
+  - WOTS+ key generation, signing and public-key recovery, with the checksum;
+  - XMSS nodes, signing and root recovery;
+  - the SLH-DSA public root.
+- Hybrid authorisation tokens (`policy/authorisation.py`):
+  - `AuthorityKey` holds an Ed25519 key and an ML-DSA-65 key;
+  - every token carries both signatures, the ML-DSA one with context
+    `custody-lab/authorisation`;
+  - `check` requires both;
+  - `PolicyEngine`, the pipeline, every test and the chapter 2, 4 and 5 cells use it.
+
+  Chapter 4's authorisation section is updated to match.
+- `tests/pq/vectors/acvp-subset.json` holds 46 NIST ACVP vectors from `usnistgov/ACVP-Server`
+  commit `a7f283c`, with the SHA-256 of each source file and the selection rule. New tests:
+  - `tests/pq/test_pq_vectors.py`: ML-DSA key generation and verification, ML-KEM key generation,
+    SLH-DSA key generation for all 12 parameter sets, verification, deterministic signing, and
+    hedged signing;
+  - `tests/pq/test_wots.py`: the public root against 10 NIST cases and against RustCrypto on
+    fresh seeds, XMSS round trips, and the checksum defeating a chain advance;
+  - `tests/policy/test_authorisation.py`: a token with only one valid signature is rejected.
+- Wrote `manual/chapters/07-post-quantum.qmd`:
+  - First principles: what a quantum computer breaks, Lamport with a forgery after reuse,
+    Winternitz chains and the checksum, XMSS and SLH-DSA, one-bit LWE;
+  - Formal treatment: ML-KEM, ML-DSA (Fiat-Shamir with aborts), SLH-DSA, a size table, the hybrid
+    token;
+  - threshold post-quantum signatures, migration design, and walkthroughs for the libraries, an
+    ML-KEM share backup and the hybrid token.
+- Six atlas entries under `atlas/pq/` and 19 glossary terms (115 in total). Also updated:
+  - the orientation chapter (reading order, what is real);
+  - `CLAUDE.md` (layout, toolchain, module status, three Accepted decisions);
+  - the build plan's SLH-DSA row.
+
+**Verified.**
+- `pytest`: 196 passed, up from 134. `ruff` and `mypy` are clean (57 files).
+- Teaching WOTS+/XMSS reproduces PK.root for all 10 NIST SLH-DSA-SHA2-128f keyGen cases on the
+  first run, and matches RustCrypto on fresh seeds.
+- RustCrypto `slh-dsa` matches NIST on the following (**observed**):
+  - key generation, 21 cases over all 12 parameter sets;
+  - verification, 2 pass and 1 fail as expected;
+  - a deterministic signature, byte for byte.
+- `cryptography` ML-DSA matches NIST key generation for 44, 65 and 87, and verification including
+  2 rejected cases. ML-KEM-768 and -1024 match NIST key generation.
+- All chapters render. Chapters 2, 4, 5 and 6 were re-rendered with hybrid tokens, and chapter 6
+  runs the full demo with them. Chapter 7 renders to 18 pages. No page in any chapter ends on a
+  heading.
+- Every glossary section pointer resolves.
+- Citations checked by web search:
+  - Threshold Raccoon (EUROCRYPT 2024, ePrint 2024/184);
+  - Trilithium (ePrint 2025/675) and Quorus (ePrint 2025/1163);
+  - BIP 360 Pay-to-Merkle-Root, merged 2026, and BIP 361 (reported by news sites; **verify
+    current**);
+  - NIST IR 8547 draft dates, 2030 and 2035 (**verify current**).
+
+**Decided (owner).** RustCrypto `slh-dsa` via PyO3; Lamport as an illustration only; hybrid
+authorisation tokens.
+
+**Open.**
+- ML-KEM decapsulation vectors are not checked: `cryptography` loads ML-KEM private keys only from
+  seeds, and those vectors give expanded keys.
+- Approvals, proof of control and settlements remain classical.
+- Chapters 3, 8 and 9.
+
+### Deliverables
+
+- The custody signers now require every policy authorisation to carry both an Ed25519 and an
+  ML-DSA-65 signature. A forger would have to break both a classical and a post-quantum scheme.
+- SLH-DSA, ML-DSA and ML-KEM are in the project and checked against NIST's official ACVP test
+  vectors. SLH-DSA comes from a Rust library bound the same way as the FROST signer.
+- A from-scratch WOTS+ and XMSS implementation reproduces NIST's SLH-DSA public keys exactly, as
+  the teaching version of hash-based signatures.
+- Chapter 7 covers the following, with every example executed at build time:
+  - what a quantum computer breaks;
+  - how hash-based and lattice signatures work from first principles;
+  - why they resist threshold signing;
+  - the order in which a custodian should migrate.
+
+## 2026-09-25: Module 7 library survey
+
+**Changed.** Updated the library status table in `atlas/project/build-plan.md` with the
+post-quantum survey. No code changed.
+
+**Verified.**
+- `cryptography` 50.0.1 (OpenSSL 4.0.2) exposes ML-DSA-44/65/87 and ML-KEM-768/1024 with
+  seed-based key generation. ML-DSA-65 and ML-KEM-768 round trips ran here with FIPS 203/204
+  sizes.
+- It has no SLH-DSA module.
+- PyPI `slh-dsa` 0.2.5 imports as `slhdsa` with all 12 parameter sets.
+- `pqcrypto` 1.0.0 still ships empty algorithm packages here.
+- NIST ACVP vectors exist for all three standards. The SLH-DSA keyGen file gives seeds and the
+  expected public key.
+
+**Open.** SLH-DSA library choice, and whether Lamport is a module or a chapter illustration.
+Whether the demo moves its authorisation tokens to hybrid Ed25519 + ML-DSA. All three wait on
+the owner.
+
 ## 2026-09-25: Module 6, proof of reserves; first commit
 
 **Changed.**

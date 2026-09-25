@@ -13,7 +13,7 @@ a fresh interpreter with no memory inherited from the coordinator.
 
 A signer produces a share only against an authorisation from the policy engine (Module 4). The
 signer checks four things:
-- the token is signed by the configured policy authority;
+- the token carries valid Ed25519 and ML-DSA-65 signatures by the configured policy authority;
 - it has not expired;
 - it authorises exactly the message inside the FROST signing package;
 - it has not been used before.
@@ -91,7 +91,7 @@ def _signer_main(identifier: int, authority: bytes, conn: Connection) -> None:
 
 class SigningCluster:
     def __init__(self, threshold: int, count: int, authority: bytes) -> None:
-        """``authority`` is the policy engine's raw Ed25519 public key."""
+        """``authority`` is the policy engine's hybrid public key, ``AuthorityKey.public_bytes``."""
         self.threshold, self.count = threshold, count
         self.public_key_package = b""
         ctx = mp.get_context("spawn")

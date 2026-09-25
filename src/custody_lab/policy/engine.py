@@ -26,12 +26,12 @@ from datetime import timedelta
 from decimal import Decimal
 from enum import StrEnum
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from custody_lab.foundations.hashing import sha256, tagged_hash
 from custody_lab.policy import authorisation
 from custody_lab.policy.audit import AuditLog, Clock
-from custody_lab.policy.authorisation import Authorisation
+from custody_lab.policy.authorisation import Authorisation, AuthorityKey
 from custody_lab.policy.model import Approval, SettlementInstruction
 from custody_lab.reserves.snapshot import ATTESTATION_TAG
 
@@ -80,7 +80,7 @@ class PolicyEngine:
     def __init__(
         self,
         policy: Policy,
-        authority_key: Ed25519PrivateKey,
+        authority_key: AuthorityKey,
         audit: AuditLog,
         clock: Clock,
         authorisation_ttl: timedelta = timedelta(seconds=60),
@@ -90,8 +90,8 @@ class PolicyEngine:
 
     @property
     def authority_public_key(self) -> bytes:
-        """Raw 32-byte Ed25519 key that signers are configured with."""
-        return self._key.public_key().public_bytes_raw()
+        """The hybrid public key (Ed25519 then ML-DSA-65) that signers are configured with."""
+        return self._key.public_bytes()
 
     def _velocity_used(self, asset: str, window: timedelta) -> Decimal:
         since = self._clock() - window

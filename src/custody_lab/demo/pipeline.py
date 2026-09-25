@@ -29,6 +29,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from custody_lab.foundations import schnorr
 from custody_lab.mpc.cluster import SigningCluster
 from custody_lab.policy.audit import AuditLog, verify_chain
+from custody_lab.policy.authorisation import AuthorityKey
 from custody_lab.policy.engine import AssetPolicy, Policy, PolicyDenied, PolicyEngine, Tier
 from custody_lab.policy.model import Approval, SettlementInstruction
 from custody_lab.reserves.merkle_sum import MerkleSumTree
@@ -114,7 +115,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
             velocity_limit=Decimal("20"),
         )
         policy = Policy({"BTC": btc_policy}, {n: k.public_key() for n, k in approvers.items()})
-        engine = PolicyEngine(policy, Ed25519PrivateKey.generate(), AuditLog(_now), _now)
+        engine = PolicyEngine(policy, AuthorityKey.generate(), AuditLog(_now), _now)
 
         report("keys", "running")
         with SigningCluster(2, 3, authority=engine.authority_public_key) as cluster:

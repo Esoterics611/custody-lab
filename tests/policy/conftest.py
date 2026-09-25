@@ -6,6 +6,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from custody_lab.policy.audit import AuditLog
+from custody_lab.policy.authorisation import AuthorityKey
 from custody_lab.policy.engine import AssetPolicy, Policy, PolicyEngine, Tier
 from custody_lab.policy.model import SettlementInstruction
 
@@ -43,7 +44,7 @@ def engine(clock: FakeClock, keys: dict[str, Ed25519PrivateKey]) -> PolicyEngine
     )
     approvers = {n: k.public_key() for n, k in keys.items() if n != "dave"}  # dave: not an approver
     return PolicyEngine(
-        Policy({"BTC": btc}, approvers), Ed25519PrivateKey.generate(), AuditLog(clock), clock
+        Policy({"BTC": btc}, approvers), AuthorityKey.generate(), AuditLog(clock), clock
     )
 
 

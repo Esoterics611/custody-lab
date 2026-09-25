@@ -8,11 +8,11 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from custody_lab.foundations import schnorr
 from custody_lab.mpc.cluster import SigningCluster
 from custody_lab.policy.audit import AuditLog
+from custody_lab.policy.authorisation import AuthorityKey
 from custody_lab.policy.engine import Policy, PolicyEngine
 from custody_lab.reserves.snapshot import Snapshot, publish
 
@@ -57,7 +57,7 @@ def test_published_snapshot_verifies_from_the_file_alone(tmp_path: Path) -> None
 
 
 def test_an_attestation_token_signs_the_attestation_and_nothing_else() -> None:
-    engine = PolicyEngine(Policy({}, {}), Ed25519PrivateKey.generate(), AuditLog(_now), _now)
+    engine = PolicyEngine(Policy({}, {}), AuthorityKey.generate(), AuditLog(_now), _now)
     statement = _snapshot(bytes(32)).statement()
     with SigningCluster(2, 3, engine.authority_public_key) as cluster:
         key = cluster.dkg()

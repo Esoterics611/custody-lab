@@ -1,13 +1,13 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from custody_lab.policy import authorisation
-from custody_lab.policy.authorisation import Authorisation, AuthorisationRejected
+from custody_lab.policy.authorisation import Authorisation, AuthorisationRejected, AuthorityKey
 
-KEY = Ed25519PrivateKey.generate()
-AUTHORITY = KEY.public_key().public_bytes_raw()
+KEY = AuthorityKey.generate()
+AUTHORITY = KEY.public_bytes()
 NOW = datetime(2026, 9, 24, 12, 0, tzinfo=UTC)
 MSG = b"\x02" * 32
 
@@ -19,12 +19,26 @@ def _token(expires_in: timedelta = timedelta(seconds=60)) -> Authorisation:
 def test_valid_token_round_trips_and_passes() -> None:
     token = Authorisation.from_bytes(_token().to_bytes())
     authorisation.check(token, AUTHORITY, MSG, NOW)
+    assert len(AUTHORITY) == 32 + 1952 and len(token.pq_signature) == 3309  # FIPS 204 sizes
 
 
 def test_token_from_another_authority_is_rejected() -> None:
-    other = Ed25519PrivateKey.generate().public_key().public_bytes_raw()
+    other = AuthorityKey.generate().public_bytes()
     with pytest.raises(AuthorisationRejected, match="policy authority"):
         authorisation.check(_token(), other, MSG, NOW)
+
+
+def test_both_signatures_are_required() -> None:
+    """A forger who breaks only one scheme (Ed25519 by a quantum computer, or ML-DSA by a flaw)
+    still cannot produce a token."""
+    genuine, forged = _token(), authorisation.issue(AuthorityKey.generate(), b"\x00" * 32, MSG,
+                                                     NOW + timedelta(seconds=60))
+    only_classical = replace(genuine, pq_signature=forged.pq_signature)
+    only_post_quantum = replace(genuine, signature=forged.signature)
+    with pytest.raises(AuthorisationRejected, match="ML-DSA-65"):
+        authorisation.check(only_classical, AUTHORITY, MSG, NOW)
+    with pytest.raises(AuthorisationRejected, match="Ed25519"):
+        authorisation.check(only_post_quantum, AUTHORITY, MSG, NOW)
 
 
 def test_expired_token_is_rejected() -> None:
