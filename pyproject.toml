@@ -10,6 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "cryptography>=50.0.1",
     "custody-frost",
+    "custody-pq",
     "fastapi>=0.141.1",
     "simplefix>=1.0.17",
     "typer>=0.27.2",
@@ -62,7 +63,8 @@ select = ["E", "F", "W", "I", "B", "UP", "TID"]
 default-groups = ["dev", "docs"]
 
 [tool.uv.workspace]
-members = ["rust/custody-frost"]
+members = ["rust/custody-frost", "rust/custody-pq"]
 
 [tool.uv.sources]
 custody-frost = { workspace = true }
+custody-pq = { workspace = true }

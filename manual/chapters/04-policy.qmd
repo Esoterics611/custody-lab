@@ -87,18 +87,21 @@ becomes ambiguous.
 
 ### Authorisation
 
-On approval the engine signs, with its Ed25519 **authority key**,
+On approval the engine signs the payload $p = \text{id} \,\|\, H(I) \,\|\, m \,\|\, t_{\text{exp}}$
+with its **authority key**. The key is hybrid: an Ed25519 key and an ML-DSA-65 key (chapter 7),
+and the token carries one signature of each kind,
 
 $$
-\sigma = \text{Sign}_{sk_A}\big(\text{id} \,\|\, H(I) \,\|\, m \,\|\, t_{\text{exp}}\big)
+\sigma = \text{Sign}^{\text{Ed25519}}_{sk_A}(p), \qquad
+\sigma' = \text{Sign}^{\text{ML-DSA-65}}_{sk'_A}(p) ,
 $$
 
 where $m$ is the exact message the signers will sign (in Module 5, the transaction's BIP341
-sighash). Each signer holds only $pk_A$ and accepts a request only if all four checks pass:
+sighash). Each signer holds only the public keys $pk_A$ and $pk'_A$ and accepts a request only if all four checks pass:
 
 | Signer check | Stops |
 |--------------|-------|
-| $\sigma$ verifies under $pk_A$ | forged or self-issued tokens |
+| $\sigma$ verifies under $pk_A$ and $\sigma'$ under $pk'_A$ | forged or self-issued tokens, including by an attacker who has broken one of the two schemes |
 | now $< t_{\text{exp}}$ | stale tokens held back and used later |
 | $m$ equals the message inside the FROST signing package | a coordinator pairing a valid token with a different transaction |
 | id not seen before | replaying one approval into two signatures |
@@ -147,6 +150,7 @@ from decimal import Decimal
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from custody_lab.policy.audit import AuditLog
+from custody_lab.policy.authorisation import AuthorityKey
 from custody_lab.policy.engine import (
     AssetPolicy,
     Policy,
@@ -175,7 +179,7 @@ btc = AssetPolicy(
     velocity_limit=Decimal("15"),
 )
 policy = Policy({"BTC": btc}, {n: k.public_key() for n, k in keys.items()})
-engine = PolicyEngine(policy, Ed25519PrivateKey.generate(), AuditLog(clock), clock)
+engine = PolicyEngine(policy, AuthorityKey.generate(), AuditLog(clock), clock)
 sighash = b"\x6a" * 32
 
 
@@ -267,7 +271,7 @@ def wall_clock() -> datetime:
     return datetime.now(UTC)
 
 
-authority_key = Ed25519PrivateKey.generate()
+authority_key = AuthorityKey.generate()
 live = PolicyEngine(policy, authority_key, AuditLog(wall_clock), wall_clock)
 ins = SettlementInstruction(
     "ins-live", "BTC", Decimal("0.25"), "treasury", "alice", wall_clock()

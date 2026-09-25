@@ -340,6 +340,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from custody_lab.foundations import schnorr
 from custody_lab.mpc.cluster import SigningCluster
 from custody_lab.policy.audit import AuditLog
+from custody_lab.policy.authorisation import AuthorityKey
 from custody_lab.policy.engine import AssetPolicy, Policy, PolicyEngine, Tier
 from custody_lab.policy.model import Approval, SettlementInstruction
 from custody_lab.settlement import chain
@@ -363,7 +364,7 @@ btc = AssetPolicy(
     (Tier(Decimal("10"), 2),), frozenset({settle_to}), timedelta(hours=24), Decimal("20")
 )
 policy = Policy({"BTC": btc}, {n: k.public_key() for n, k in approvers.items()})
-engine = PolicyEngine(policy, Ed25519PrivateKey.generate(), AuditLog(now), now)
+engine = PolicyEngine(policy, AuthorityKey.generate(), AuditLog(now), now)
 
 # 1. DKG; three implementations agree on the custody address.
 cluster = SigningCluster(2, 3, authority=engine.authority_public_key)

@@ -565,18 +565,16 @@ import os
 
 from datetime import UTC, datetime, timedelta
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from custody_lab.foundations import schnorr
 from custody_lab.mpc.cluster import SigningCluster
 from custody_lab.policy import authorisation
 
-authority = Ed25519PrivateKey.generate()  # Module 4: held by the policy engine
+authority = authorisation.AuthorityKey.generate()  # Module 4: held by the policy engine
 sighash = bytes.fromhex("6a" * 32)  # stands in for a BIP341 sighash (Module 5)
 expires = datetime.now(UTC) + timedelta(seconds=60)
 token = authorisation.issue(authority, b"\x00" * 32, sighash, expires).to_bytes()
 
-authority_public = authority.public_key().public_bytes_raw()
+authority_public = authority.public_bytes()
 with SigningCluster(threshold=2, count=3, authority=authority_public) as cluster:
     x_only_key = cluster.dkg()
     print("coordinator pid:", os.getpid())

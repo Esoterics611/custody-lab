@@ -23,6 +23,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Change | The output that returns the remainder of a spent UTXO, less the fee, to the payer. | 5 FP, Coins are outputs, not balances |
 | Commitment | A value published now that fixes a choice before information that could bias it arrives. | 1 FP, What a signature proves; 2 FP, Commitments |
 | Confirmation | One block containing or following a transaction; more confirmations make reversal costlier. | 5 FP, Blocks, confirmation and regtest |
+| Context string | Up to 255 bytes bound into an ML-DSA or SLH-DSA signature to separate uses of one key. | 7, The demo's hybrid authorisation |
 | Coordinator | The process that relays protocol messages and combines results; it holds no share. | 2 FP, Parties, rounds and a coordinator |
 | Corrupted party | A party the attacker controls. | 2 FP, What the attacker is assumed to do |
 | Default-deny | Refusing anything the policy does not explicitly allow. | 4, Intuition |
@@ -36,34 +37,47 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Fee | Inputs minus outputs of a transaction, collected by the miner. | 5 FP, Coins are outputs, not balances |
 | Feldman commitment | Publishing each polynomial coefficient times $G$, so a share can be checked. | 2 FP, Commitments |
 | Fiat-Shamir transform | Replacing a verifier's random challenge with a hash of the commitment, key and message. | 1 FP, What a signature proves |
+| Fiat-Shamir with aborts | A lattice signature that discards and retries any response that would leak the secret. | 7, ML-DSA (FIPS 204) |
 | Finite field | The integers modulo a prime, where every non-zero number has an inverse. | 1 FP, Arithmetic on a clock |
+| FORS | The few-time signature at the bottom of SLH-DSA that signs the message digest. | 7 FP, A Merkle tree of one-time keys |
 | Four-eyes | Requiring approval by someone other than the initiator (maker-checker). | 4, Intuition |
 | FROST | Two-round threshold Schnorr signing (RFC 9591); the demo's signing protocol. | 2, FROST |
 | Generator | The published point $G$ from which every key is measured. | 1 FP, The cycle: generator, order and scalar |
 | Group | A set with an operation that commutes, associates, has a zero and has negatives. | 1 FP, Points that can be added |
 | Group order | The length $n$ of the cycle $G, 2G, \dots, nG = \mathcal{O}$. | 1 FP, The cycle: generator, order and scalar |
+| Grover's algorithm | Quantum search of $2^k$ values in about $2^{k/2}$ steps; it weakens hashes and symmetric keys. | 7 FP, What a quantum computer breaks |
+| Harvest now, decrypt later | Recording ciphertext today to decrypt it once a quantum computer exists. | 7, Intuition |
+| Hash chain | A value hashed repeatedly; a position along it can be advanced but not reversed. | 7 FP, Winternitz chains and the checksum |
 | Hash function | A function mapping any input to a fixed-size digest, resistant to preimages and collisions. | 1, Hash functions |
 | Hiding (commitment) | A commitment reveals nothing about the committed value. | 2 FP, Commitments |
 | Homomorphic encryption | Encryption in which operations on ciphertexts act on the plaintexts inside. | 2 FP, Encryption that can be computed on |
+| Hybrid signature | Two signatures of different schemes over one payload, both required to verify. | 7, The demo's hybrid authorisation |
+| Hypertree | SLH-DSA's stack of XMSS trees in which each tree signs the root of the tree below. | 7 FP, A Merkle tree of one-time keys |
 | Identifiable abort | An abort that also names the cheating party. | 2 FP, What the attacker is assumed to do |
 | Inclusion proof | The sibling at each level of a hash tree, from which a holder recomputes the root. | 6 FP, Hash trees |
 | Inverse | The number $a^{-1}$ with $a \cdot a^{-1} \equiv 1$; dividing means multiplying by it. | 1 FP, Arithmetic on a clock |
+| KEM | Key encapsulation mechanism: produces a shared secret and a ciphertext that only the key holder can open. | 7, ML-KEM (FIPS 203) |
 | Key path | Spending a Taproot output with one signature under its key. | 5 FP, Locking and unlocking |
 | Lagrange coefficient | The weight on each share when rebuilding $f(0)$; depends only on which shares are present. | 1 FP, Sharing a secret as a line through points |
+| Lamport signature | A one-time signature that reveals one of two hashed secrets per digest bit. | 7 FP, Signatures from a hash alone: Lamport |
 | Locking script | The condition an output sets for spending it (`scriptPubKey`). | 5 FP, Locking and unlocking |
 | Locktime, sequence | Transaction fields carrying time locks and replacement signals. | 5 FP, What the signature covers: the sighash |
 | Low-S | Bitcoin's rule that an ECDSA $s$ is at most $n/2$, removing one form of malleability. | 1, ECDSA |
+| LWE | Learning with errors: recovering a secret from linear equations with small added errors. | 7 FP, Lattices in one bit |
 | Malicious party | A corrupted party that may send anything, or nothing. | 2 FP, What the attacker is assumed to do |
 | Mempool | A node's pool of valid transactions waiting for a block. | 5 FP, Blocks, confirmation and regtest |
 | Merkle root | The single hash at the top of a Merkle tree, committing to every item below it. | 6 FP, Hash trees |
 | Merkle sum tree | A Merkle tree whose nodes also carry sums, each parent hashing both children's sums. | 6 FP, Adding sums |
 | Merkle tree | A tree of hashes built by hashing items in pairs up to one root. | 6 FP, Hash trees |
+| ML-DSA | FIPS 204 lattice signature; ML-DSA-65 has a 1,952-byte key and a 3,309-byte signature. | 7, ML-DSA (FIPS 204) |
+| ML-KEM | FIPS 203 lattice key encapsulation; ML-KEM-768 has a 1,184-byte key and a 1,088-byte ciphertext. | 7, ML-KEM (FIPS 203) |
 | Mobile adversary | An attacker who corrupts different machines at different times. | 2 FP, What the attacker is assumed to do |
 | Modulo | Keeping only the remainder after division, as a clock does. | 1 FP, Arithmetic on a clock |
 | MPC | Secure multi-party computation: parties compute a function of private inputs, each learning only the output. | 2 FP, Parties, rounds and a coordinator |
 | Multiplicative share | One of two numbers whose product is the key (Lindell 2017). | 2 FP, Three ways to split a key |
 | Netting | Summing a cycle's fills into one obligation per asset. | 5, Netting |
 | Nonce | A secret random number used once in a signature; reusing it reveals the key. | 1 FP, What a signature proves |
+| One-time signature | A key that may sign only one message; a second signature leaks enough to forge. | 7 FP, Signatures from a hash alone: Lamport |
 | Outpoint | The txid and output index that identify the output an input spends. | 5 FP, Coins are outputs, not balances |
 | Paillier encryption | Additively homomorphic public-key encryption, used by two-party ECDSA. | 2 FP, Encryption that can be computed on; 2, Paillier encryption |
 | Pedersen commitment | $C = vG + rH$: a hiding, binding point commitment; commitments add. | 6, Zero-knowledge proofs of liabilities |
@@ -86,10 +100,13 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Script path | Spending a Taproot output by revealing and satisfying a committed script. | 5 FP, Locking and unlocking |
 | Semi-honest party | A corrupted party that follows the protocol but records everything it sees. | 2 FP, What the attacker is assumed to do |
 | Share | One party's piece of a secret; for Shamir sharing, a point $(i, f(i))$. | 1 FP, Sharing a secret as a line through points |
+| Shor's algorithm | Quantum algorithm that factors and computes discrete logarithms, breaking ECDSA, Schnorr, Ed25519 and Paillier. | 7, Intuition |
 | Sibling | The other child of a node's parent in a hash tree. | 6 FP, Hash trees |
 | Sighash | The 32-byte hash of a transaction's fields that a signature actually signs. | 5 FP, What the signature covers: the sighash |
 | Signing quorum | The machines holding key shares, $t$ of which must take part in a signature. | 0, Two quorums; 2, Intuition |
+| SLH-DSA | FIPS 205 stateless hash-based signature; SHA2-128f signatures are 17,088 bytes. | 7, SLH-DSA (FIPS 205) |
 | Snapshot | The published record of liabilities root and total, assets, block, custody key and audit head. | 6, Snapshot and attestation |
+| Stateful signature | A scheme (XMSS, LMS) whose signer must record which one-time leaves it has used. | 7 FP, A Merkle tree of one-time keys |
 | Taproot | Bitcoin's output type (BIP 341) locked to one 32-byte key, with optional committed scripts. | 5 FP, Locking and unlocking |
 | Threshold ($t$-of-$n$) | Any $t$ of $n$ share holders can sign; $t - 1$ learn nothing and cannot sign. | 2 FP, What the attacker is assumed to do |
 | Tweak | Adding $tG$ to a key, with $t$ a hash, so the key commits to extra data. | 5, Taproot outputs and the BIP86 tweak |
@@ -99,5 +116,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Velocity limit | A cap on the total authorised in a rolling time window. | 4, The decision function |
 | Whitelist | The set of destinations the policy allows for an asset. | 4, The decision function |
 | Witness | The data that satisfies a locking script, such as a signature. | 5 FP, Locking and unlocking |
+| WOTS+ | The Winternitz one-time signature of FIPS 205: 35 hash chains, with a checksum, per 16-byte digest. | 7 FP, Winternitz chains and the checksum |
 | x-only key | A 32-byte public key (the $x$-coordinate); the point with even $y$ is meant. | 1, Schnorr and BIP340 |
+| XMSS | A Merkle tree whose leaves are WOTS+ public keys; its root is the long-term public key. | 7 FP, A Merkle tree of one-time keys |
 | Zero-knowledge proof | A proof that a statement about a secret is true, revealing nothing else. | 2 FP, Zero-knowledge proofs |

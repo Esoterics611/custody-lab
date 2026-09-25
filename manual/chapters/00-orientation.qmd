@@ -107,8 +107,8 @@ not share an administrator.
 
 ## What is real and what is a toy
 
-Four components are third-party software: the FROST library, Bitcoin Core, `cryptography` and
-`simplefix`. The rest is written for this project.
+Five components are third-party software: the FROST library, the SLH-DSA library, Bitcoin Core,
+`cryptography` and `simplefix`. The rest is written for this project.
 
 | Component | In the demo | Status |
 |-----------|------------------------------|------------------------------|
@@ -118,7 +118,8 @@ Four components are third-party software: the FROST library, Bitcoin Core, `cryp
 | Transactions | Built in Python from BIP 341 | Passes every BIP 341 wallet test vector and is accepted by Bitcoin Core |
 | FIX | FIX 5.0 SP2 on FIXT.1.1, encoded with `simplefix` | Minimal session: no heartbeats, resend requests or gap fill |
 | Exchange | Toy | Fills every limit order in full at its limit price |
-| Policy engine | Python, with Ed25519 approvals from `cryptography` | Audit log held in memory |
+| Policy engine | Python, with Ed25519 approvals and hybrid Ed25519 + ML-DSA-65 authorisations from `cryptography` | Audit log held in memory |
+| Post-quantum | ML-DSA and ML-KEM from `cryptography`; SLH-DSA from RustCrypto `slh-dsa` (Rust); WOTS+ and XMSS from scratch | Checked against NIST ACVP vectors. The `slh-dsa` README states it has never been independently audited |
 
 ## Reading order
 
@@ -131,7 +132,9 @@ Four components are third-party software: the FROST library, Bitcoin Core, `cryp
    ending with a real settlement on regtest.
 5. **Chapter 6, Proof of reserves** — how a custodian shows that it holds what it owes, and what
    that proof leaves out.
+6. **Chapter 7, Post-quantum cryptography** — what a quantum computer breaks, the three NIST
+   replacements, and the order in which a custodian migrates.
 
-Chapter 3 (key storage in HSMs and enclaves) and chapters 7 to 9 are not yet written.
+Chapter 3 (key storage in HSMs and enclaves) and chapters 8 and 9 are not yet written.
 `atlas/glossary.md` defines every term in one sentence and names the section that teaches it.
 `atlas/index.md` lists one short entry per concept, for lookup.

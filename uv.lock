@@ -11,6 +11,7 @@ resolution-markers = [
 members = [
     "custody-frost",
     "custody-lab",
+    "custody-pq",
 ]
 
 [[package]]
@@ -645,6 +646,7 @@ source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
     { name = "custody-frost" },
+    { name = "custody-pq" },
     { name = "fastapi" },
     { name = "simplefix" },
     { name = "typer" },
@@ -671,6 +673,7 @@ docs = [
 requires-dist = [
     { name = "cryptography", specifier = ">=50.0.1" },
     { name = "custody-frost", editable = "rust/custody-frost" },
+    { name = "custody-pq", editable = "rust/custody-pq" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "simplefix", specifier = ">=1.0.17" },
     { name = "typer", specifier = ">=0.27.2" },
@@ -692,6 +695,11 @@ docs = [
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "quarto-cli", specifier = ">=1.10.18" },
 ]
+
+[[package]]
+name = "custody-pq"
+version = "0.1.0"
+source = { editable = "rust/custody-pq" }
 
 [[package]]
 name = "cycler"

@@ -3,7 +3,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from custody_lab.foundations import schnorr
 from custody_lab.mpc.cluster import SigningCluster
@@ -18,10 +17,10 @@ pytestmark = [
 
 
 def test_frost_signed_taproot_spend_is_mined(tmp_path: Path) -> None:
-    authority = Ed25519PrivateKey.generate()
+    authority = authorisation.AuthorityKey.generate()
     with (
         RegtestNode(tmp_path / "node") as rpc,
-        SigningCluster(2, 3, authority.public_key().public_bytes_raw()) as cluster,
+        SigningCluster(2, 3, authority.public_bytes()) as cluster,
     ):
         internal_key = cluster.dkg()
         output_key = cluster.taproot_output_key()

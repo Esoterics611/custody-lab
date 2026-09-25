@@ -1,0 +1,19 @@
+[package]
+name = "custody-pq"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "custody_pq"
+crate-type = ["cdylib"]
+
+[dependencies]
+# RustCrypto SLH-DSA (FIPS 205). Its README states it has never been independently audited.
+slh-dsa = "0.1.0"
+# slh-dsa 0.1.0 was written against signature 2.3.0-pre.4; later pre-releases changed the RNG
+# traits and do not compile with it.
+signature = "=2.3.0-pre.4"
+# OsRng for key generation and the per-signature randomiser.
+rand_core = { version = "0.6", features = ["getrandom"] }
+pyo3 = { version = "0.29", features = ["abi3-py312"] }

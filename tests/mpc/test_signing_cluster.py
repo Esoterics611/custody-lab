@@ -4,13 +4,12 @@ from datetime import UTC, datetime, timedelta
 from itertools import combinations
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from custody_lab.foundations import schnorr
 from custody_lab.mpc.cluster import SigningCluster
 from custody_lab.policy import authorisation
 
-AUTHORITY_KEY = Ed25519PrivateKey.generate()
+AUTHORITY_KEY = authorisation.AuthorityKey.generate()
 MSG = bytes.fromhex("6a" * 32)  # stands in for a 32-byte BIP341 sighash
 
 
@@ -21,7 +20,7 @@ def token(message: bytes = MSG, ttl: timedelta = timedelta(seconds=60)) -> bytes
 
 @pytest.fixture(scope="module")
 def cluster() -> Iterator[tuple[SigningCluster, bytes]]:
-    with SigningCluster(2, 3, AUTHORITY_KEY.public_key().public_bytes_raw()) as c:
+    with SigningCluster(2, 3, AUTHORITY_KEY.public_bytes()) as c:
         yield c, c.dkg()
 
 
@@ -52,7 +51,10 @@ def test_signers_refuse_forged_expired_and_replayed_tokens(
 ) -> None:
     c, _ = cluster
     forged = authorisation.issue(
-        Ed25519PrivateKey.generate(), b"\x00" * 32, MSG, datetime.now(UTC) + timedelta(minutes=1)
+        authorisation.AuthorityKey.generate(),
+        b"\x00" * 32,
+        MSG,
+        datetime.now(UTC) + timedelta(minutes=1),
     ).to_bytes()
     with pytest.raises(RuntimeError, match="policy authority"):
         c.sign(MSG, [1, 2], forged)
