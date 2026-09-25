@@ -1,0 +1,16 @@
+[project]
+name = "custody-frost"
+version = "0.1.0"
+description = "PyO3 binding to the Zcash Foundation FROST crate (frost-secp256k1-tr) for the custody-lab demo."
+requires-python = ">=3.12"
+
+[build-system]
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+
+[tool.uv]
+# Rebuild the extension when Rust sources change, not only when pyproject.toml does.
+cache-keys = [{ file = "pyproject.toml" }, { file = "Cargo.toml" }, { file = "src/**/*.rs" }]

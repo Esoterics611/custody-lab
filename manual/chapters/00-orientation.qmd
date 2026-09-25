@@ -1,0 +1,134 @@
+---
+title: "Orientation: One Settlement, End to End"
+subtitle: "custody-lab manual"
+date: last-modified
+---
+
+## Purpose of this chapter
+
+This chapter follows one settlement through the demo in plain words, before any mathematics.
+Each step names the idea it depends on and the chapter that teaches it. The later chapters define
+each term where it is first used.
+
+## The problem custody solves
+
+On a blockchain, anyone who can produce a valid signature for a key can move the coins that key
+controls. There is no account holder to call, no chargeback, and no way to reverse a confirmed
+transfer on the ledger. A custodian's job therefore comes down to one question: who can produce
+that signature, and for which payments.
+
+Client assets can be lost in four ways. The demo builds a separate control for each:
+
+| Failure | Example | Control in the demo | Chapter |
+|---------------|----------------|------------------------------------|---------|
+| The key is stolen | Malware on the signing server copies the key | The key never exists on one machine. It is created in pieces (distributed key generation) and used in pieces (threshold signing) | 2 |
+| The key is lost | A data centre is destroyed | Any 2 of the 3 pieces can sign. Pieces are refreshed and backed up separately | 2 |
+| The key signs the wrong payment | An insider raises a payment to their own address | A default-deny policy engine, approvals signed by people, and an authorisation that the signing machines check | 4 |
+| The custodian does not hold what it reports | Client balances exceed the coins held | Proof of reserves: a published liabilities total that each client can check its own balance against, and a signature proving control of the coins | 6 (not yet written) |
+
+Chapters 1 and 2 contain the mathematics. Chapters 4 and 5 cover controls and message flow; a
+FIX engineer will recognise their structure.
+
+## The demo, step by step
+
+The scenario is fixed in `src/custody_lab/demo/pipeline.py`. Four clients hold 5.00 BTC with the
+custodian. One of them, alpha-capital, trades on a toy exchange over FIX: three sells (0.40, 0.35
+and 0.25 BTC) and one buy (0.15 BTC). At the end of the settlement cycle it owes the exchange a
+net 0.85 BTC, which the custodian delivers on chain.
+
+Every run starts a private Bitcoin network (**regtest**) whose blocks are produced on request.
+Nothing touches a public network.
+
+| Step | What happens | Idea it rests on | Chapter |
+|---------|----------------------------------------|------------------|---------|
+| 1. Key generation | Three signer processes run a protocol that leaves each holding one share of a private key. The matching public key, and from it the custody address, is computed. The private key itself never is | Elliptic-curve keys, secret sharing, distributed key generation | 1, 2 |
+| 2. Funding | Coins are sent to the custody address and a block is mined | Bitcoin transactions and addresses | 5 |
+| 3. Trading | A FIX 5.0 SP2 session sends four NewOrderSingle messages. The toy exchange fills each in full and returns ExecutionReports | FIX | 5 |
+| 4. Netting | Four fills become one obligation: deliver 0.85 BTC to the exchange's settlement address | Netting | 5 |
+| 5. Transaction | The settlement layer builds a Bitcoin transaction that pays 0.85 BTC to the exchange and returns the change to custody. It checks the transaction against the instruction: exact amount, change only to custody, fee under a cap | Bitcoin's transaction model, the sighash | 5 |
+| 6. Policy | ops-desk raised the instruction. At this size the policy requires two approvals from people other than the initiator. With bob's approval alone the result is PENDING. With bob's and carol's it is APPROVED, and the engine signs an authorisation that names the exact 32 bytes the signers may sign | Default-deny, four-eyes approval, digital signatures | 4 |
+| 7. Signing | Signers 1 and 3 each check the authorisation, then compute a partial signature from their own share. The coordinator adds the partial signatures into one 64-byte signature. Signer 2 takes no part, and no process holds the whole key | Schnorr signatures, threshold signing (FROST) | 1, 2 |
+| 8. Broadcast | Bitcoin Core accepts the transaction and a block is mined over it: one confirmation | Blocks and confirmation | 5 |
+| 9. Reserves | A snapshot publishes total client liabilities and the coins held, signed by the same threshold key | Merkle sum trees, proof of control | 6 |
+
+Rendering chapter 5 runs steps 1 to 8 against a real node during the build:
+
+```bash
+uv run quarto render manual/chapters/05-settlement.qmd --to pdf
+```
+
+### Where the code is
+
+| Step | Module |
+|------------|------------------------------|
+| All steps, in order | `custody_lab.demo.pipeline` |
+| Key generation, signing | `custody_lab.mpc.cluster` over `rust/custody-frost` |
+| Trading | `custody_lab.trading.fix` |
+| Netting | `custody_lab.settlement.netting` |
+| Transaction | `custody_lab.settlement.transfer`, `custody_lab.settlement.bitcoin` |
+| Policy | `custody_lab.policy.engine`, `custody_lab.policy.authorisation` |
+| Broadcast | `custody_lab.settlement.regtest`, `custody_lab.settlement.chain` |
+| Reserves | `custody_lab.reserves` |
+
+## Two quorums
+
+A custody platform answers two separate questions, and the demo keeps them apart.
+
+- **Should this payment happen?** People answer it. The **approval quorum** (bob and carol) signs
+  approvals, and the policy engine counts them.
+- **Can the key sign?** Machines answer it. The **signing quorum** is the set of processes holding
+  key shares (signers 1 and 3).
+
+The only link between them is the policy engine's signed authorisation. Each signer checks it
+before contributing, so a compromised coordinator cannot obtain a signature for a transaction the
+approvers did not approve. The check runs inside the signer, so it protects nothing once an
+attacker controls two signer machines: two is the threshold. The signer machines must therefore
+not share an administrator.
+
+## Concepts with a trading-infrastructure counterpart
+
+| Custody concept | Trading-infrastructure counterpart | Where the analogy breaks |
+|-------------|--------------------|------------------------------------|
+| Policy engine | Pre-trade risk checks in a FIX gateway | A bad order can be busted; a confirmed payment cannot be reversed. The engine therefore denies anything it does not explicitly allow |
+| Approval quorum | Maker-checker (four-eyes) | It does not break. Each approval is a digital signature over the instruction |
+| Settlement netting | End-of-cycle clearing and netting | Delivery is a transaction the custodian signs, not an instruction to a central securities depository |
+| Shamir secret sharing | M-of-N smart cards in an HSM key ceremony | The cards rebuild the key inside the HSM. Threshold signing never rebuilds it |
+| Confirmation | Execution acknowledgement | Finality is probabilistic. Each later block makes reversal more expensive, and no single message declares a payment settled |
+
+## Terms that mean something different here
+
+| Term | In trading infrastructure | In this manual |
+|----------|--------------------------|------------------------------------|
+| Nonce | A public, increasing number on a signed API request, used to reject replays | A secret random number used once inside a signature. If it is reused, or even partly predictable, the private key can be computed from the signatures |
+| Share | A unit of equity | One piece of a secret-shared private key |
+| Commitment | Committed capital | A value published now that fixes a choice revealed later, so the choice cannot be adjusted afterwards |
+| Settlement | Transfer at a central securities depository at T+1 or T+2 | A signed transaction accepted into a block |
+
+## What is real and what is a toy
+
+Four components are third-party software: the FROST library, Bitcoin Core, `cryptography` and
+`simplefix`. The rest is written for this project.
+
+| Component | In the demo | Status |
+|-----------|------------------------------|------------------------------|
+| Threshold signing | Zcash Foundation `frost-secp256k1-tr` 3.0.0 (Rust), called from Python, one operating-system process per share | Real library. This variant is outside the scope of the NCC Group audit of the other ZF FROST crates |
+| Teaching cryptography | From-scratch Python in chapters 1 and 2: curves, ECDSA, BIP340, Shamir, Paillier, Lindell 2017, FROST, DKG | EDUCATIONAL, NOT PRODUCTION. Each is checked against published test vectors or an independent library |
+| Bitcoin node | Bitcoin Core 31.1 on regtest | Real node on a private network |
+| Transactions | Built in Python from BIP 341 | Passes every BIP 341 wallet test vector and is accepted by Bitcoin Core |
+| FIX | FIX 5.0 SP2 on FIXT.1.1, encoded with `simplefix` | Minimal session: no heartbeats, resend requests or gap fill |
+| Exchange | Toy | Fills every limit order in full at its limit price |
+| Policy engine | Python, with Ed25519 approvals from `cryptography` | Audit log held in memory |
+
+## Reading order
+
+1. **Chapter 1, Foundations** — modular arithmetic, elliptic curves, signatures and secret
+   sharing. Its first-principles section assumes only school algebra.
+2. **Chapter 2, MPC custody** — how several machines produce one signature without any of them
+   holding the key.
+3. **Chapter 4, Policy and authorisation** — the controls that run before the signature.
+4. **Chapter 5, Trading to settlement** — the FIX session, netting and the Bitcoin transaction,
+   ending with a real settlement on regtest.
+
+Chapter 3 (key storage in HSMs and enclaves) and chapters 6 to 9 are not yet written.
+`atlas/glossary.md` defines every term in one sentence and names the section that teaches it.
+`atlas/index.md` lists one short entry per concept, for lookup.
