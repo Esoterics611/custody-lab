@@ -151,7 +151,7 @@ Five components are third-party software: the FROST library, the SLH-DSA library
    replacements, and the order in which a custodian migrates.
 8. **Chapter 8, Industry and regulation** — tokenised money and collateral, the institutional
    ledgers and central bank projects, MiCA and the US custody rules, and the Israeli landscape.
-
-Chapter 9 is not yet written.
+9. **Chapter 9, Capstone** — the whole system as a design review: architecture, deep dives,
+   failure modes and trade-offs.
 `atlas/glossary.md` defines every term in one sentence and names the section that teaches it.
 `atlas/index.md` lists one short entry per concept, for lookup.

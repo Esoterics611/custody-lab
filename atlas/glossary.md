@@ -25,7 +25,9 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Canonical encoding | An encoding that gives every value exactly one byte representation. | 4, Canonical encoding |
 | CASP | Crypto-asset service provider: a firm licensed under MiCA, for example to hold crypto-assets for clients. | 8, Regulation in the EU: MiCA |
 | CBDC | Central bank digital currency: central bank money as a token, wholesale (banks only) or retail (the public). | 8 FP, Four forms of money on a ledger |
+| Chain reorganisation | Replacing recent blocks with a longer competing branch, which can remove a confirmed transaction. | 9, Failure modes |
 | Change | The output that returns the remainder of a spent UTXO, less the fee, to the payer. | 5 FP, Coins are outputs, not balances |
+| Cold storage | Holdings whose signing needs at least one share kept offline, reached through an air gap in a ceremony. | 9, Deep dives |
 | Commitment | A value published now that fixes a choice before information that could bias it arrives. | 1 FP, What a signature proves; 2 FP, Commitments |
 | Confidential virtual machine | A whole virtual machine whose memory the hypervisor cannot read (AMD SEV-SNP, Intel TDX). | 3, Trusted execution environments |
 | Confirmation | One block containing or following a transaction; more confirmations make reversal costlier. | 5 FP, Blocks, confirmation and regtest |
@@ -33,6 +35,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Context string | Up to 255 bytes bound into an ML-DSA or SLH-DSA signature to separate uses of one key. | 7, The demo's hybrid authorisation |
 | Coordinator | The process that relays protocol messages and combines results; it holds no share. | 2 FP, Parties, rounds and a coordinator |
 | Corrupted party | A party the attacker controls. | 2 FP, What the attacker is assumed to do |
+| CPFP | Child-pays-for-parent: spending a stuck transaction's output with a fee high enough for both. | 9, Failure modes |
 | Default-deny | Refusing anything the policy does not explicitly allow. | 4, Intuition |
 | Discrete logarithm problem | Recovering $d$ from $Q = dG$; about $2^{128}$ steps on secp256k1 by the best known classical methods. | 1 FP, Easy forwards, infeasible backwards |
 | DKG | Distributed key generation: parties create a shared key that no party ever holds. | 2, Distributed key generation |
@@ -63,6 +66,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Herstatt risk | Paying one currency and not receiving the other, named after a bank closed between the two legs in 1974. | 8 FP, Delivery versus payment |
 | Hiding (commitment) | A commitment reveals nothing about the committed value. | 2 FP, Commitments |
 | Homomorphic encryption | Encryption in which operations on ciphertexts act on the plaintexts inside. | 2 FP, Encryption that can be computed on |
+| Hot wallet | Online signers that sign automatically under policy, within small limits. | 9, Deep dives |
 | HSM | Hardware security module: a device that keeps keys and uses them inside itself, exporting them only wrapped. | 3, Intuition; 3, Hardware security modules |
 | Hybrid signature | Two signatures of different schemes over one payload, both required to verify. | 7, The demo's hybrid authorisation |
 | Hypertree | SLH-DSA's stack of XMSS trees in which each tree signs the root of the tree below. | 7 FP, A Merkle tree of one-time keys |
@@ -78,6 +82,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Key wrapping | Encrypting a key under a key-encryption key with an integrity check (AES key wrap, RFC 3394). | 3 FP, Key wrapping |
 | Lagrange coefficient | The weight on each share when rebuilding $f(0)$; depends only on which shares are present. | 1 FP, Sharing a secret as a line through points |
 | Lamport signature | A one-time signature that reveals one of two hashed secrets per digest bit. | 7 FP, Signatures from a hash alone: Lamport |
+| Liveness | The property that something good eventually happens: every approved settlement completes. | 9, The brief |
 | Locking script | The condition an output sets for spending it (`scriptPubKey`). | 5 FP, Locking and unlocking |
 | Locktime, sequence | Transaction fields carrying time locks and replacement signals. | 5 FP, What the signature covers: the sighash |
 | Low-S | Bitcoin's rule that an ECDSA $s$ is at most $n/2$, removing one form of malleability. | 1, ECDSA |
@@ -115,6 +120,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | PvP | Payment versus payment: one currency moves if and only if the other does. | 8 FP, Delivery versus payment |
 | Qualified custodian | Under the US adviser custody rule, a bank, broker-dealer, futures commission merchant or eligible foreign institution. | 8, Regulation in the US |
 | Range proof | A zero-knowledge proof that a committed value lies in a stated range, such as $[0, 2^{64})$. | 6, Zero-knowledge proofs of liabilities |
+| RBF | Replace-by-fee: rebroadcasting a transaction that spends the same inputs with a higher fee. | 9, Failure modes |
 | Regtest | Bitcoin Core's local test mode: blocks on command, worthless coins. | 5 FP, Blocks, confirmation and regtest |
 | Remote attestation | Hardware's signed statement of which code runs in an enclave, checked by a verifier against expected values. | 3 FP, Remote attestation |
 | Report data | Up to 64 bytes chosen by enclave code and signed into its attestation report, typically a hash of a public key. | 3 FP, Remote attestation |
@@ -122,6 +128,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Root of trust | The key a verifier trusts at the base of a chain of signatures, such as the processor maker's. | 3 FP, Remote attestation |
 | ROS attack | Forging a threshold Schnorr signature by combining commitments across many concurrent sessions. | 2 FP, Many sessions at once |
 | Round | One exchange in which every party sends and then waits for all the others. | 2 FP, Parties, rounds and a coordinator |
+| Safety | The property that nothing bad happens: no signature without authorisation, no loss of funds. | 9, The brief |
 | Salt | Random bytes hashed with a value so that the value cannot be found by guessing. | 6 FP, Salts and what a proof reveals |
 | Satoshi | The integer unit of bitcoin: $10^{-8}$ BTC. | 5 FP, Coins are outputs, not balances |
 | Scalar | A whole number that multiplies a point; keys, nonces and shares are scalars modulo $n$. | 1 FP, The cycle: generator, order and scalar |
@@ -144,6 +151,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | SOC report | An auditor's report on a service organisation's controls: SOC 1 for financial reporting, SOC 2 for the Trust Services Criteria. | 8, Assurance: SOC reports |
 | Stablecoin | A token issued by a non-bank against reserves, redeemable at a fixed value. | 8 FP, Four forms of money on a ledger |
 | Stateful signature | A scheme (XMSS, LMS) whose signer must record which one-time leaves it has used. | 7 FP, A Merkle tree of one-time keys |
+| Sweep | Moving every coin from an old key to a new one; the only way to rotate a custody key. | 9, Deep dives |
 | Tamper evidence, resistance, response | Seals that show opening; an enclosure hard to open; sensors that zeroise keys when opened. | 3 FP, Tamper response and certification levels |
 | Taproot | Bitcoin's output type (BIP 341) locked to one 32-byte key, with optional committed scripts. | 5 FP, Locking and unlocking |
 | TCB | Trusted computing base: everything that must behave correctly for a key to stay secret. | 3 FP, Three questions for any key store |
@@ -160,6 +168,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | UC security | Security that still holds when many sessions run concurrently alongside other protocols. | 2 FP, What the attacker is assumed to do |
 | UTXO | An unspent transaction output: an amount and a spending condition. | 5 FP, Coins are outputs, not balances |
 | Velocity limit | A cap on the total authorised in a rolling time window. | 4, The decision function |
+| Warm wallet | Online signers with a human approval quorum for every transaction; the demo's mode. | 9, Deep dives |
 | Whitelist | The set of destinations the policy allows for an asset. | 4, The decision function |
 | Witness | The data that satisfies a locking script, such as a signature. | 5 FP, Locking and unlocking |
 | WOTS+ | The Winternitz one-time signature of FIPS 205: 35 hash chains, with a checksum, per 16-byte digest. | 7 FP, Winternitz chains and the checksum |

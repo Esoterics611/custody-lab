@@ -109,4 +109,4 @@ teaches it.
 
 | Entry | Status |
 |-------|--------|
-| `capstone/system-design.md` | planned |
+| [`capstone/system-design.md`](capstone/system-design.md) — architecture, failure modes, trade-offs | draft |

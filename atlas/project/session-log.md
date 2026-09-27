@@ -2,6 +2,58 @@
 
 Newest first.
 
+## 2026-09-27: Module 9, capstone
+
+**Changed.**
+- Wrote `manual/chapters/09-capstone.qmd` as a design review in question-and-answer form:
+  - the brief, the assumptions, and the safety and liveness requirements;
+  - a production architecture figure, drawn with matplotlib because Mermaid in PDF is still
+    blocked;
+  - the eight-step settlement walk, and a table of what each component holds and what its
+    compromise gives an attacker;
+  - deep dives: threshold signing vs multisig, FROST vs threshold ECDSA, the signer's checks,
+    two quorums, hot, warm and cold, the key lifecycle, what clients get, quantum risk;
+  - fourteen failure modes with class, detection and response, and seven trade-offs with their
+    cost;
+  - a numbers cell computed from the libraries, and a walkthrough on the real signing cluster.
+- `atlas/capstone/system-design.md`, linked from the index; 9 glossary terms (171 in total).
+- Updated chapter 0's reading order, `CLAUDE.md` module status and the build plan. Every module
+  in the build plan is now done.
+
+**Verified.**
+- Chapter 9 renders to 13 pages; page endings read with `pypdf`, none on a heading. The figure was
+  rendered to PNG and inspected before it went into the chapter.
+- The numbers cell printed: 155 vB and 310 sats for a one-input settlement (the fee chapter 6's
+  demo paid), 58 vB per further key-path input, a 1,984-byte authority key, a 7,047-byte
+  serialised token, and 20 siblings for a million clients.
+- The walkthrough ran the real cluster: signers {1, 3} and {2, 3} each produced a valid 64-byte
+  signature under one group key; the first token replayed to {1, 2} was refused by signer 1.
+- Every glossary pointer names a heading in its chapter. Chapter 0 re-renders.
+
+**Found (observed in `mpc/cluster.py`).** Each signer keeps its used-authorisation set in process
+memory. A restart empties it, and in a cluster with $n \ge 2t$ two disjoint signer sets can each
+honour one token. Both are bounded by the token's expiry and by its naming one exact message; the
+chapter lists them as failure modes, and Exercise 3 works the second. The code is unchanged.
+
+**Open.**
+- ML-KEM decapsulation vectors remain unchecked. Checking them needs a second implementation that
+  loads expanded decapsulation keys, such as RustCrypto `ml-kem` bound through `custody-pq`.
+- Mermaid in PDF still needs `unzip` on this host.
+- The dashboard has not been viewed in a browser.
+
+### Deliverables
+
+- Chapter 9 presents the whole custody system as a design review: the brief, the architecture,
+  the reasoning behind each major choice, and what each choice costs.
+- A diagram shows where every key lives in a production deployment, with shares at three
+  independent sites and one of them offline.
+- A table of fourteen failure modes gives, for each, whether money or only availability is at
+  risk, how it is detected, and the response.
+- The chapter's figures (transaction sizes, fees, token and proof sizes) are computed from the
+  project's own code when the manual is built, not quoted.
+- Running the real signing processes, the chapter shows that any two of the three signers can
+  sign for the same key, and that a reused approval token is refused.
+
 ## 2026-09-27: Module 8, industry and regulation
 
 **Changed.**

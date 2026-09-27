@@ -141,7 +141,7 @@ this host lacks (`sudo apt install -y unzip`).
 | 6 | Proof of reserves | done: `merkle_sum`, `snapshot`; `demo/pipeline` runs all nine steps; tests pass | draft; renders (13 pages; runs the whole demo) | 4 entries, draft |
 | 7 | Post-quantum | done: `wots` (teaching); `rust/custody-pq` (SLH-DSA); hybrid authorisation tokens; tests pass | draft; renders (18 pages) | 6 entries, draft |
 | 8 | Industry and regulation (chapter only) | n/a; DvP model cell; the demo's unsettled USD leg and commingled fee buffer measured | draft with first-principles section; renders (13 pages); facts dated 2026-09-27 | 6 entries, draft |
-| 9 | Capstone (chapter only) | n/a | not started | planned |
+| 9 | Capstone (chapter only) | n/a; runs the signing cluster (any 2 of 3, replay refused) and computes the design's numbers | draft; renders (13 pages) | 1 entry, draft |
 
 Plan, dependencies and estimates: `atlas/project/build-plan.md`.
 

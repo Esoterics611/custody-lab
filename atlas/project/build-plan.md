@@ -52,7 +52,7 @@ flowchart LR
 | M7 Post-quantum | ML-DSA and ML-KEM via `cryptography`. Lamport and WOTS+ from scratch as the hash-based teaching version; SLH-DSA library choice still open. Why lattice and hash-based schemes resist threshold signing; migration design (threshold PQ plus HSM fallback). Chapter 7 | M1, M2 | 2 |
 | M3 Key storage | **Done 2026-09-27.** HSM vs MPC vs TEE (SGX, confidential VMs, Nitro) comparison chapter; no module, model cells only. Key wrapping checked against RFC 3394; attestation, sealing, side-channel and key-release models; production placement of each demo part | none | 1 (took under 1) |
 | M8 Industry and regulation | **Done 2026-09-27.** Four forms of on-chain money, DvP and finality (model cell); tokenised funds and collateral, Canton, Kinexys, Agorá, mBridge, MiCA Article 75, US qualified-custodian rules, SOC reports, and the Israeli landscape (public sector, companies, researchers). Facts web-checked and marked **verify current**. Chapter 8 | none | 2 (took under 1) |
-| M9 Capstone | System design walkthrough in interview form, with the architecture diagram, trade-offs and failure modes | all | 1 |
+| M9 Capstone | **Done 2026-09-27.** System design walkthrough as questions and answers: brief and assumptions, production architecture figure (matplotlib), component compromise table, deep dives, fourteen failure modes (safety vs liveness), trade-offs, numbers computed from the libraries, and the signing cluster run live | all | 1 (took under 1) |
 
 Total: about 24.5 days (Phase A 4, Phase B 12.5, Phase C 8). Re-estimated after M0: no change to
 the remaining modules, about 23.5 days. M0 settled the M2 build risk (the FROST crate compiles and
