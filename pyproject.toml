@@ -17,6 +17,9 @@ dependencies = [
     "uvicorn>=0.53.0",
 ]
 
+[project.scripts]
+custody-lab = "custody_lab.demo.cli:app"
+
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",

@@ -72,15 +72,15 @@ toy exchange ──FIX──▶ trading ──fills──▶ settlement batch (n
 
 | Path | Contents |
 |------|----------|
-| `src/custody_lab/` | Python package, one subpackage per demo module (`foundations`, `mpc`, `policy`, `trading`, `settlement`, `reserves`, `pq`); `demo/pipeline.py` runs all of them end to end |
+| `src/custody_lab/` | Python package, one subpackage per demo module (`foundations`, `mpc`, `policy`, `trading`, `settlement`, `reserves`, `pq`); `demo/pipeline.py` runs all of them end to end; `demo/cli.py` is the `custody-lab` command (`run`, `serve`); `demo/server.py` streams each run's events to the dashboard |
 | `tests/` | pytest + Hypothesis |
 | `atlas/` | knowledge base; `atlas/index.md` is the index; `atlas/glossary.md` defines every term the manual uses; `atlas/project/` holds the plan, feasibility notes and session log |
 | `manual/` | chapter sources; `manual/_quarto.yml` holds the shared PDF settings; `manual/chapter-template.qmd` is the template; chapters go in `manual/chapters/NN-slug.qmd`; `00-orientation.qmd` is the plain-language entry point. Code lines wrap; printed output does not, so keep it under 80 characters |
 | `rust/custody-frost/` | PyO3 extension over ZF `frost-secp256k1-tr`; a uv workspace member built by maturin on `uv sync` |
 | `rust/custody-pq/` | PyO3 extension over RustCrypto `slh-dsa` (FIPS 205); a uv workspace member, like `custody-frost` |
-| `web/` | Dashboard: Vite + React + TypeScript (scaffold) |
+| `web/` | Dashboard: Vite + React + TypeScript. One page: starts a run, shows each step as its events arrive, and which process holds which share. `custody-lab serve` serves the build in `web/dist` |
 | `scripts/` | `regtest.sh` (start / stop / cli) and `bitcoin-regtest.conf` |
-| `var/` | local runtime data, gitignored (`var/regtest`) |
+| `var/` | local runtime data, gitignored (`var/regtest`; demo runs in `var/demo/<run>/`) |
 
 ## Toolchain
 
@@ -93,7 +93,7 @@ toy exchange ──FIX──▶ trading ──fills──▶ settlement batch (n
 | Post-quantum | ML-DSA, ML-KEM from `cryptography` (OpenSSL 4.0.2); SLH-DSA from RustCrypto `slh-dsa` 0.1.0 via PyO3 (`signature` pinned to 2.3.0-pre.4); WOTS+/XMSS from scratch; oracle: NIST ACVP vectors |
 | FIX | FIX 5.0 SP2 on FIXT.1.1 (`8=FIXT.1.1`, Logon `1137=9`), `simplefix` over asyncio TCP; message shape follows `~/code/fix-client/ROE.md` (no AvgPx) |
 | Chain | Bitcoin Core 31.1 in `~/.local/opt/bitcoin-31.1`, symlinked into `~/.local/bin`; regtest, Taproot key-path spends |
-| CLI / dashboard | Typer; FastAPI event stream; Vite 8 + React 19 + TypeScript 6, Node 24 |
+| CLI / dashboard | Typer; FastAPI streaming each run's events as NDJSON; Vite 8 + React 19 + TypeScript 6, Node 24 |
 
 **Why Quarto for the manual.**
 - Chapters are Markdown (`.qmd`).
@@ -118,7 +118,10 @@ uv run quarto render manual/chapters/NN-slug.qmd --to pdf
 scripts/regtest.sh start                 # regtest node; data in var/regtest
 scripts/regtest.sh cli getblockchaininfo
 scripts/regtest.sh stop
-npm --prefix web run dev                 # dashboard dev server; `run build` to type-check and bundle
+uv run custody-lab run                   # the demo once, printed step by step; artefacts in var/demo/<run>/
+npm --prefix web run build               # type-check and bundle the dashboard into web/dist
+uv run custody-lab serve                 # API and built dashboard at http://127.0.0.1:8000
+npm --prefix web run dev                 # dashboard dev server; proxies /api to custody-lab serve
 ```
 
 Mermaid blocks in PDF output need Chrome: `quarto install chrome-headless-shell` needs `unzip`, which
@@ -134,6 +137,7 @@ this host lacks (`sudo apt install -y unzip`).
 | 3 | Key storage (chapter only) | n/a | not started | planned |
 | 4 | Policy and authorisation | done: `model`, `audit`, `authorisation`, `engine`; signers enforce authorisations; tests pass | draft; renders (12 pages) | 5 entries, draft |
 | 5 | Trading to settlement | done: FIX 5.0 SP2 `trading/fix`; `settlement/` netting, BIP341/BIP86 transactions, regtest node; FROST-signed spends confirm on regtest; tests pass | draft with first-principles section; renders (15 pages; settles a real regtest transaction) | 4 entries, draft |
+| – | Demo front ends | done: `custody-lab run` and `serve`, events streamed per run, React dashboard; tests pass | n/a | n/a |
 | 6 | Proof of reserves | done: `merkle_sum`, `snapshot`; `demo/pipeline` runs all nine steps; tests pass | draft; renders (13 pages; runs the whole demo) | 4 entries, draft |
 | 7 | Post-quantum | done: `wots` (teaching); `rust/custody-pq` (SLH-DSA); hybrid authorisation tokens; tests pass | draft; renders (18 pages) | 6 entries, draft |
 | 8 | Industry and regulation (chapter only) | n/a | not started | planned |
@@ -147,6 +151,7 @@ Newest first. **Proposed** entries await review; they become **Accepted** or are
 
 | Date | Decision | Status |
 |------|----------|--------|
+| 2026-09-27 | The server streams a run's events as NDJSON in the `POST /api/runs` response, not server-sent events: `EventSource` sends only GET and reconnects on its own, so a reconnect would start another run | Accepted (owner) |
 | 2026-09-25 | SLH-DSA comes from RustCrypto `slh-dsa` via PyO3 in `rust/custody-pq`, not PyPI `slhdsa` | Accepted (owner) |
 | 2026-09-25 | Lamport is a chapter illustration, not a module: no published vectors exist | Accepted (owner) |
 | 2026-09-25 | Policy authorisation tokens are hybrid: Ed25519 and ML-DSA-65, both required by every signer | Accepted (owner) |

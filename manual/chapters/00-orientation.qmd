@@ -58,11 +58,23 @@ chapter 6 runs all nine:
 uv run quarto render manual/chapters/05-settlement.qmd --to pdf
 ```
 
+The demo also runs on its own. `custody-lab run` prints each step as it happens.
+`custody-lab serve` serves a dashboard that shows the same steps and which process holds which
+key share. Each run leaves its event log, policy audit log and reserves snapshot in
+`var/demo/<run>/`.
+
+```bash
+uv run custody-lab run            # print each step
+npm --prefix web run build        # once, to build the dashboard
+uv run custody-lab serve          # dashboard at http://127.0.0.1:8000
+```
+
 ### Where the code is
 
 | Step | Module |
 |------------|------------------------------|
 | All steps, in order | `custody_lab.demo.pipeline` |
+| Command line, dashboard | `custody_lab.demo.cli`, `custody_lab.demo.server`, `web/` |
 | Key generation, signing | `custody_lab.mpc.cluster` over `rust/custody-frost` |
 | Trading | `custody_lab.trading.fix` |
 | Netting | `custody_lab.settlement.netting` |

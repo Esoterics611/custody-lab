@@ -2,6 +2,76 @@
 
 Newest first.
 
+## 2026-09-27: Demo front ends
+
+**Changed.**
+- `demo/cli.py` is the `custody-lab` command (`[project.scripts]`):
+  - `run` runs the demo once and prints each step, its details (cut to the terminal width) and
+    the summary;
+  - `serve` starts uvicorn on the server app.
+- `demo/server.py`:
+  - `POST /api/runs` runs `pipeline.run` on a worker thread in a fresh `var/demo/<run>/` and
+    streams its events in the response as NDJSON;
+  - `GET /api/steps` lists the steps;
+  - `web/dist` is served at `/` when it has been built;
+  - there is no limit on concurrent runs.
+- `demo/pipeline.py`:
+  - `new_workdir` names each run directory by its UTC start time;
+  - a step that raises is reported as a `failed` event, which also lands in `events.jsonl`,
+    before the exception propagates.
+- `web/`: the Vite starter is replaced by the dashboard:
+  - a Run button and nine step rows with status and details;
+  - fills and signers as tables, and the FIX transcript collapsed;
+  - a key-shares panel mapping each share to its process ID and marking the two signers;
+  - light and dark themes, and a dev proxy from `/api` to port 8000.
+
+  The starter assets are removed and `web/README.md` is rewritten.
+- Tests:
+  - `tests/demo/test_front_ends.py` (5 tests) drives the CLI and the server against stand-ins
+    for `pipeline.run`. They share one file because mypy rejects a second `conftest.py` in a test
+    tree without `__init__.py`;
+  - `test_pipeline.py` adds a regtest test in which the FIX step raises.
+- Updated `CLAUDE.md` (layout, commands, module status, one Accepted decision), the build plan's
+  demo slice row, and chapter 0 (how to run the demo, where the code is).
+
+**Verified.**
+- `pytest`: 202 passed, up from 196. `ruff` and `mypy` are clean (60 files).
+- `npm --prefix web run build` (tsc and vite) and `oxlint` pass.
+- One real run through `custody-lab serve`:
+  - `POST /api/runs` streamed running and done for all nine steps;
+  - shares 1 to 3 were held by three processes, and signers 1 and 3 signed;
+  - the settlement had one confirmation, and the reserve ratio was 1.00241;
+  - the run directory holds `events.jsonl`, `audit.jsonl` and `reserves/`;
+  - `/` served the built dashboard.
+- Two real runs posted at the same time both completed all nine steps, each with its own signer
+  processes, settlement transaction and run directory.
+- Chapter 0 renders to 7 pages. Page endings were read with a throwaway `pypdf` (this host has no
+  rasteriser); none ends on a heading.
+
+**Decided (owner).** Runs stream as NDJSON in the `POST /api/runs` response, not as server-sent
+events.
+
+**Open.**
+- The dashboard has not been viewed in a browser: this host has no headless browser. Only the
+  type check, the bundle and the served HTML were checked.
+- Starlette 1.7.0 warns that its test client's use of `httpx` is deprecated in favour of `httpx2`
+  (**observed** in the pytest warnings). Not acted on.
+- Chapters 3, 8 and 9. ML-KEM decapsulation vectors. Mermaid in PDF still needs `unzip`.
+
+### Deliverables
+
+- The demo runs from one command, `custody-lab run`, which prints each step of the custody flow as
+  it happens.
+- A browser dashboard starts a run and shows all nine steps live, from the FIX trading session to
+  the proof-of-reserves snapshot. It shows which operating-system process holds each key share
+  and which two signed.
+- `custody-lab serve` serves the dashboard and its API from one process. Each run gets its own
+  private Bitcoin chain and signer processes; two runs at once both settled.
+- A step that fails is reported by name on the dashboard, in the command-line output and in the
+  run's event log.
+- 202 tests pass. A manual run through the server settled a transaction on the private chain with
+  one confirmation.
+
 ## 2026-09-25: Module 7, post-quantum
 
 **Changed.**

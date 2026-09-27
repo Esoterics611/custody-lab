@@ -42,7 +42,7 @@ flowchart LR
 | M2 MPC custody | **Done 2026-09-24.** Python: 2-party ECDSA (Lindell 2017, from-scratch Paillier), FROST (RFC 9591 vectors), Pedersen DKG, refresh; backup as prose. Rust: PyO3 binding over `frost-secp256k1-tr` (DKG, commit, sign, aggregate), 2-of-3 signer processes. CGGMP as a chapter section with a `cggmp21` listing. Chapter 2 | M1 | 5 (took under 1) |
 | M4 Policy | **Done 2026-09-24.** Default-deny engine: quorum approvals signed by approvers (Ed25519), destination whitelist, velocity limits in `Decimal` over an injected clock, hash-chained audit log. The engine issues a signed authorisation that signers verify against the FROST signing package's message. Chapter 4 | M1 | 2 (took under 1) |
 | M5 Trading to settlement | **Done 2026-09-24.** FIX 5.0 SP2 over FIXT.1.1 with `simplefix` over asyncio TCP: Logon, NewOrderSingle, ExecutionReport. A toy exchange fills orders; fills net into a settlement batch; each instruction goes to policy, then signing, then regtest broadcast. Transactions and sighash are written from BIP 341 and pass its vectors. ClearLoop-style off-exchange settlement in the chapter. Chapter 5 | M4 | 2.5 (took under 1) |
-| Demo slice | Typer CLI running the whole story; FastAPI event stream; TypeScript dashboard showing each step and which process holds which share | M2, M5 | 3 |
+| Demo slice | **Done 2026-09-27.** `demo/pipeline` runs the whole story (built with M5 and M6). `custody-lab run` prints it; `custody-lab serve` streams each run's events as NDJSON to a React dashboard showing each step and which process holds which share | M2, M5 | 3 (took under 1) |
 
 ## Phase C: deepen and complete
 
