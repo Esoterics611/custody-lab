@@ -1,9 +1,11 @@
 """The end-to-end demo: a FIX fill becomes a policy-approved, FROST-signed, mined settlement.
 
 A proof-of-reserves snapshot follows. ``run`` drives every module in order and reports each step
-as an ``Event`` to a callback: the CLI prints events, and the dashboard receives them over
-server-sent events. Each run gets a private regtest chain and signer processes. The artefacts are
-written under ``var/demo/<run>/``: the reserves snapshot, the policy audit log and the event log.
+as an ``Event`` to a callback: the CLI prints events, and the server streams them to the
+dashboard. A step that raises is reported as a ``failed`` event before the exception propagates.
+Each run gets a private regtest chain and signer processes, so runs can proceed side by side. The
+artefacts are written under ``var/demo/<run>/``: the reserves snapshot, the policy audit log and
+the event log.
 
 Cast:
 - **Clients** hold BTC with the custodian: the ledger below.
@@ -17,6 +19,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import tempfile
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -66,12 +69,13 @@ ORDERS = [
     Order("C4", "BTC-USD", "sell", Decimal("0.25"), Decimal("64020")),
 ]
 SIGNERS = [1, 3]
+RUNS = Path("var/demo")
 
 
 @dataclass(frozen=True)
 class Event:
     step: str
-    status: str  # "running" | "done"
+    status: str  # "running" | "done" | "failed"
     title: str
     detail: dict[str, Any] = field(default_factory=dict)
 
@@ -86,11 +90,21 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def new_workdir(root: Path = RUNS) -> Path:
+    """Create a fresh run directory under ``root``, named by its UTC start time."""
+    root.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return Path(tempfile.mkdtemp(prefix=f"{stamp}-", dir=root))
+
+
 def run(emit: Emit, workdir: Path) -> dict[str, Any]:
     """Run the demo end to end in ``workdir``; return the final summary."""
     events: list[Event] = []
+    current = next(iter(STEPS))
 
     def report(step: str, status: str, **detail: Any) -> None:
+        nonlocal current
+        current = step
         event = Event(step, status, STEPS[step], detail)
         events.append(event)
         emit(event)
@@ -253,6 +267,9 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 snapshot=str(path),
             )
             del custodian_key  # reserved for signing published snapshots in a later module
+    except Exception as exc:
+        report(current, "failed", error=f"{type(exc).__name__}: {exc}")
+        raise
     finally:
         node.stop()
         shutil.rmtree(workdir / "node", ignore_errors=True)
