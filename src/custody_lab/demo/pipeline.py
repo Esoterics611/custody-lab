@@ -13,6 +13,9 @@ Cast:
 - **ops-desk** raises the settlement instruction.
 - **bob** and **carol** approve it.
 - Signers 1 and 3 of 3 sign it.
+
+The network fee is charged to the client whose settlement it is, so the custody address holds
+client coins only and assets equal liabilities after every batch (MiCA Article 75(7), chapter 8).
 """
 
 from __future__ import annotations
@@ -60,7 +63,6 @@ LEDGER = {  # client BTC balances held by the custodian before the cycle
     "gamma-treasury": Decimal("1.00"),
     "delta-trading": Decimal("0.50"),
 }
-HOUSE_BUFFER = Decimal("0.01")  # the custodian's own BTC; pays network fees
 TRADER = "alpha-capital"
 ORDERS = [
     Order("C1", "BTC-USD", "sell", Decimal("0.40"), Decimal("64000")),
@@ -153,7 +155,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
             )
 
             report("fund", "running")
-            funding = sum(LEDGER.values(), HOUSE_BUFFER)
+            funding = sum(LEDGER.values(), Decimal(0))
             fund_txid = exchange.call("sendtoaddress", address, str(funding))
             rpc.call("generatetoaddress", 1, mine_to)
             report("fund", "done", txid=fund_txid, amount=funding, ledger=LEDGER)
@@ -232,7 +234,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
 
             report("reserves", "running")
             ledger = dict(LEDGER)
-            ledger[TRADER] -= ins.amount
+            ledger[TRADER] -= ins.amount + bitcoin.to_btc(stx.fee)
             tree = MerkleSumTree(ledger)
             proofs_ok = all(verify_inclusion(tree.proof(c), tree.root) for c in ledger)
             assets = bitcoin.to_btc(sum(u.amount for u in chain.custody_utxos(rpc, output_key)))

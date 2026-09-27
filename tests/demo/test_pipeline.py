@@ -18,9 +18,10 @@ def test_demo_runs_every_step_and_publishes_a_verifiable_snapshot(tmp_path: Path
     summary = pipeline.run(events.append, tmp_path)
 
     assert [e.step for e in events if e.status == "done"] == list(pipeline.STEPS)
-    assert summary["reserve_ratio"] > 1
+    assert summary["reserve_ratio"] == 1  # the client paid the fee; no house coins at custody
 
     document = json.loads(Path(summary["snapshot"]).read_text())
+    assert document["assets"] == document["liabilities"]
     attestation = document["attestation"]
     assert schnorr.verify(
         bytes.fromhex(attestation["message"]),

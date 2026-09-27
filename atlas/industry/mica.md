@@ -15,11 +15,12 @@ crypto-asset service providers (CASPs) and rules for stablecoin issuers. Stablec
 
 DORA (Regulation (EU) 2022/2554), applying from 17 January 2025, adds ICT risk management.
 
-**In the demo.** Chapter 8's worked example maps each paragraph to the demo. The demo breaches
-¶7: the custodian's 0.01 BTC fee buffer shares the custody address with client coins.
+**In the demo.** Chapter 8's worked example maps each paragraph to the demo. For ¶7 the demo
+charges each settlement's network fee to the client being settled, so the custody address holds
+client coins only and assets equal liabilities after every batch.
 
-**In the manual.** Chapter 8, "Regulation in the EU: MiCA", "Worked example", "Commingling at the
-custody address".
+**In the manual.** Chapter 8, "Regulation in the EU: MiCA", "Worked example", "Fees without house
+coins".
 
 **Sources.** Regulation (EU) 2023/1114, Articles 70, 75, 143 (Article 75 text **observed**);
 **verify current** for enforcement after the transition.

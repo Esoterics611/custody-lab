@@ -56,13 +56,13 @@ BLUE, ORANGE, INK, INK_2 = "#2a78d6", "#eb6834", "#0b0b0b", "#52514e"
 plt.rcParams.update({"font.size": 8})
 fig, ax = plt.subplots(figsize=(6.5, 2.5))
 nodes = {
-    "a": (0.0, 0, "alpha-capital\n1.15", "sibling"),
+    "a": (0.0, 0, "alpha-capital\n1.1499969", "sibling"),
     "b": (1.0, 0, "beta-fund\n1.50", "client"),
     "d": (2.0, 0, "delta-trading\n0.50", "other"),
     "g": (3.0, 0, "gamma-treasury\n1.00", "other"),
-    "ab": (0.5, 1, "2.65", "path"),
+    "ab": (0.5, 1, "2.6499969", "path"),
     "dg": (2.5, 1, "1.50", "sibling"),
-    "root": (1.5, 2, "root\n4.15", "path"),
+    "root": (1.5, 2, "root\n4.1499969", "path"),
 }
 for u, v in [("a", "ab"), ("b", "ab"), ("d", "dg"), ("g", "dg"), ("ab", "root"), ("dg", "root")]:
     ax.plot([nodes[u][0], nodes[v][0]], [nodes[u][1], nodes[v][1]], color=INK_2, lw=0.8, zorder=1)
@@ -138,7 +138,7 @@ could test guesses of a client's balance against the leaf hash, as with the unsa
 chapter 2. The salts are new in every snapshot and each client receives only its own.
 
 An inclusion proof reveals its siblings' sums. In the figure, beta-fund learns alpha-capital's
-exact balance (1.15 BTC) and the combined balance of the other two clients (1.50 BTC). That is a
+exact balance (1.1499969 BTC) and the combined balance of the other two clients (1.50 BTC). That is a
 real leak. The zero-knowledge schemes in the formal treatment close it. The tree is padded to a
 power of two with zero-balance leaves under random hashes.
 
@@ -230,23 +230,24 @@ $[0, 2^{64})$ without revealing it, which replaces the check for negative sums.
 ## Worked example
 
 The demo's ledger after the settlement in chapter 5: alpha-capital's 2.00 BTC less the 0.85 BTC it
-delivered, and three unchanged balances. Leaves are sorted by id.
+delivered and the 310-sat network fee it was charged, and three unchanged balances. Leaves are
+sorted by id.
 
 | Node | Children | Sum (BTC) |
 |------|----------|-----------|
-| alpha-capital | | 1.15 |
+| alpha-capital | | 1.1499969 |
 | beta-fund | | 1.50 |
 | delta-trading | | 0.50 |
 | gamma-treasury | | 1.00 |
-| left | alpha-capital, beta-fund | 2.65 |
+| left | alpha-capital, beta-fund | 2.6499969 |
 | right | delta-trading, gamma-treasury | 1.50 |
-| root | left, right | 4.15 |
+| root | left, right | 4.1499969 |
 
-beta-fund's proof is alpha-capital's leaf on the left (1.15), then the right node (1.50). Its
-check is $1.15 + 1.50 = 2.65$, then $2.65 + 1.50 = 4.15$, equal to the published total, together
-with the hash at each step. The custody output key held 4.1599969 BTC after the settlement, so the
-reserve ratio is $4.1599969 / 4.15 = 1.00241$. The excess is the custodian's own 0.01 BTC fee
-buffer less the 310-sat fee.
+beta-fund's proof is alpha-capital's leaf on the left (1.1499969), then the right node (1.50).
+Its check is $1.1499969 + 1.50 = 2.6499969$, then $2.6499969 + 1.50 = 4.1499969$, equal to the
+published total, together with the hash at each step. The custody output key held 4.1499969 BTC
+after the settlement, so the reserve ratio is exactly 1. The custody address holds client coins
+and nothing else, because the fee was charged to the client (chapter 8).
 
 ```{python}
 #| label: check-worked-example
@@ -255,7 +256,7 @@ from decimal import Decimal
 from custody_lab.reserves.merkle_sum import MerkleSumTree, verify
 
 ledger = {
-    "alpha-capital": Decimal("2.00") - Decimal("0.85"),
+    "alpha-capital": Decimal("2.00") - Decimal("0.85") - Decimal("0.0000031"),  # 310-sat fee
     "beta-fund": Decimal("1.50"),
     "gamma-treasury": Decimal("1.00"),
     "delta-trading": Decimal("0.50"),
@@ -263,9 +264,9 @@ ledger = {
 tree = MerkleSumTree(ledger)
 proof = tree.proof("beta-fund")
 siblings = [(s.sibling.total, s.sibling_is_left) for s in proof.path]
-assert siblings == [(Decimal("1.15"), True), (Decimal("1.50"), False)]
-assert tree.root.total == Decimal("4.15") and verify(proof, tree.root)
-assert (Decimal("4.1599969") / tree.root.total).quantize(Decimal("0.00001")) == Decimal("1.00241")
+assert siblings == [(Decimal("1.1499969"), True), (Decimal("1.50"), False)]
+assert tree.root.total == Decimal("4.1499969") and verify(proof, tree.root)
+assert Decimal("4.1499969") / tree.root.total == 1  # assets read from regtest
 print("root total", tree.root.total, "BTC; beta-fund's proof has", len(proof.path), "siblings")
 ```
 
@@ -406,13 +407,13 @@ print(f"reserve ratio {ratio}; proof of control verified from the file")
 assert (2**19 < 1_000_000 <= 2**20) and len(large.proof("client-0").path) == 10
 ```
 
-2. gamma-treasury on the right (1.00), then the left node on the left (2.65). The check is
-   $0.50 + 1.00 = 1.50$, then $2.65 + 1.50 = 4.15$, which equals the published total.
+2. gamma-treasury on the right (1.00), then the left node on the left (2.6499969). The check is
+   $0.50 + 1.00 = 1.50$, then $2.6499969 + 1.50 = 4.1499969$, which equals the published total.
 
 ```{python}
 #| label: solution-2
 path = [(s.sibling.total, s.sibling_is_left) for s in tree.proof("delta-trading").path]
-assert path == [(Decimal("1.00"), False), (Decimal("2.65"), True)]
+assert path == [(Decimal("1.00"), False), (Decimal("2.6499969"), True)]
 ```
 
 3. The custodian can publish 5 BTC, the larger balance. It shows alice a sibling sum of
