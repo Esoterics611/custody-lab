@@ -140,8 +140,8 @@ this host lacks (`sudo apt install -y unzip`).
 | – | Demo front ends | done: `custody-lab run` and `serve`, events streamed per run, React dashboard; tests pass | n/a | n/a |
 | 6 | Proof of reserves | done: `merkle_sum`, `snapshot`; `demo/pipeline` runs all nine steps; tests pass | draft; renders (13 pages; runs the whole demo) | 4 entries, draft |
 | 7 | Post-quantum | done: `wots` (teaching); `rust/custody-pq` (SLH-DSA); hybrid authorisation tokens; tests pass | draft; renders (18 pages) | 6 entries, draft |
-| 8 | Industry and regulation (chapter only) | n/a; DvP model cell; the demo's unsettled USD leg and commingled fee buffer measured | draft with first-principles section; renders (13 pages); facts dated 2026-09-27 | 6 entries, draft |
-| 9 | Capstone (chapter only) | n/a; runs the signing cluster (any 2 of 3, replay refused) and computes the design's numbers | draft; renders (13 pages) | 1 entry, draft |
+| 8 | Industry and regulation (chapter only) | n/a; DvP model cell; the demo's unsettled USD leg measured; fees charged to the client so the custody address holds client coins only | draft with first-principles section; renders (14 pages); facts dated 2026-09-27 | 6 entries, draft |
+| 9 | Capstone (chapter only) | n/a; runs the signing cluster (any 2 of 3, replay refused) and computes the design's numbers | draft; renders (14 pages) | 1 entry, draft |
 
 Plan, dependencies and estimates: `atlas/project/build-plan.md`.
 
@@ -151,6 +151,7 @@ Newest first. **Proposed** entries await review; they become **Accepted** or are
 
 | Date | Decision | Status |
 |------|----------|--------|
+| 2026-09-27 | The demo charges each settlement's network fee to the client being settled, so the custody address holds client coins only (MiCA Article 75(7)); a house address spent as a second input is the alternative, left as chapter 8's Exercise 4 | Proposed |
 | 2026-09-27 | The server streams a run's events as NDJSON in the `POST /api/runs` response, not server-sent events: `EventSource` sends only GET and reconnects on its own, so a reconnect would start another run | Accepted (owner) |
 | 2026-09-25 | SLH-DSA comes from RustCrypto `slh-dsa` via PyO3 in `rust/custody-pq`, not PyPI `slhdsa` | Accepted (owner) |
 | 2026-09-25 | Lamport is a chapter illustration, not a module: no published vectors exist | Accepted (owner) |

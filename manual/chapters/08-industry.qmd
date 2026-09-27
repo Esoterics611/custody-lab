@@ -289,10 +289,10 @@ The demo against MiCA Article 75, paragraph by paragraph:
 | 3 | Default-deny policy, two quorums, threshold signing (chapters 2, 4) | No written custody policy; keys in plain processes (chapter 3) |
 | 5 | An inclusion proof per client (chapter 6) | Shows inclusion in a total, not a statement of movements |
 | 6 | The settlement path (chapter 5) | No client withdrawal flow |
-| 7 | One custody address for every client | The custodian's own 0.01 BTC fee buffer sits at the same address as client coins |
+| 7 | One custody address holding client coins only; the network fee is charged to the client being settled | Clients share one omnibus address, so segregation between clients lives in the ledger, not on chain |
 | 8 | Hash-chained audit log (chapter 4) | The log is the evidence for attributing an incident; it is not anchored outside the custodian |
 
-The ¶7 gap is real in the code, and the next section measures it.
+The code walkthrough shows how the demo keeps its own money out of the client address.
 
 ## Code walkthrough
 
@@ -322,23 +322,30 @@ DvP would join the legs. Bitcoin has no dollar token, so the options are:
 - an off-exchange settlement agent that releases both legs at the end of the cycle (the
   ClearLoop-style model in chapter 5's atlas entry).
 
-### Commingling at the custody address
+### Fees without house coins
 
-The pipeline funds one custody address with the clients' coins and the custodian's own fee buffer
-together.
+A custodian that pays network fees from its own coins has to keep those coins somewhere. Keeping
+them at the client address is commingling, which ¶7 forbids. The demo instead charges each
+settlement's fee to the client being settled. The custody address then holds exactly the clients'
+coins, and assets equal liabilities after every batch.
 
 ```{python}
-#| label: walkthrough-commingling
-clients = sum(pipeline.LEDGER.values(), Decimal(0))
-funding = clients + pipeline.HOUSE_BUFFER
-assert funding == Decimal("5.01")
-print(f"one address receives {funding} BTC: {clients} client, "
-      f"{pipeline.HOUSE_BUFFER} house")
+#| label: walkthrough-fees
+from custody_lab.settlement import bitcoin, transfer
+
+fee = bitcoin.to_btc(transfer.estimated_vsize(1, 2) * 2)  # 310 sats, as in chapter 5
+funding = sum(pipeline.LEDGER.values(), Decimal(0))
+balances = dict(pipeline.LEDGER)
+balances[pipeline.TRADER] -= -position.base + fee
+assets = funding + position.base - fee
+assert funding == Decimal("5.00") and assets == sum(balances.values())
+print(f"custody address funded with {funding} BTC, all of it client coins")
+print(f"after settlement: assets {assets} BTC = liabilities {sum(balances.values())} BTC")
 ```
 
-Chapter 6's reserve ratio of 1.00241 is this buffer, less the network fee. Under Article 75(7) the
-house coins would sit at a separate address, and the fee would be paid from that address as a
-second input. The client address would then hold exactly the liabilities.
+Chapter 6's full run reports the same figures from regtest, with a reserve ratio of 1.00000. A
+custodian that absorbs the fee itself needs a separate house address, spent as a second input of
+each settlement (Exercise 4).
 
 ## How this shows up in production
 
@@ -363,8 +370,9 @@ second input. The client address would then hold exactly the liabilities.
    `settle_dvp` return, and which leg fails?
 3. **Explain.** Why does a tokenised fund usually refuse transfers to addresses outside an
    allowlist, and which chapter 4 control does that mirror?
-4. **Apply.** Change the demo so that the house buffer meets Article 75(7). Describe the
-   settlement transaction and the resulting reserve ratio.
+4. **Apply.** Change the demo so that the custodian pays the network fee from its own coins and
+   still meets Article 75(7). Describe the settlement transaction and the resulting reserve
+   ratio.
 5. **Design.** A bank asks the custodian to accept tokenised money market fund shares, held on
    Ethereum, as collateral for a loan. What must the custodian support that the demo does not?
 6. **Classify.** For a SOC 2 Type I report, a SOC 2 Type II report, a proof-of-reserves snapshot
@@ -391,12 +399,13 @@ assert ledger["ILS"]["fund"] == 9_600
    holder. The allowlist enforces this in the token itself. It mirrors the destination whitelist:
    the policy engine refuses to send to unknown addresses, and the fund token refuses to arrive at
    them.
-4. The custody address receives exactly the clients' 5.00 BTC, and a separate house address
-   receives the 0.01 BTC buffer. The settlement transaction spends one input from each: 0.85 BTC
-   to the exchange, client change back to the custody address, and house change less the fee back
-   to the house address. The policy engine must authorise the house input as well. The client
-   address then holds 4.15 BTC against 4.15 BTC of liabilities, a ratio of exactly 1; the house's
-   solvency is a separate figure.
+4. The custodian's coins sit at a separate house address. The settlement transaction spends one
+   input from each: 0.85 BTC to the exchange, client change of 4.15 BTC back to the custody
+   address, and house change less the fee back to the house address. BIP 341's sighash commits to
+   both inputs' amounts, each input needs its own signature, and the policy engine must authorise
+   the house input as well. The client address then holds 4.15 BTC against 4.15 BTC of
+   liabilities, a ratio of exactly 1 with round client balances; the house's solvency is a
+   separate figure.
 5. Among others:
    - an Ethereum signing path: ECDSA under secp256k1 with Ethereum's transaction format, so
      threshold ECDSA (Lindell 2017 or CGGMP) instead of FROST;

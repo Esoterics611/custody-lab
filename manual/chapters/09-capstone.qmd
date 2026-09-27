@@ -235,7 +235,7 @@ type. Until then a Taproot key-path output shows its key on chain from the momen
 |------------------------|-----------|--------------------------|--------------------------------------|
 | One signer down | Liveness | No reply in round 1 | Sign with another pair: any $t$ of $n$ can sign |
 | Signer restarts mid-session | Liveness | "no nonces: commit first" | Restart the session; nonces are never restored |
-| Signer restart empties its used-token set | Safety, bounded | None; the set is in memory | A replay is limited to the token's expiry and its one message; persist the set |
+| Signer restart empties its used-token set, once shares persist | Safety, bounded | None; the set is in memory | A replay is limited to the token's expiry and its one message; persist the set with the share |
 | One signer compromised | Safety, contained | Attestation mismatch; unexpected behaviour | Proactive refresh; rebuild the site |
 | $t$ signers compromised | Safety, lost | An unexpected spend on chain | Sweep whatever remains to a new key; the design makes this require $t$ independent sites |
 | Coordinator compromised | Liveness | Signers refuse bad requests | Replace it; it holds nothing |
@@ -254,9 +254,11 @@ transaction whose fee pays for both. A **chain reorganisation** replaces recent 
 longer competing branch, which can remove a confirmed transaction.
 
 The third row comes from reading the demo's signer code: each signer keeps its used-token set in
-process memory. Two properties bound the damage. A token expires, and it names one exact message.
-A replay therefore yields another signature on a message that was already authorised, never on a
-new one.
+process memory. In the demo a restart also loses the share, which lives in the same memory, so the
+restarted signer cannot sign at all. The row applies to a deployment whose shares survive a
+restart, sealed or behind an HSM (chapter 3). Two properties bound the damage there. A token
+expires, and it names one exact message. A replay therefore yields another signature on a message
+that was already authorised, never on a new one.
 
 ## Trade-offs
 
@@ -359,7 +361,8 @@ What a production build adds to the demo, each named in an earlier chapter:
   key;
 - a signing path for each chain family: FROST for Taproot, threshold ECDSA for Ethereum;
 - RBF and CPFP handling, and settlement status that follows confirmations and reorganisations;
-- segregated house funds and client statements to the standard of MiCA Article 75 (chapter 8);
+- client statements, a per-movement register and prompt return of assets, to the standard of
+  MiCA Article 75 (chapter 8);
 - a SOC 2 Type II period of operating evidence for the controls above.
 
 ## Exercises

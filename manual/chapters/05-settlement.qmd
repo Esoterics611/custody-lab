@@ -72,7 +72,7 @@ ledger is the set of **unspent transaction outputs (UTXOs)**. Each UTXO is an am
 a condition for spending it. A wallet's balance is the sum of the UTXOs it can spend.
 
 A transaction consumes whole UTXOs as **inputs** and creates new **outputs**. An output is spent
-entirely or not at all, like a banknote. To pay 0.85 BTC from a 5.01 BTC UTXO, the transaction
+entirely or not at all, like a banknote. To pay 0.85 BTC from a 5.00 BTC UTXO, the transaction
 creates two outputs: 0.85 BTC to the payee, and the remainder less the fee back to the payer as
 **change**. Each input names the output it spends by its **outpoint**: the id of the transaction
 that created it (the **txid**, a hash of that transaction) and the output's index.
@@ -144,9 +144,9 @@ from custody_lab.settlement import bitcoin, transfer
 
 custody = bitcoin.p2tr_script(b"\x11" * 32)  # OP_1 <32-byte key>
 payee = b"\x00\x14" + b"\x22" * 20  # a SegWit v0 locking script
-utxo = transfer.Utxo("ab" * 32, 0, 501_000_000, custody)
+utxo = transfer.Utxo("ab" * 32, 0, 500_000_000, custody)
 stx = transfer.build([utxo], 85_000_000, payee, custody)
-assert [o.amount for o in stx.tx.outputs] == [85_000_000, 415_999_690]
+assert [o.amount for o in stx.tx.outputs] == [85_000_000, 414_999_690]
 assert stx.fee == 310
 print(custody[:2].hex(), "+ 32-byte key:", len(custody), "byte locking script")
 
@@ -274,8 +274,10 @@ Four fills in one cycle:
 
 The client delivers 0.85 BTC = 85,000,000 sats and receives USD 54,415.925 over fiat rails. The
 transaction has one input and two outputs (payment and change). The fee estimate is
-$(11 + 58 + 2 \cdot 43)$ vB $\times$ 2 sat/vB $= 310$ sats. Spending a 5.01 BTC UTXO leaves change of
-$501{,}000{,}000 - 85{,}000{,}000 - 310 = 415{,}999{,}690$ sats.
+$(11 + 58 + 2 \cdot 43)$ vB $\times$ 2 sat/vB $= 310$ sats. Spending a 5.00 BTC UTXO leaves change of
+$500{,}000{,}000 - 85{,}000{,}000 - 310 = 414{,}999{,}690$ sats. The demo charges the fee to
+alpha-capital, the client being settled, so the custody address holds client coins only
+(chapter 8).
 
 ```{python}
 #| label: check-worked-example
@@ -296,7 +298,7 @@ position = net(fills)
 assert position.base == Decimal("-0.85") and position.quote == Decimal("54415.925")
 amount = bitcoin.to_sats(-position.base)
 fee = bitcoin.estimated_vsize(1, 2) * 2
-assert (amount, fee, 501_000_000 - amount - fee) == (85_000_000, 310, 415_999_690)
+assert (amount, fee, 500_000_000 - amount - fee) == (85_000_000, 310, 414_999_690)
 print(f"net {position.base} {position.base_asset}, {position.quote} {position.quote_asset}")
 ```
 
@@ -376,7 +378,7 @@ assert chain.script_pubkey(rpc, address) == bitcoin.p2tr_script(output_key)
 print("custody address:", address[:24] + "...", "(Rust = Python = Core)")
 
 # 2. Fund it.
-exchange.call("sendtoaddress", address, "5.01")
+exchange.call("sendtoaddress", address, "5.00")
 rpc.call("generatetoaddress", 1, mine_to)
 
 # 3-4. Instruction, transaction, check, authorisation.
@@ -436,7 +438,7 @@ print("custody UTXOs after settlement:", left)
 3. **Explain.** Why does the BIP341 sighash commit to the amounts of all inputs, when SegWit v0
    committed only to the amount of the input being signed?
 4. **Attack.** A compromised settlement host builds a transaction that pays the approved 0.85 BTC to
-   the approved address and sends 0.01 BTC back to the custody key, leaving the rest of a 5.01 BTC
+   the approved address and sends 0.01 BTC back to the custody key, leaving the rest of a 5.00 BTC
    input as fee. Which check stops it, and what would happen without that check?
 5. **Design.** The exchange fails between two settlement cycles, owing the client 2 BTC from the
    last cycle. What protects the client under the off-exchange model, and what does not?
@@ -460,9 +462,9 @@ assert len(s.tx.outputs) == 1 and s.fee == 500
    of the other inputs to an offline or hardware signer and make it sign a transaction with a
    much larger fee than it believed. Committing to every input's amount and script makes a lie
    produce an invalid signature.
-4. `check_matches` computes the fee as $501{,}000{,}000 - 85{,}000{,}000 - 1{,}000{,}000 = 415{,}000{,}000$ sats and
+4. `check_matches` computes the fee as $500{,}000{,}000 - 85{,}000{,}000 - 1{,}000{,}000 = 414{,}000{,}000$ sats and
    rejects it against the 10,000-sat cap. Without the cap the policy engine would authorise that
-   sighash and the signers would sign it. About 4.15 BTC would go to whichever miner included the
+   sighash and the signers would sign it. About 4.14 BTC would go to whichever miner included the
    transaction, while every destination and amount check passed.
 5. What protects the client:
    - Its custodied assets never left the custodian, so they are not part of the exchange's

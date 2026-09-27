@@ -18,9 +18,11 @@ alone is contained:
 Safety wins over liveness: a component in doubt refuses.
 
 **Failure modes worth knowing by heart.**
-- Signers keep their used-token sets in memory (observed in `mpc/cluster.py`). A restart empties
-  the set, and with $n \ge 2t$ two disjoint signer sets can each honour one token. Both are
-  bounded by the token's expiry and by its naming one exact message.
+- Signers keep their used-token sets in memory (observed in `mpc/cluster.py`). Once shares
+  survive a restart (sealed, or behind an HSM), a restart empties the set while the share
+  remains; in the demo the share is lost with it. With $n \ge 2t$ two disjoint signer sets can
+  each honour one token. Both are bounded by the token's expiry and by its naming one exact
+  message.
 - Nonces must never be restored from backup.
 - Clock skew between engine and signers breaks expiry in both directions.
 - One recovery key for every share backup is the whole key.
