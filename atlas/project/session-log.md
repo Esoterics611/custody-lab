@@ -2,6 +2,58 @@
 
 Newest first.
 
+## 2026-09-27: Module 3, key storage
+
+**Changed.**
+- Wrote `manual/chapters/03-key-storage.qmd`, a chapter with no module:
+  - First principles: three questions for any key store, key wrapping, tamper response and the
+    FIPS 140-3 levels, remote attestation, sealing, side channels;
+  - Formal treatment: HSMs (PKCS#11, key ceremonies), TEEs (SGX, SEV-SNP and TDX, Nitro
+    Enclaves, interposer attacks), MPC as a storage choice, combinations, a comparison table;
+  - worked example: where each part of the demo would live in production;
+  - walkthrough: a key share released over ML-KEM only to an enclave whose report carries the
+    reviewed measurement and binds the requester's public key.
+- Three atlas entries under `atlas/storage/`, linked from the index. 26 glossary terms (141 in
+  total); the chapter 6 "Attestation" row now points to "Remote attestation", and the Txid row's
+  second pointer gained its missing "5 FP" prefix.
+- Updated chapter 0 (reading order, what is real), `CLAUDE.md` module status and the build plan.
+
+**Verified.**
+- Chapter 3 renders to 16 pages. Every cell ran; the key-wrapping cell reproduces the RFC 3394
+  section 4.1 vector, and the release cell refuses a patched build and a substituted public key.
+  Page endings read with a throwaway `pypdf`: none ends on a heading.
+- Chapter 0 re-renders.
+- Every glossary pointer names a heading in its chapter (a scratchpad script over all chapters).
+- Facts checked by web search, each marked in the chapter:
+  - FIPS 140-2 certificates moved to the historical list on 21 September 2026 (reported);
+  - AWS CloudHSM `hsm2m.medium` and Azure Managed HSM at FIPS 140-3 Level 3 (reported);
+  - Nitro Enclaves isolation, PCR0 and PCR8, KMS condition keys (**observed** in AWS
+    documentation);
+  - SGX deprecated on client processors from 11th-generation Core, continued on Xeon (reported);
+  - WireTap, Battering RAM, TEE.fail and DDRop (September 2026, ACM CCS 2026), with Intel's and
+    AMD's statements that interposer attacks are out of scope (reported);
+  - PKCS#11 3.2 approved as an OASIS Standard in 2026, with ML-KEM, ML-DSA and SLH-DSA
+    (reported);
+  - SP 800-186 allows secp256k1 for blockchain-related applications (reported);
+  - NIST IR 8214C threshold call taking submissions, no standard yet (reported);
+  - Fireblocks: MPC-CMP shares and policy engine in SGX across clouds (reported by Fireblocks).
+
+**Open.**
+- Vendor-specific claims about programmable HSMs and BIP340 support are left general and marked
+  **verify current**; no vendor documentation was read.
+
+### Deliverables
+
+- Chapter 3 compares the three places a custody key can live: a hardware security module, a
+  processor enclave, and shares spread across machines.
+- For each option, the chapter states where the key exists, who can make it sign, what an
+  outsider can verify, and which attacks it does not stop.
+- It covers the memory-bus attacks on processor enclaves published between late 2025 and
+  September 2026, which the chip makers place outside their protection.
+- A worked example places every key in the demo where a production deployment would keep it.
+- A model walkthrough hands a key share only to a machine that proves, by attestation, that it
+  runs the reviewed signer code.
+
 ## 2026-09-27: Demo front ends
 
 **Changed.**

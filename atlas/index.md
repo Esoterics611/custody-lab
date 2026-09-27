@@ -51,9 +51,9 @@ teaches it.
 
 | Entry | Status |
 |-------|--------|
-| `storage/hsm.md` — FIPS 140-3 levels, PKCS#11 | planned |
-| `storage/tee.md` — SGX, AWS Nitro Enclaves, attestation | planned |
-| `storage/hsm-vs-mpc-vs-tee.md` — comparison table | planned |
+| [`storage/hsm.md`](storage/hsm.md) — FIPS 140-3 levels, PKCS#11, key wrapping | draft |
+| [`storage/tee.md`](storage/tee.md) — SGX, confidential VMs, AWS Nitro Enclaves, attestation | draft |
+| [`storage/hsm-vs-mpc-vs-tee.md`](storage/hsm-vs-mpc-vs-tee.md) — comparison table | draft |
 
 ## 4. Policy and authorisation
 
