@@ -98,12 +98,12 @@ teaches it.
 
 | Entry | Status |
 |-------|--------|
-| `industry/tokenised-funds-collateral.md` | planned |
-| `industry/canton-kinexys.md` | planned |
-| `industry/wholesale-cbdc.md` — Agorá, mBridge | planned |
-| `industry/mica.md` | planned |
-| `industry/qualified-custodian-soc2.md` | planned |
-| `industry/israeli-landscape.md` — companies and researchers | planned |
+| [`industry/tokenised-funds-collateral.md`](industry/tokenised-funds-collateral.md) | draft |
+| [`industry/canton-kinexys.md`](industry/canton-kinexys.md) | draft |
+| [`industry/wholesale-cbdc.md`](industry/wholesale-cbdc.md) — Agorá, mBridge | draft |
+| [`industry/mica.md`](industry/mica.md) — Article 75 custody duties | draft |
+| [`industry/qualified-custodian-soc2.md`](industry/qualified-custodian-soc2.md) | draft |
+| [`industry/israeli-landscape.md`](industry/israeli-landscape.md) — public sector, companies and researchers | draft |
 
 ## 9. Capstone
 

@@ -51,7 +51,7 @@ flowchart LR
 | M6 Proof of reserves | Merkle-sum tree over client liabilities, per-client inclusion proofs, snapshot published after each settlement batch, assets read from regtest. zk proofs of liabilities as a chapter section, no code. Chapter 6 | Demo slice | 2 |
 | M7 Post-quantum | ML-DSA and ML-KEM via `cryptography`. Lamport and WOTS+ from scratch as the hash-based teaching version; SLH-DSA library choice still open. Why lattice and hash-based schemes resist threshold signing; migration design (threshold PQ plus HSM fallback). Chapter 7 | M1, M2 | 2 |
 | M3 Key storage | **Done 2026-09-27.** HSM vs MPC vs TEE (SGX, confidential VMs, Nitro) comparison chapter; no module, model cells only. Key wrapping checked against RFC 3394; attestation, sealing, side-channel and key-release models; production placement of each demo part | none | 1 (took under 1) |
-| M8 Industry and regulation | Tokenised funds and collateral, Canton, Kinexys, Agorá, mBridge, MiCA, qualified-custodian rules, SOC 2. Israeli landscape map and researchers. Every time-sensitive fact marked **verify current**. Chapter 8 | none | 2 |
+| M8 Industry and regulation | **Done 2026-09-27.** Four forms of on-chain money, DvP and finality (model cell); tokenised funds and collateral, Canton, Kinexys, Agorá, mBridge, MiCA Article 75, US qualified-custodian rules, SOC reports, and the Israeli landscape (public sector, companies, researchers). Facts web-checked and marked **verify current**. Chapter 8 | none | 2 (took under 1) |
 | M9 Capstone | System design walkthrough in interview form, with the architecture diagram, trade-offs and failure modes | all | 1 |
 
 Total: about 24.5 days (Phase A 4, Phase B 12.5, Phase C 8). Re-estimated after M0: no change to

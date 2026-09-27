@@ -2,6 +2,60 @@
 
 Newest first.
 
+## 2026-09-27: Module 8, industry and regulation
+
+**Changed.**
+- Wrote `manual/chapters/08-industry.qmd`:
+  - First principles: four forms of money on a ledger, DvP with an atomic-settlement model cell,
+    settlement finality, public and permissioned ledgers;
+  - Formal treatment: tokenised funds and collateral, Canton and Kinexys, Agorá and mBridge, MiCA
+    Article 75 paragraph by paragraph, US qualified-custodian rules and recent changes, SOC
+    reports, and Israel (public sector, companies, researchers);
+  - worked example: the demo against MiCA Article 75;
+  - walkthrough: the demo's two settlement legs (0.85 BTC on chain, USD 54,415.925 never settled)
+    and the custodian's fee buffer commingled with client coins at the custody address.
+- Six atlas entries under `atlas/industry/`, linked from the index; 21 glossary terms (162 in
+  total).
+- Updated chapter 0's reading order, `CLAUDE.md` module status and the build plan.
+
+**Verified.**
+- Chapter 8 renders to 13 pages; every cell ran and printed the values the text states. Page
+  endings read with `pypdf`: none ends on a heading. Chapter 0 re-renders.
+- Every glossary pointer names a heading in its chapter.
+- Primary sources read: the BIS Agorá press release of 27 May 2026 (eight central banks, the
+  Bank of Canada having joined the original seven; atomic multi-currency settlement in a
+  prototype; real-value testing next; no production timeline); MiCA Article 75 text.
+- Reported by secondary sources and marked **verify current** in the chapter: tokenised Treasury
+  products about USD 15 billion; CFTC tokenised-collateral guidance; Canton and Broadridge DLR
+  volumes; the DTCC Canton plan; Kinexys volumes and JPMD on Base; mBridge membership; the MiCA
+  transition ending 1 July 2026; the SEC safeguarding withdrawal, SAB 122 and the state trust
+  company no-action letter; GENIUS Act timing; the CLARITY Act cloture vote failing on
+  15 September 2026; the digital shekel timeline; Sela and Icebreaker; Project Eden; the Israeli
+  acquisitions; researcher affiliations.
+
+**Decided.** Single-fund figures (BUIDL) are left out: two sources a month apart gave USD 2.8
+billion and USD 5 billion. The chapter cites the market aggregate only.
+
+**Open.**
+- The demo breaches MiCA Article 75(7) by design: its fee buffer shares the custody address with
+  client coins. The chapter describes the fix (Exercise 4); the pipeline is unchanged.
+
+### Deliverables
+
+- Chapter 8 explains the four kinds of money now issued as tokens: bank deposits, stablecoins,
+  money market fund shares and central bank money. It sets out what the holder of each actually
+  owns.
+- It describes the institutional networks (Canton, Kinexys) and the central bank projects
+  (Agorá, mBridge) as of September 2026, with every fact that can change marked for re-checking.
+- It sets out the EU's custody duties under MiCA and the US qualified-custodian rules, and maps
+  each duty onto the demo's controls.
+- It shows, with the demo's own code, that the demo settles only the bitcoin side of a trade and
+  keeps the custodian's own coins at the client address. Both are gaps a regulated custodian
+  would have to close.
+- It maps Israel's part in the field: the Bank of Israel's digital shekel and experiments, Project
+  Eden, the MPC custody companies founded in Israel, and the Israeli researchers whose protocols
+  the demo teaches.
+
 ## 2026-09-27: Module 3, key storage
 
 **Changed.**
