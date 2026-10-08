@@ -85,8 +85,7 @@ of another chapter is a link.
    that teaches it, and in the [atlas](atlas/index.md), one entry per concept.
 
 Every code listing in the manual ran when the chapter was built, and the numbers in the text are
-the numbers that code printed. Chapters 0 and 1 follow the manual's writing standard; chapters 2
-to 9 are first drafts being rewritten to it.
+the numbers that code printed. Chapters 0 to 2 follow the manual's writing standard; chapters 3 to 9 are first drafts being rewritten to it.
 
 ## Running it
 
