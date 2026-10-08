@@ -79,6 +79,23 @@ glossary and atlas link to are kept where the content stays.
 - Glossary: four rows added (Amount tier, Digest, Authority key, Head); Default-deny, Four-eyes
   and one atlas link re-pointed from the removed "Intuition" section.
 
+**Chapter 5, Trading to settlement.**
+- Changed: two new first-principles sections, "Settling against an exchange" (pre-funding and
+  off-exchange settlement, from the draft's intuition) and "Many fills, one delivery" (netting worked
+  by hand). The Taproot tweak's purpose (no hidden script path) and the tweaked private key are
+  explained; the sighash's per-field hashes are named; FIX tags are glossed in the FIX leg. Each
+  cell's output is described: the transaction-model cell, the FIX transcript and the regtest run.
+  The draft cited "the house rules of engagement (`fix-client/ROE.md`)", a file in another, private
+  repository that no reader of this public project can open; the chapter now states the dialect
+  directly.
+- Verified: renders to 18 pages (from 15), exit 0, settling a real transaction on regtest; no page
+  ends on a heading. Every description of output was checked against the rendered Markdown: both
+  Logons carry `1137=9`, the transcript ends with a Logout each way (added after the check), the
+  refused transaction's fee is 415,000,000 sats, and the custody address holds 4.1499969 BTC after
+  settlement.
+- Glossary: four rows added (Off-exchange settlement, Pre-funding, Input and output, SegWit); one
+  atlas link re-pointed from the removed "Intuition" section.
+
 ## 2026-10-08: Open-source licence, links between chapters, the manual on GitHub, README
 
 **Changed.**

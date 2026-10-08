@@ -14,6 +14,6 @@ end of each cycle, and exchanges may post collateral with the custodian as well.
 **In the demo.** The settlement half: fills are netted per cycle and only the net BTC moves on
 chain. The mirrored-balance and collateral mechanics are prose only.
 
-**In the manual.** [Chapter 5](../../manual/chapters/05-settlement.md), "[Intuition](../../manual/chapters/05-settlement.md#intuition)", "[How this shows up in production](../../manual/chapters/05-settlement.md#how-this-shows-up-in-production)", Exercise 5.
+**In the manual.** [Chapter 5](../../manual/chapters/05-settlement.md), "[Settling against an exchange](../../manual/chapters/05-settlement.md#settling-against-an-exchange)", "[How this shows up in production](../../manual/chapters/05-settlement.md#how-this-shows-up-in-production)", Exercise 5.
 
 **Sources.** Copper, *ClearLoop* product documentation (**verify current**).
