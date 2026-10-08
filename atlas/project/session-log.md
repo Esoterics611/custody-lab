@@ -63,6 +63,22 @@ glossary and atlas link to are kept where the content stays.
   removed "Intuition" section. The bold-term check now skips code, where `2**128` had been read
   as bold markers.
 
+**Chapter 4, Policy and authorisation.**
+- Changed: the draft had no first-principles section; it now has six (default deny; tiers,
+  whitelist and a rolling window, with a velocity decision worked by hand and the calendar-day gap
+  it closes; signed four-eyes approvals; canonical encoding, with a cell showing two digests of one
+  instruction becoming one; the authorisation and the four signer checks; a hash chain built by
+  hand, edited, and truncated). "What this chapter is for" names the losses the policy engine
+  exists for. The nine-row worked example is explained in prose before its table, and each cell's
+  output is described.
+- Verified: renders to 20 pages (from 12), exit 0; no page ends on a heading. The new check for
+  printed lines over 80 characters found one carried over from the draft (the nine results on one
+  line); they now print one per line. The description of the first four audit entries was
+  corrected against the rendered output: the fourth is the second instruction's approved
+  evaluation.
+- Glossary: four rows added (Amount tier, Digest, Authority key, Head); Default-deny, Four-eyes
+  and one atlas link re-pointed from the removed "Intuition" section.
+
 ## 2026-10-08: Open-source licence, links between chapters, the manual on GitHub, README
 
 **Changed.**

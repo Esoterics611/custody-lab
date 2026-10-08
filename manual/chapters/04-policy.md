@@ -1,6 +1,6 @@
 # Module 4: Policy and Authorisation
 
-2026-09-25
+2026-10-08
 
 Previous: [Chapter 3, Key Storage](03-key-storage.md) \| [All
 chapters](../README.md) \| Next: [Chapter 5, Trading to
@@ -15,54 +15,330 @@ Settlement](05-settlement.md)
 > memory, the audit log is in memory, and no one governs policy changes.
 > Each gap is named in “How this shows up in production”.
 
-<a id="learning-objectives"></a>
+<a id="what-this-chapter-is-for"></a>
 
-## Learning objectives
-
-- State the default-deny rule and trace an instruction through the
-  engine’s seven checks.
-- Separate the approval quorum (people) from the signing quorum
-  (machines), and explain what connects them.
-- Compute rolling-window velocity decisions by hand.
-- Explain what a hash-chained audit log detects, what it does not, and
-  how anchoring closes the gap.
-- Name the checks a signer performs on an authorisation, and the attack
-  each one stops.
-
-<a id="intuition"></a>
-
-## Intuition
+## What this chapter is for
 
 [Chapter 2](02-mpc-custody.md) made the key impossible to steal from one
-machine. It did nothing about the more common loss: a legitimate quorum
-signing something it should not have. An insider raises a payment to an
-address they control, or an attacker who has phished two approvers
-pushes one through. The blockchain has no chargeback, so the only
-control is the one before the signature. That control is the **policy
-engine**, and it is the part of a custody platform that banks actually
-evaluate.
+machine, and [chapter 3](03-key-storage.md) placed the shares where
+administrators cannot read them. Neither does anything about the more
+common way client coins are lost: a legitimate quorum signing a payment
+it should not have. An insider raises a payment to an address they
+control. An attacker phishes two approvers and pushes a payment through.
+A bug in a settlement system asks for the wrong amount. The key works
+exactly as designed in every case. On a blockchain there is no
+chargeback, so the only control is the one that runs before the
+signature.
+
+That control is the **policy engine**: a program that receives every
+payment request and decides, by fixed rules and signed approvals from
+named people, whether it may be signed. It is the part of a custody
+platform that a bank’s risk and audit functions evaluate most closely,
+because it is where the institution’s rules about who may move what are
+actually enforced.
 
 A FIX gateway engineer already knows its shape. Pre-trade risk checks
-run on every order before it reaches the venue:
+run on every order before it reaches the exchange:
 
-- **Stateless checks**, such as maximum order size and a
-  permitted-instrument list, become **amount tiers** and a **destination
+- **Stateless checks**, such as a maximum order size and a list of
+  permitted instruments, become **amount tiers** and a **destination
   whitelist**.
 - **Stateful checks**, such as a notional or credit limit over a
   session, become **velocity limits**.
-- **Maker-checker** (four-eyes) becomes an **approval quorum** that
-  excludes the initiator.
+- **Maker-checker** (four-eyes) approval becomes an **approval quorum**
+  that excludes the person who raised the request.
 
 One difference changes the design. A bad order can be busted or
-corrected; a broadcast settlement cannot. So the engine is
-**default-deny**: anything the policy does not explicitly allow is
-refused, including assets it has never heard of.
+corrected; a broadcast settlement cannot. So the engine refuses
+everything it was not explicitly configured to allow.
 
-The engine does not sign transactions. It signs an **authorisation**, a
-short-lived token naming the exact bytes the signers may sign. That
-token is the only link between the approval quorum and the signing
-quorum. Each signer checks it independently, so a compromised
-coordinator cannot substitute a different transaction.
+The engine does not sign transactions. It signs a short-lived permission
+naming the exact bytes the signing machines may sign, and each signer
+checks that permission itself. That permission is the only link between
+the people who approve and the machines that sign.
+
+The demo uses this chapter in step 6, where the instruction is first
+PENDING with one approval and then APPROVED with two, and in step 7,
+where the signers check the engine’s authorisation before signing.
+
+By the end of this chapter the following should be clear:
+
+- what default-deny means, and the seven checks an instruction passes
+  through in order;
+- how amount tiers, a whitelist and a rolling-window velocity limit
+  decide, worked by hand;
+- why approvals are signatures, why the initiator’s own approval does
+  not count, and why everything signed must be encoded canonically;
+- what the authorisation contains, the four checks every signer makes on
+  it, and the attack each check stops;
+- what a hash-chained audit log detects, what it does not, and how
+  anchoring closes the gap.
+
+<a id="first-principles"></a>
+
+## First principles
+
+This section assumes [chapter 1](01-foundations.md)’s hashes and
+signatures and [chapter 0](00-orientation.md)’s description of the two
+quorums.
+
+<a id="default-deny"></a>
+
+### Default deny
+
+**The problem.** A rule set written as a list of things to block
+(“refuse payments over 10 BTC”, “refuse these addresses”) fails open:
+anything nobody thought to list is allowed. A new asset added to the
+platform, an address typed wrong, an amount field left empty: each
+passes a blocklist.
+
+**The idea.** A **default-deny** engine inverts the rule: a payment is
+refused unless every rule explicitly allows it. The engine has a policy
+per asset. An asset without a policy is refused; an address not on the
+whitelist is refused; an amount larger than the largest tier is refused.
+The engine never has to anticipate a failure, only to describe what is
+allowed. Firewall rule sets are written the same way, ending with “deny
+everything else”.
+
+**Recap.** The policy lists what may happen; everything else is refused.
+
+<a id="rules-tiers-whitelist-and-a-rolling-window"></a>
+
+### Rules: tiers, whitelist and a rolling window
+
+**Amount tiers.** Larger payments need more approvals. The demo’s
+bitcoin policy, for example, has two tiers: up to 0.1 BTC needs one
+approval, and up to 10 BTC needs two. The engine picks the smallest tier
+the amount fits in; an amount above every tier is refused outright. So
+0.05 BTC needs one approval, 0.85 BTC needs two, and 12 BTC cannot be
+paid at all without changing the policy.
+
+**Whitelist.** The destination must be on a list of approved addresses
+for that asset. A payment to an address the custodian has never vetted
+is refused regardless of approvals, so an attacker who controls the
+approvers still cannot send coins to their own address unless they also
+get it added to the list, which is itself a controlled change (“How this
+shows up in production”).
+
+**Velocity limit.** No more than a set amount may be authorised in any
+rolling window, for example 15 BTC in any 24 hours. “Rolling” means the
+window always ends now: at any moment the engine adds up every
+authorisation in the 24 hours before that moment, and the new payment
+must fit under the limit on top of them. It caps the damage of a
+compromise that slips past the other checks: even with every approver’s
+key, an attacker can move at most the limit before someone notices.
+
+**Worked by hand.** Limit 15 BTC per rolling 24 hours. Authorised so
+far: 10 BTC at 09:00 on day 1 and 4 BTC at 15:00 on day 1.
+
+| Request | Window | Already in window | Total with request | Result |
+|----|----|----|----|----|
+| 2 BTC at 08:00, day 2 | 08:00 day 1 to 08:00 day 2 | $10 + 4 = 14$ | $16 > 15$ | refused |
+| 2 BTC at 09:00:01, day 2 | 09:00:01 day 1 to 09:00:01 day 2 | $4$ | $6 \le 15$ | allowed |
+
+The same request, a little over an hour later, is allowed, because the
+10 BTC payment has left the window. A limit per calendar day would
+instead allow 14 BTC at 23:59 and another 15 BTC at 00:01, 29 BTC in two
+minutes; the rolling window does not have that gap.
+
+``` python
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+
+day1 = datetime(2026, 9, 24, tzinfo=UTC)
+authorised = [(day1 + timedelta(hours=9), Decimal("10")),
+              (day1 + timedelta(hours=15), Decimal("4"))]
+
+
+def fits(at, amount, limit=Decimal("15"), window=timedelta(hours=24)):
+    used = sum((a for t, a in authorised if at - window < t <= at), Decimal(0))
+    return used + amount <= limit
+
+
+assert not fits(day1 + timedelta(days=1, hours=8), Decimal("2"))
+assert fits(day1 + timedelta(days=1, hours=9, seconds=1), Decimal("2"))
+```
+
+**Recap.** Tiers set the number of approvals by size, the whitelist
+fixes where coins may go, and a rolling window caps how much can move in
+any 24 hours.
+
+<a id="approvals-four-eyes-signed"></a>
+
+### Approvals: four eyes, signed
+
+**The problem.** In many systems an approval is a row in a database:
+“bob approved instruction 42”. Anyone who can write to that database can
+create approvals, and nothing ties an approval to the exact amount and
+address bob saw.
+
+**The idea.** Each approver has an Ed25519 key pair ([chapter
+1](01-foundations.md)), the private half on a device bound to that
+person. To approve, the approver signs the instruction’s **digest**, a
+SHA-256 hash of the instruction’s full contents. The engine holds every
+approver’s public key and checks each approval. That gives three
+properties a database row lacks:
+
+- an approval cannot be created without the approver’s private key;
+- an approval for one instruction cannot be reused for another, because
+  a different amount, address or identifier gives a different digest;
+- anyone with the approvals can check later who approved what.
+
+**Four eyes.** The engine does not count an approval from the person who
+raised the instruction, and it counts each approver once however many
+times they sign. A two-approval tier therefore always needs two people
+other than the initiator: the maker-checker rule, enforced by the engine
+instead of by procedure.
+
+**Recap.** An approval is a signature over the instruction’s digest, by
+a registered approver who is not the initiator.
+
+<a id="why-the-bytes-must-be-canonical"></a>
+
+### Why the bytes must be canonical
+
+**The problem.** A hash or a signature covers bytes, not meaning. The
+instruction “pay 1.50 BTC” and the instruction “pay 1.5 BTC” mean the
+same thing, but if one system writes `1.50` and another writes `1.5`,
+their digests differ, and an approval signed over one does not verify
+against the other. The same happens with the order of fields in a JSON
+object, with spaces, and with the format of timestamps.
+
+**The idea.** A **canonical encoding** gives every value exactly one
+byte representation, and everything that is hashed or signed goes
+through it. The policy engine’s encoder sorts keys, omits whitespace,
+writes decimals in normalised form so that `1.50` and `1.5` produce the
+same bytes, and writes timestamps in ISO 8601.
+
+``` python
+import hashlib
+import json
+
+from custody_lab.policy.model import canonical_json
+
+a = {"amount": "1.50", "to": "exchange"}
+b = {"to": "exchange", "amount": "1.5"}
+naive = [hashlib.sha256(json.dumps(x).encode()).hexdigest()[:12] for x in (a, b)]
+canonical = [
+    hashlib.sha256(canonical_json({**x, "amount": Decimal(x["amount"])})).hexdigest()[:12]
+    for x in (a, b)
+]
+assert naive[0] != naive[1] and canonical[0] == canonical[1]
+print("naive digests:    ", naive)
+print("canonical digests:", canonical)
+print(canonical_json({**b, "amount": Decimal(b["amount"])}).decode())
+```
+
+    naive digests:     ['b7cb2ed4794c', '4b62de220cdb']
+    canonical digests: ['0d43b9e4d6bd', '0d43b9e4d6bd']
+    {"amount":"1.5","to":"exchange"}
+
+The first printed line shows two different digests for the same
+instruction written two ways. The second shows one digest after
+canonical encoding. The third shows the canonical bytes themselves: keys
+sorted, no spaces, the amount normalised.
+
+**Recap.** Two systems agree on a digest only if they agree on the
+bytes; the canonical encoder makes equal content produce equal bytes.
+
+<a id="one-permission-per-transaction-the-authorisation"></a>
+
+### One permission per transaction: the authorisation
+
+**The problem.** An approved instruction says “pay 0.85 BTC to this
+address”. The signers do not sign instructions; they sign a
+transaction’s sighash, a 32-byte fingerprint ([chapter
+0](00-orientation.md)). Something must connect the approval to that one
+sighash, or the coordinator could collect approvals for one payment and
+ask the signers to sign another.
+
+**The idea.** When an instruction is approved, the engine issues an
+**authorisation**: a short message, signed by the engine’s own
+**authority key**, that names the exact 32 bytes the signers may sign,
+the digest of the instruction it came from, a unique identifier, and an
+expiry time. Each signer holds the engine’s public key and, before
+contributing a signature share, checks four things:
+
+| Signer check | Stops |
+|----|----|
+| The engine’s signatures verify | forged or self-issued tokens |
+| The token has not expired | a token held back and used later |
+| The bytes it names equal the bytes the signer is asked to sign | a coordinator pairing a valid token with a different transaction |
+| Its identifier has not been used before | replaying one approval into two signatures |
+
+The third check is the one that matters most. Without it, a compromised
+coordinator could present a genuine authorisation for one payment
+together with a different payment’s signing request.
+
+**Recap.** The authorisation is the engine’s signed statement “these
+exact 32 bytes may be signed, once, until this time”; every signer
+checks it independently.
+
+<a id="a-log-that-shows-its-own-edits"></a>
+
+### A log that shows its own edits
+
+**The problem.** The engine’s decisions are the evidence an auditor
+relies on: who approved what, what was refused and why. An ordinary log
+file can be edited by anyone with write access, and the edit leaves no
+trace.
+
+**The idea.** In a **hash chain**, each entry includes the hash of the
+entry before it, and its own hash covers that link. Editing an entry
+changes its hash, which no longer matches the link stored in the next
+entry, which breaks the chain from that point on. The cell builds a
+three-entry chain with the engine’s own canonical encoding, edits the
+middle entry, and finds the break:
+
+``` python
+def chain(events):
+    entries, prev = [], "0" * 64
+    for seq, event in enumerate(events):
+        body = {"seq": seq, "event": event, "prev_hash": prev}
+        entries.append({**body, "hash": hashlib.sha256(canonical_json(body)).hexdigest()})
+        prev = entries[-1]["hash"]
+    return entries
+
+
+def first_break(entries):
+    prev = "0" * 64
+    for e in entries:
+        body = {k: e[k] for k in ("seq", "event", "prev_hash")}
+        if e["prev_hash"] != prev or hashlib.sha256(canonical_json(body)).hexdigest() != e["hash"]:
+            return e["seq"]
+        prev = e["hash"]
+    return None
+
+
+log = chain(["approve 0.5", "deny 9.9", "approve 9.5"])
+for e in log:
+    print(e["seq"], f'{e["event"]:<12}', e["prev_hash"][:8], "->", e["hash"][:8])
+log[1]["event"] = "approve 9.9"  # rewrite history
+assert first_break(log) == 1
+assert first_break(log[:1]) is None  # cutting entries off the end is not detected
+print("edited entry detected at", first_break(log))
+```
+
+    0 approve 0.5  00000000 -> eebde8df
+    1 deny 9.9     eebde8df -> 23733234
+    2 approve 9.5  23733234 -> 420ec883
+    edited entry detected at 1
+
+Each printed row is one entry: its sequence number, its event, the start
+of the previous entry’s hash, and the start of its own. The third row’s
+link is the second row’s hash. After the edit, the check fails at entry
+1.
+
+**What the chain does not detect.** Two changes still pass: rewriting
+the whole chain from the edited entry onward, recomputing every hash,
+and cutting entries off the end. Both are caught only by comparing the
+latest hash, the **head**, with a copy published somewhere the operator
+cannot change. Publishing the head this way is **anchoring**. [Chapter
+6](06-reserves.md) puts the head into every proof-of-reserves snapshot,
+which the custody key signs.
+
+**Recap.** A hash chain makes any edit inside the log visible; anchoring
+the head makes a rewrite or a truncation visible too.
 
 <a id="formal-treatment"></a>
 
@@ -73,10 +349,11 @@ coordinator cannot substitute a different transaction.
 ### The decision function
 
 Let an instruction be
-$I = (\text{id}, \text{asset}, a, \text{dest}, \text{initiator}, t)$
-with amount $a$ a `Decimal`. The policy maps each asset to tiers
-$(m_1, q_1) < (m_2, q_2) < \dots$, a whitelist $W$, a window $\Delta$
-and a limit $L$. With $V(t)$ the total already authorised in
+$I = (\text{id}, \text{asset}, a, \text{dest}, \text{initiator}, t)$,
+with the amount $a$ a `Decimal`. The policy maps each asset to tiers
+$(m_1, q_1) < (m_2, q_2) < \dots$, where $m_k$ is a tier’s maximum
+amount and $q_k$ its approval quorum, a whitelist $W$, a window $\Delta$
+and a limit $L$. With $V(t)$ the total already authorised in the window
 $(t - \Delta, t]$, the engine decides:
 
 | \# | Check | Failure gives |
@@ -89,6 +366,11 @@ $(t - \Delta, t]$, the engine decides:
 | 6 | $I$ not authorised before | DENIED |
 | 7 | valid distinct approvals $\ge q_k$ | PENDING |
 
+The checks run in this order and the first failure decides. Only the
+last one gives PENDING rather than DENIED: too few approvals is a state
+that more approvals can fix, while every earlier failure is final for
+that instruction.
+
 An approval counts only if all of the following hold:
 
 - It is an Ed25519 signature by a registered approver.
@@ -97,6 +379,10 @@ An approval counts only if all of the following hold:
 - The approver is not the initiator.
 
 Duplicates count once.
+
+The engine keeps no state of its own. Velocity and “authorised before”
+are computed from the audit log, so the record and the decision cannot
+disagree.
 
 <a id="canonical-encoding"></a>
 
@@ -116,19 +402,21 @@ over it becomes ambiguous.
 
 On approval the engine signs the payload
 $p = \text{id} \,\|\, H(I) \,\|\, m \,\|\, t_{\text{exp}}$ with its
-**authority key**. The key is hybrid: an Ed25519 key and an ML-DSA-65
-key ([chapter 7](07-post-quantum.md)), and the token carries one
-signature of each kind,
+authority key, where $m$ is the exact message the signers will sign (in
+[chapter 5](05-settlement.md), the transaction’s BIP341 sighash) and
+$t_{\text{exp}}$ the expiry, 60 seconds after issue in the demo. The key
+is hybrid: an Ed25519 key and an ML-DSA-65 key ([chapter
+7](07-post-quantum.md)), and the token carries one signature of each
+kind,
 
 $$
 \sigma = \text{Sign}^{\text{Ed25519}}_{sk_A}(p), \qquad
-\sigma' = \text{Sign}^{\text{ML-DSA-65}}_{sk'_A}(p) ,
+\sigma' = \text{Sign}^{\text{ML-DSA-65}}_{sk'_A}(p) .
 $$
 
-where $m$ is the exact message the signers will sign (in [Module
-5](05-settlement.md), the transaction’s BIP341 sighash). Each signer
-holds only the public keys $pk_A$ and $pk'_A$ and accepts a request only
-if all four checks pass:
+A forger would have to break both schemes. Each signer holds only the
+public keys $pk_A$ and $pk'_A$ and accepts a request only if all four
+checks pass:
 
 | Signer check | Stops |
 |----|----|
@@ -137,9 +425,9 @@ if all four checks pass:
 | $m$ equals the message inside the FROST signing package | a coordinator pairing a valid token with a different transaction |
 | id not seen before | replaying one approval into two signatures |
 
-The signer discards its round-1 nonces **before** these checks. A
-refused request therefore cannot be retried with the same nonces on a
-different message, which in FROST would reveal the signer’s share.
+The signer discards its round-1 nonces *before* these checks. A refused
+request therefore cannot be retried with the same nonces on a different
+message, which in FROST would reveal the signer’s share (Exercise 2).
 
 <a id="hash-chained-audit-log"></a>
 
@@ -147,28 +435,33 @@ different message, which in FROST would reveal the signer’s share.
 
 Entry $n$ stores
 $h_n = H(n \,\|\, t_n \,\|\, \text{event}_n \,\|\, \text{payload}_n \,\|\, h_{n-1})$,
-with $h_{-1} = 0^{256}$. Editing, deleting or reordering an entry
-changes its hash and breaks every link after it. Two changes pass
-verification: rewriting the whole chain, and cutting entries off the
-end. Both are caught only by comparing the head $h_{\text{last}}$ with a
-copy published elsewhere, called **anchoring**. [Module
-6](06-reserves.md) publishes the head with each proof-of-reserves
-snapshot.
-
-The engine keeps no state of its own. Velocity and “authorised before”
-are computed from the audit log, so the record and the decision cannot
-disagree.
+computed over the canonical encoding, with $h_{-1} = 0^{256}$ (32 zero
+bytes). Editing, deleting or reordering an entry changes its hash and
+breaks every link after it. Two changes pass verification: rewriting the
+whole chain, and cutting entries off the end. Both are caught only by
+comparing the head $h_{\text{last}}$ with a copy published elsewhere:
+anchoring. [Chapter 6](06-reserves.md) publishes the head with each
+proof-of-reserves snapshot.
 
 <a id="worked-example"></a>
 
 ## Worked example
 
-Policy for BTC:
+The worked example runs nine instructions through the real engine
+against this policy for BTC:
 
 - Tiers: up to 1 BTC needs 1 approval; up to 10 BTC needs 2.
 - Whitelist: `treasury` and `exchange`.
 - Velocity limit: 15 BTC per rolling 24 hours.
-- Approvers: bob and carol. Alice initiates.
+- Approvers: bob and carol. Alice initiates every instruction.
+
+Rows 1 to 3 show the tiers: 0.5 BTC goes through with one approval, 5
+BTC waits as PENDING with one and is authorised when carol adds hers.
+Rows 4 to 6 show the velocity limit: 5.5 BTC is already in the window,
+so 9.9 BTC would make 15.4 and is refused, 9.5 BTC makes exactly 15 and
+passes, and then even 0.1 BTC is refused. Row 7 is the next morning, 30
+seconds after row 1’s authorisation left the window. Row 8 is four-eyes:
+alice’s own approval does not count. Row 9 is the whitelist.
 
 | \# | Time | Instruction | Approvals | Result | Why |
 |----|----|----|----|----|----|
@@ -182,10 +475,11 @@ Policy for BTC:
 | 8 | D2 09:01 | 0.2 to treasury | alice | pending | alice initiated; her approval does not count |
 | 9 | D2 09:02 | 0.2 to a new address | bob | denied | not whitelisted |
 
-``` python
-from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+The engine reads time from an injected clock, a function it calls
+instead of reading the system clock, so the cell can set the time of
+each request exactly.
 
+``` python
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from custody_lab.policy.audit import AuditLog
@@ -255,10 +549,22 @@ assert results == [
     "authorised", "pending", "authorised", "denied", "authorised",
     "denied", "authorised", "pending", "denied",
 ]
-print(results)
+for number, result in enumerate(results, start=1):
+    print(number, result)
 ```
 
-    ['authorised', 'pending', 'authorised', 'denied', 'authorised', 'denied', 'authorised', 'pending', 'denied']
+    1 authorised
+    2 pending
+    3 authorised
+    4 denied
+    5 authorised
+    6 denied
+    7 authorised
+    8 pending
+    9 denied
+
+The printed rows are the Result column of the table, in order, as the
+engine decided it.
 
 <a id="code-walkthrough"></a>
 
@@ -268,8 +574,9 @@ print(results)
 
 ### What the audit log recorded
 
-Every evaluation and every authorisation is an entry. Each entry’s
-`prev_hash` is the previous entry’s `hash`.
+Every evaluation and every authorisation the worked example made is an
+entry in the engine’s audit log. Each entry’s `prev_hash` is the
+previous entry’s `hash`, as in the toy chain above.
 
 ``` python
 from custody_lab.policy.audit import AuditChainBroken, verify_chain
@@ -282,10 +589,16 @@ print(len(engine.audit.entries), "entries; chain verifies; head", engine.audit.h
 ```
 
     0 evaluated  approved 0000000000 -> b54b5dcd33
-    1 authorised          b54b5dcd33 -> 9801562f7c
-    2 evaluated  pending  9801562f7c -> db3b7a3e68
-    3 evaluated  approved db3b7a3e68 -> 290e2a45d1
-    13 entries; chain verifies; head d2147e5acdd2
+    1 authorised          b54b5dcd33 -> 5443af802f
+    2 evaluated  pending  5443af802f -> 0b672e3e87
+    3 evaluated  approved 0b672e3e87 -> 3f47519e2c
+    13 entries; chain verifies; head c1718fa08353
+
+The first four rows are the first instruction’s evaluation and
+authorisation, then the second instruction’s two evaluations: PENDING
+with bob’s approval alone, then approved once carol’s arrives. Each
+links to the one before. The last line gives the head, the value
+[chapter 6](06-reserves.md) anchors.
 
 Changing one past decision, here turning the denied 9.9 BTC into an
 approval, breaks the chain at that entry:
@@ -309,12 +622,15 @@ except AuditChainBroken as exc:
 
 ### Signers enforce the authorisation
 
-A 2-of-3 signing cluster ([chapter 2](02-mpc-custody.md)) configured
+A 2-of-3 signing cluster ([chapter 2](02-mpc-custody.md)) is configured
 with the engine’s authority public key. The engine authorises one
-instruction for one sighash; the signers sign it. They then refuse:
+instruction for one sighash, and the signers sign it. Then the cell
+tries the two attacks the signer checks exist for, and the signers
+refuse both:
 
-- the same token for a different sighash (a substituting coordinator);
-- the same token a second time (a replay).
+- the same token for a different sighash, which is what a substituting
+  coordinator would send;
+- the same token a second time, which is a replay.
 
 ``` python
 from custody_lab.foundations import schnorr
@@ -352,41 +668,77 @@ with SigningCluster(2, 3, authority=live.authority_public_key) as cluster:
     different sighash: signing package message differs from the authorised message
     replay: authorisation already used
 
+The first printed line is the authorised signature. The next two are the
+signers’ own refusal reasons, each from inside a signer process: the
+token names a different message, and the token has already been used.
+
 <a id="how-this-shows-up-in-production"></a>
 
 ## How this shows up in production
 
-- **Whoever can change the policy can move the funds.**
-  - Production engines put policy changes, whitelist additions and
-    approver changes behind their own quorum, often with a time lock, so
-    a single administrator cannot widen the rules and then use them.
-  - This lab has no policy governance at all.
-- **The authority key is as sensitive as a signing quorum.** Anyone
-  holding it can authorise any transaction the signers will accept.
-  Vendors run the policy engine and its key inside an HSM or a trusted
-  execution environment (**verify current** per vendor; [Module
-  3](03-key-storage.md) compares the options).
-- **Screening inputs.** A production decision also consumes sanctions
-  screening and blockchain analytics on the destination, and Travel Rule
-  data for transfers between virtual-asset service providers (FATF
-  Recommendation 16; **verify current**). They are further checks in the
-  same default-deny chain.
-- **Clocks.** Token expiry is checked against each signer’s clock. A
-  signer whose clock is stepped or skewed rejects valid tokens or
-  accepts stale ones, so signer hosts need disciplined time (NTP with
-  monitoring). Short token lifetimes shrink the replay window but
-  tighten this dependency.
-- **Audit evidence.** Denials with reasons, approver identities and
-  anchored log heads are the evidence behind SOC 2 controls ([Module
-  8](08-industry.md)). The log must also be on write-once storage
-  outside the engine’s control; here it lives in memory.
-- **Binding the message to the instruction.** Here the caller supplies
-  the sighash with the instruction and the engine takes it on trust. In
-  [Module 5](05-settlement.md) the settlement layer derives the sighash
-  from the instruction, and a production signer would itself decode the
-  transaction and compare destination and amount. The ZF crate’s
-  documentation says it directly: “Each signer should perform
-  protocol-specific verification on the message.”
+**Whoever can change the policy can move the funds.** An administrator
+who can add an address to the whitelist and raise a limit can then use
+them. Production engines therefore put policy changes, whitelist
+additions and approver changes behind their own quorum, often with a
+time lock that delays a change before it takes effect, so a single
+administrator cannot widen the rules and then use them. This lab has no
+policy governance at all.
+
+**The authority key is as sensitive as a signing quorum.** Anyone
+holding it can authorise any transaction the signers will accept.
+Vendors run the policy engine and its key inside an HSM or a trusted
+execution environment (**verify current** per vendor; [chapter
+3](03-key-storage.md) compares the options).
+
+**Screening inputs.** A production decision also consumes sanctions
+screening and blockchain analytics on the destination, and Travel Rule
+data for transfers between virtual-asset service providers (FATF
+Recommendation 16; **verify current**). They are further checks in the
+same default-deny chain.
+
+**Clocks.** Token expiry is checked against each signer’s clock. A
+signer whose clock is stepped or skewed rejects valid tokens or accepts
+stale ones, so signer hosts need disciplined time (NTP with monitoring).
+Short token lifetimes shrink the replay window but tighten this
+dependency.
+
+**Audit evidence.** Denials with reasons, approver identities and
+anchored log heads are the evidence behind SOC 2 controls ([chapter
+8](08-industry.md)). The log must also be on write-once storage outside
+the engine’s control; here it lives in memory.
+
+**Binding the message to the instruction.** In this chapter’s cells the
+caller supplies the sighash with the instruction, and the engine takes
+it on trust. In [chapter 5](05-settlement.md) the settlement layer
+derives the sighash from the instruction, and a production signer would
+itself decode the transaction and compare its destination and amount
+with the instruction. The ZF crate’s documentation says it directly:
+“Each signer should perform protocol-specific verification on the
+message.”
+
+<a id="recap"></a>
+
+## Recap
+
+1.  The policy engine is default-deny: an instruction is refused unless
+    every rule allows it, and the first failing check decides.
+2.  Amount tiers set how many approvals a payment needs, the whitelist
+    fixes where coins may go, and a rolling-window velocity limit caps
+    how much can move in any 24 hours.
+3.  An approval is an Ed25519 signature over the instruction’s digest by
+    a registered approver who is not the initiator; it cannot be forged
+    by editing a database or moved to another instruction.
+4.  Everything hashed or signed goes through one canonical encoder, so
+    equal content gives equal bytes.
+5.  The engine signs an authorisation naming the exact message, an
+    expiry and a unique identifier, with both Ed25519 and ML-DSA-65.
+    Each signer checks the signatures, the expiry, the message and the
+    identifier, and discards its nonces before checking.
+6.  The audit log is hash-chained, so edits inside it are detected;
+    anchoring its head elsewhere detects rewrites and truncation.
+
+[Chapter 5](05-settlement.md) builds the transaction whose sighash the
+authorisation names, and settles it on regtest.
 
 <a id="exercises"></a>
 
@@ -429,7 +781,7 @@ assert engine.evaluate(ins, ok).status.value == "approved"
     present the same signer with the same nonces and a different signing
     package. Two FROST signature shares made with the same nonces on
     different messages let anyone solve for the signer’s share, which is
-    the ECDSA nonce-reuse attack of [chapter 1](01-foundations.md) in
+    the nonce-reuse attack of [chapter 1](01-foundations.md) in
     threshold form. Burning first makes every nonce single-use whatever
     happens next.
 3.  Without the authority key, two things stop them:

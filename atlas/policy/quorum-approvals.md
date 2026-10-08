@@ -16,7 +16,7 @@ approval counts only if it meets all of these:
 **In the demo.** `src/custody_lab/policy/model.py` (`Approval.create`, `Approval.is_valid`);
 counting in `engine.py`.
 
-**In the manual.** [Chapter 4](../../manual/chapters/04-policy.md), "[Intuition](../../manual/chapters/04-policy.md#intuition)", "[The decision function](../../manual/chapters/04-policy.md#the-decision-function)", worked example rows 2, 3 and
+**In the manual.** [Chapter 4](../../manual/chapters/04-policy.md), "[Approvals: four eyes, signed](../../manual/chapters/04-policy.md#approvals-four-eyes-signed)", "[The decision function](../../manual/chapters/04-policy.md#the-decision-function)", worked example rows 2, 3 and
 8.
 
 **Sources.** NIST SP 800-53 Rev. 5, AC-5 (separation of duties).
