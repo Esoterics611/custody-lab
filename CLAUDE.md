@@ -164,7 +164,7 @@ host lacks.
 |---|--------|------|---------|-------|
 | 0 | Toolchain | done | n/a | n/a |
 | 1 | Foundations | done: `ec`, `hashing`, `ecdsa`, `schnorr`, `shamir`; tests pass | rewritten to the writing standard; renders (27 pages) | 6 entries, draft |
-| 2 | MPC custody | done: `paillier`, `lindell17`, `frost`, `dkg` (teaching); `cluster` + `rust/custody-frost` (demo signing path); tests pass | draft with first-principles section; renders (22 pages) | 8 entries, draft |
+| 2 | MPC custody | done: `paillier`, `lindell17`, `frost`, `dkg` (teaching); `cluster` + `rust/custody-frost` (demo signing path); tests pass | rewritten to the writing standard; renders (29 pages) | 8 entries, draft |
 | 3 | Key storage (chapter only) | n/a; model cells for key wrapping (RFC 3394 vector), attestation, sealing, side channels, key release | draft with first-principles section; renders (16 pages) | 3 entries, draft |
 | 4 | Policy and authorisation | done: `model`, `audit`, `authorisation`, `engine`; signers enforce authorisations; tests pass | draft; renders (12 pages) | 5 entries, draft |
 | 5 | Trading to settlement | done: FIX 5.0 SP2 `trading/fix`; `settlement/` netting, BIP341/BIP86 transactions, regtest node; FROST-signed spends confirm on regtest; tests pass | draft with first-principles section; renders (15 pages; settles a real regtest transaction) | 4 entries, draft |

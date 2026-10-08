@@ -12,72 +12,98 @@ signing path, `custody_lab.mpc.cluster`, uses the Zcash Foundation's `frost-secp
 That crate is outside the scope of the NCC Group audit of the other ZF FROST crates.
 :::
 
-## Learning objectives
+## What this chapter is for
 
-- Explain what "no single machine holds the key" requires at key birth, at signing, and over
-  the key's lifetime.
-- Convert Shamir shares into additive shares with Lagrange coefficients, and use them to produce
-  a Schnorr signature jointly.
-- Trace two-party ECDSA (Lindell 2017) message by message and say what Paillier encryption
-  contributes.
-- Distinguish semi-honest from malicious security, and say what commitments and zero-knowledge
-  proofs add.
-- Describe FROST's two rounds and the job of its binding factor.
-- Describe DKG, proactive refresh and share backup, and name the attack each one stops.
-- Place CGGMP, FROST and Lindell 2017 against each other for a custody deployment.
+Chapter 1 ended on a problem. Shamir sharing protects a key while it is stored: three shares in
+three places, any one of which is useless to a thief. But to sign, the shares had to be combined
+into the key, and the machine that combined them held the whole key for as long as signing took.
+Whoever controlled that machine, through malware, an insider or a memory dump, would hold the key
+from then on.
 
-## Intuition
+This chapter removes that machine. The technique is **secure multi-party computation** (**MPC**):
+several programs, each holding a private input, jointly compute an agreed result while each learns
+only the result. In custody, the private inputs are key shares and the result is a signature.
+Chapter 0 showed the core of it with school arithmetic: each signer computes a partial signature
+from its own share, and the coordinator adds the partial signatures. This chapter makes that work
+against real attackers, which takes three things chapter 0 skipped.
 
-Chapter 1 ended on a problem. Shamir sharing protects a key at rest, but signing rebuilds it in
-one place. Custody built on secure multi-party computation (MPC) removes the rebuild. Three questions have to be answered:
+The first is how a key is born without ever existing whole, which is distributed key generation.
+The second is how to sign when some of the parties are actively cheating, which requires
+commitments and zero-knowledge proofs. The third is how a key survives years of machines failing
+and being replaced, which is what refresh, backup and repair are for.
 
 | Question | Naive answer | MPC answer | Section |
 |----------|--------------|------------|---------|
-| How is the key born? | A dealer generates it and splits it | Distributed key generation: every party contributes randomness; the key is never computed | DKG |
+| How is the key born? | One machine generates it and splits it | Distributed key generation: every party contributes randomness, and the key is never computed | DKG |
 | How does it sign? | Rebuild the key, sign, erase | Each party computes a partial signature from its share; the partials combine into one ordinary signature | Lindell 2017, FROST, CGGMP |
-| How does it survive? | Back up the key | Refresh shares on a schedule; back up each share separately; repair a lost share from the others | Refresh, backup |
+| How does it survive? | Back up the key | Refresh shares on a schedule, back up each share separately, repair a lost share from the others | Refresh, backup |
 
-The chain sees a single ordinary signature under a single public key. That is the practical
-difference from on-chain multisig:
+**Why not multisig.** Bitcoin already has a way to require several signers: a **multisig** output,
+whose locking script on the chain says "any 2 of these 3 public keys must sign". MPC reaches the
+same rule by a different route. On the chain, an MPC key is one ordinary public key and each
+payment carries one ordinary signature, so the quorum rule lives off the chain. The differences
+follow from that. Multisig publishes the rule and every participating key when coins are spent,
+works differently on every blockchain (some have no equivalent at all), and makes each payment
+larger and so more expensive. MPC keeps the rule private, works on any chain whose signature scheme
+it supports, and costs the same as a single-key payment. Its price is a large piece of software
+that must itself be correct, which is most of this chapter.
 
-- Multisig publishes the quorum rule on chain, works differently on every chain, and costs more
-  to spend.
-- MPC keeps the quorum off chain and works on any chain that verifies the underlying signature
-  scheme.
+**Two quorums.** The signing quorum in this chapter is made of machines. It is separate from the
+approval quorum of people in the policy engine (chapter 4), and the signers in the demo refuse to
+sign without the engine's authorisation. Chapter 0's "Two quorums" section explains why the two
+are kept apart.
 
-A custody platform has **two quorums**, and they are different things. The **approval quorum** is
-people approving an instruction in the policy engine (Module 4). The **signing quorum** is
-machines holding key shares. The demo's signers refuse to sign without the policy engine's
-authorisation.
+The demo uses this chapter in step 2, where three processes run distributed key generation, and in
+step 7, where two of them sign with FROST.
+
+By the end of this chapter the following should be clear:
+
+- what changes when a computation runs across several machines: parties, rounds, a coordinator,
+  and the assumptions made about an attacker;
+- how commitments and zero-knowledge proofs stop a cheating party, and what Feldman commitments
+  check;
+- how Shamir shares become the additive shares that threshold Schnorr signing uses;
+- how two parties produce an ECDSA signature with Paillier encryption (Lindell 2017), and why
+  ECDSA needs that machinery while Schnorr does not;
+- how FROST signs in two rounds, and what its binding factor prevents;
+- how distributed key generation, proactive refresh and share repair work, and which attack each
+  one stops.
 
 ## First principles
 
-This section assumes chapter 1's first principles: groups, scalars, the nonce, commitments and
-the Schnorr exchange. It adds the vocabulary of protocols that run across several machines.
+This section assumes chapter 1's first principles: groups, scalars, the nonce, commitments and the
+Schnorr exchange. It adds the vocabulary of protocols that run across several machines.
 
 ### Parties, rounds and a coordinator
 
-**Secure multi-party computation (MPC)** lets several programs, each holding a private input,
-compute an agreed function of all the inputs while each learns only the output. In custody the
-inputs are key shares and the output is one signature. Each program is a **party**. In the demo
-each party is a separate operating-system process.
+**The idea.** Each program taking part in an MPC protocol is a **party**. In the demo each party is
+a separate operating-system process holding one key share.
 
-Parties exchange messages in **rounds**. In a round every party sends, then waits for every other
-party's messages before computing its next step. Each round costs at least one network round trip,
-so the number of rounds sets signing latency. FROST signs in two rounds, and the first can run
-before the message exists. That leaves one round between an authorised transaction and its
-signature.
+Parties exchange messages in **rounds**. In a round, every party sends its messages, then waits
+until it has every other party's messages before computing its next step. Each round therefore
+costs at least one network round trip, and the number of rounds sets the protocol's latency, the
+way the number of request-response exchanges sets the latency of a FIX workflow. FROST signs in two
+rounds, and the first can run before the message to be signed exists. That leaves one round
+between an authorised transaction and its signature.
 
-A **coordinator** relays messages and combines the results. It holds no share and cannot sign. In
-the demo it is the process that runs `SigningCluster`. It can delay or refuse a signing, but a
-signature it assembles is valid only if enough share holders took part.
+A **coordinator** relays messages between the parties and combines their results. It holds no share
+and cannot sign. In the demo it is the process that runs `SigningCluster`. It is trusted for
+availability, not for secrecy: it can delay or refuse a signing, but a signature it assembles is
+valid only if enough share holders took part, and it learns nothing secret from the messages it
+relays.
 
-Some messages are **broadcast** to every party, such as commitments. Others go over a **private
-channel** to one party, such as a DKG sub-share. Private channels need encryption and mutual
-authentication, which the integrating application provides (see "How this shows up in
-production").
+Some messages are **broadcast**, meaning sent to every party; commitments are an example. Others go
+over a **private channel** to one party only, such as the sub-shares in distributed key
+generation. Private channels need encryption and mutual authentication, which the application
+around the protocol must provide ("How this shows up in production").
+
+**Recap.** A protocol runs in rounds of messages between parties; rounds set latency; the
+coordinator relays but holds nothing secret.
 
 ### Three ways to split a key
+
+**The idea.** Chapter 1 split a key as points on a line. Two other splits appear in this chapter,
+and each protocol uses the one its signature formula needs.
 
 | Split | Rule | Who can sign | Used in |
 |----------------|---------------------------------|----------------------|--------------------|
@@ -85,11 +111,23 @@ production").
 | Additive | $d = w_1 + w_2 + \dots$ | all holders together | one signing session |
 | Multiplicative | $d = x_1 x_2$ | both holders | Lindell 2017 |
 
-On the toy curve, the key $d = 9$ (mod 31) can be held as Shamir shares $(1, 14)$, $(2, 19)$,
-$(3, 24)$, as additive shares $21 + 19 = 40 \equiv 9$, or as multiplicative shares
-$5 \times 8 = 40 \equiv 9$. Signing converts Shamir shares into additive shares for the parties
-present, using chapter 1's Lagrange coefficients. Parties 1 and 3 obtain exactly the additive
-shares 21 and 19; the worked example below signs with them.
+- An **additive share** is one of several numbers that add up to the key. Every holder is needed,
+  because leaving one out changes the sum. Schnorr signing uses additive shares, because the
+  Schnorr formula adds: additive pieces of the key give additive pieces of the signature.
+- A **multiplicative share** is one of two numbers whose product is the key. Two-party ECDSA uses
+  them, because the ECDSA formula multiplies.
+
+**Worked by hand on the toy curve.** Chapter 1 shared the key $d = 9$ modulo 31 on the line
+$9 + 5x$, giving Shamir shares $(1, 14)$, $(2, 19)$ and $(3, 24)$. The same key can be held as the
+additive shares 21 and 19, since $21 + 19 = 40 = 31 + 9$, or as the multiplicative shares 5 and 8,
+since $5 \times 8 = 40 \equiv 9$.
+
+Signing converts Shamir shares into additive shares for the parties who are present, using chapter
+1's Lagrange weights. For parties 1 and 3 the weights are 17 and 15, so party 1's additive share is
+$17 \times 14 = 238 = 7 \times 31 + 21$, which is 21, and party 3's is $15 \times 24 = 360 =
+11 \times 31 + 19$, which is 19. Each party computes its own additive share from its own Shamir
+share and the public weight, without seeing the other's share. The worked example later in the
+chapter signs with exactly these two numbers.
 
 ```{python}
 #| label: check-splits
@@ -102,63 +140,90 @@ lagrange = {i: shamir.lagrange_coefficient(i, [1, 3], q) for i in (1, 3)}
 assert [lagrange[1] * 14 % q, lagrange[3] * 24 % q] == [21, 19]
 ```
 
+**Recap.** Shamir shares are stored; for each signing session, the parties present turn them into
+additive shares by multiplying by their Lagrange weights.
+
 ### What the attacker is assumed to do
 
-Every security claim for a protocol names an **adversary model**: which parties the attacker
-controls, when, and what those parties may do. The attacker's parties are **corrupted**; the rest
-are **honest**. A $t$-of-$n$ scheme promises that up to $t - 1$ corrupted parties learn nothing
-about the key and cannot sign. $t$ corrupted parties can sign; that is what the threshold means.
+**The problem.** "No single machine can sign" is a claim about attackers, and it is only meaningful
+once it says what the attacker can do. A protocol that is safe against a machine whose logs leak
+can be completely broken by a machine that lies.
 
-- **Semi-honest** (honest-but-curious) corrupted parties follow the protocol exactly, but record
-  everything they see and try to learn from it. This models a machine whose memory or logs leak.
-- **Malicious** corrupted parties may send anything: wrong values, values chosen after seeing the
-  honest parties' messages, or nothing at all. This models an attacker who controls the process.
+**The idea.** Every security claim for a protocol names an **adversary model**: which parties the
+attacker controls, when, and what those parties may do. It plays the same role as the fault model
+of a test plan, which states which failures the system is required to survive. The parties the
+attacker controls are **corrupted**; the rest are **honest**. A $t$-of-$n$ scheme promises that up
+to $t - 1$ corrupted parties learn nothing about the key and cannot sign. $t$ corrupted parties can
+sign; that is what the threshold means.
 
-A protocol that is secure against semi-honest parties can be broken by one malicious party. The
-teaching Lindell 2017 module is secure only against semi-honest parties, because its
-zero-knowledge proofs are omitted. Commitments and zero-knowledge proofs, the next two subsections,
-close that gap.
+Corrupted parties come in two strengths:
+
+- A **semi-honest** party (also called honest-but-curious) follows the protocol exactly, but records
+  everything it sees and tries to learn from it later. This models a machine whose memory, logs or
+  backups leak.
+- A **malicious** party may send anything: wrong values, values chosen after seeing the honest
+  parties' messages, or nothing at all. This models an attacker who controls the process.
+
+A protocol that is secure against semi-honest parties can be broken by one malicious party, for
+example by sending a malformed encryption key and reading the honest party's share out of the
+answers. The teaching Lindell 2017 module is secure only against semi-honest parties, because its
+zero-knowledge proofs are left out. Commitments and zero-knowledge proofs, the next two
+subsections, close that gap.
 
 Three further terms qualify the model:
 
-- **Static or mobile.** A static adversary corrupts a fixed set of parties. A mobile adversary
-  moves between machines over time and collects shares from different periods. Proactive refresh
-  is the defence.
-- **Abort and identifiable abort.** When cheating is detected, the protocol stops without a
-  signature: it **aborts**. With **identifiable abort** it also names the cheating party, so
-  operations can exclude that signer and continue with the others.
-- **UC security** (universal composability). A proof in this model still holds when many sessions
-  run at the same time, and alongside other protocols. A proof for one session in isolation does
-  not automatically extend to concurrent sessions, and a custodian's signers run many at once.
+- **Static or mobile.** A static adversary corrupts a fixed set of parties. A **mobile adversary**
+  moves between machines over time, collecting a share from one machine this year and from
+  another next year. Proactive refresh, later in this chapter, is the defence.
+- **Abort and identifiable abort.** When cheating is detected, the protocol stops without producing
+  a signature: it **aborts**. With **identifiable abort** it also names the cheating party, so the
+  operators can exclude that signer and continue with the others.
+- **UC security**, for universal composability. A proof in this model still holds when many
+  sessions run at the same time and alongside other protocols. A proof for one session in
+  isolation does not automatically cover concurrent sessions, and a custodian's signers run many
+  at once ("Many sessions at once" shows what goes wrong).
+
+**Recap.** The adversary model says how many parties the attacker controls and whether they only
+watch or also lie. The protocols in this chapter must survive parties that lie.
 
 ### Commitments
 
-Chapter 1 showed why the Schnorr prover must commit to $R$ before it sees the challenge. A
-commitment scheme has two properties:
+**The problem.** Chapter 1 showed that a Schnorr prover who sees the challenge before committing to
+$R$ can forge. The same danger appears whenever several parties contribute values: the last to
+speak can choose its value after seeing everyone else's.
+
+**The idea.** A commitment fixes a value now and reveals it later. A commitment scheme has two
+properties:
 
 - **Hiding.** The commitment reveals nothing about the committed value.
 - **Binding.** The committer cannot later open the commitment to a different value.
 
 A sealed-bid auction is the physical version: bids arrive in sealed envelopes and are opened
-together, so no bid can be adjusted after another is seen. The analogy breaks in one place. An
-auctioneer holds the envelopes; a cryptographic commitment is published to everyone, and the
-mathematics provides the binding.
+together, so nobody can adjust a bid after seeing another. The comparison stops holding at one
+point. An auctioneer holds the envelopes and is trusted not to peek; a cryptographic commitment is
+published to everyone, and the binding comes from mathematics, not from a trusted holder.
 
 Two constructions appear in this manual:
 
-- **Hash commitment.** Publish $c = H(v \,\|\, r)$ with a random $r$, and open it by revealing $v$
-  and $r$. Collision resistance makes it binding. The random $r$ makes it hiding: without $r$, a
-  value from a small set, such as an order side, is found by hashing each candidate.
-- **Point commitment.** Publish $vG$. It is binding because a point has one position on the
-  cycle, and hiding because of the discrete logarithm. $R = kG$ in a signature is a point
-  commitment to the nonce.
+- **Hash commitment.** Publish $c = H(v \,\|\, r)$, with $r$ a random value, and open it later by
+  revealing $v$ and $r$. Collision resistance makes it binding: finding a second $(v', r')$ with the
+  same hash is infeasible. The random $r$ makes it hiding. Without $r$, a value from a small set,
+  such as an order side, is found by hashing each candidate, as the cell below does.
+- **Point commitment.** Publish $vG$. It is binding because a point has exactly one position on the
+  cycle, and hiding because recovering $v$ from $vG$ is the discrete logarithm problem. The
+  $R = kG$ in a signature is a point commitment to the nonce.
 
-**Feldman commitments** make Shamir sharing checkable. The dealer publishes each coefficient of
-$f$ multiplied by $G$. A receiver checks its share without learning the coefficients, because
-positions add: $f(j)\,G = C_0 + j\,C_1 + j^2 C_2 + \dots$. For the toy sharing $f(x) = 9 + 5x$,
-$C_0 = 9G = (20, 40)$ and $C_1 = 5G = (12, 12)$. Party 3's share 24 passes, because
-$24G = C_0 + 3C_1 = (25, 25)$. A dealer who sent 25 would be caught, since $25G = (29, 12)$. $C_0$
-is the public key of the shared secret: the commitment to the constant term is the group key.
+**Feldman commitments make a sharing checkable.** In Shamir sharing, a party receiving a share
+cannot tell whether it is a genuine point on the dealer's line. Feldman's scheme lets it check. The
+dealer publishes each coefficient of its polynomial multiplied by $G$, which are point commitments
+to the coefficients. Because positions add, a receiver $j$ can check its share without learning the
+coefficients: $f(j)\,G$ must equal $C_0 + j\,C_1 + j^2 C_2 + \dots$.
+
+Worked by hand for chapter 1's sharing $f(x) = 9 + 5x$: the dealer publishes $C_0 = 9G = (20, 40)$
+and $C_1 = 5G = (12, 12)$. Party 3 received the share 24, and checks that $24G$ equals
+$C_0 + 3C_1 = 9G + 15G = 24G$, which is $(25, 25)$: it passes. A dealer who had sent 25 instead would
+be caught, because $25G = (29, 12)$ is a different point. $C_0$ is also the public key of the shared
+secret, since $C_0 = 9G$: the commitment to the polynomial's starting value is the group key.
 
 ```{python}
 #| label: check-commitments
@@ -175,26 +240,43 @@ assert TOY.mul(25, TOY.G) == Point(29, 12)  # a wrong share fails the check
 print("unsalted commitment opened by guessing; share 24 passes the check")
 ```
 
+The printed line names both results: the commitment to "sell" without a random value was opened by
+trying the two possible sides, and the genuine share passed the Feldman check.
+
+**Recap.** A commitment fixes a choice before others are revealed. Feldman commitments let every
+receiver check that its share lies on the dealer's polynomial, and the first one is the group key.
+
 ### Zero-knowledge proofs
 
-A **zero-knowledge proof** convinces a verifier that a statement about a secret is true without
-revealing the secret. Statements proved in this chapter's protocols:
+**The problem.** Some values a party sends cannot be checked by looking at them. A party publishes a
+point and claims to know its discrete logarithm; another publishes an encryption key and claims it
+was built correctly. If the claim is false, the protocol can be broken, but checking the claim
+directly would mean revealing the secret.
 
-- "I know the discrete logarithm of this point": the proof of knowledge in DKG.
+**The idea.** A **zero-knowledge proof** convinces a verifier that a statement about a secret is
+true without revealing anything else about the secret. Statements proved in this chapter's
+protocols include:
+
+- "I know the discrete logarithm of this point": the proof of knowledge in distributed key
+  generation.
 - "This Paillier modulus is the product of two suitable primes": Lindell 2017 and CGGMP.
 - "This ciphertext encrypts the discrete logarithm of that point": Lindell 2017 key generation.
 
-Chapter 1's Schnorr exchange is a zero-knowledge proof of the first kind. Only a holder of $d$
-can answer a challenge it could not predict. The exchange reveals nothing about $d$, and chapter
-1's forgery shows why. Anyone who knows $e$ in advance can produce a transcript $(R, e, s)$
-without $d$, and such transcripts are distributed exactly like real ones. A real transcript
-therefore carries no information about $d$ that a forged one lacks.
+Chapter 1's Schnorr exchange is a zero-knowledge proof of the first kind. Only someone holding $d$
+can answer a challenge it could not predict, so passing the exchange proves knowledge of $d$. And
+the exchange reveals nothing about $d$, for a reason chapter 1's forgery makes concrete: anyone who
+knows $e$ in advance can produce a transcript $(R, e, s)$ that passes, without knowing $d$. Such
+forged transcripts look exactly like real ones. So a real transcript cannot carry any information
+about $d$, because a forged one, made without $d$, would have to carry it too.
 
-With the Fiat-Shamir hash in place of the verifier, the proof becomes non-interactive. It is the
-proof `custody_lab.mpc.dkg` attaches to each participant's $C_0$. A participant who publishes a
-point whose discrete logarithm it does not know cannot produce it. The cell tries the rogue-key
-attack from the formal treatment: participant 3 replaces its commitment with one built to cancel
-participant 1's contribution.
+**The attack it stops.** With the Fiat-Shamir hash in place of the verifier, the proof needs no
+interaction, and `custody_lab.mpc.dkg` attaches one to each participant's published commitment
+$C_0$. It stops the **rogue-key attack**. In distributed key generation the group key is the sum
+of every participant's $C_0$. A participant who speaks last could publish
+$C_0 = AG - (\text{everyone else's } C_0)$ for a number $A$ it chose, so that the sum, the group key,
+comes out as $AG$, a key it alone can sign for. It cannot prove knowledge of the discrete logarithm
+of the point it published, because it does not know it. The cell tries exactly this: participant 3
+replaces its commitment with one built to cancel participant 1's contribution.
 
 ```{python}
 #| label: check-proof-of-knowledge
@@ -218,24 +300,35 @@ except ValueError as err:
 assert rejected
 ```
 
+The printed reason is the check that failed: the proof attached to the forged commitment does not
+verify.
+
+**Recap.** A zero-knowledge proof shows a claim about a secret is true and reveals nothing more. In
+key generation it stops a participant from choosing the group key.
+
 ### Encryption that can be computed on
 
-Ordinary encryption makes a ciphertext opaque; changing it produces garbage on decryption.
-**Homomorphic** encryption keeps a structure: an operation on ciphertexts corresponds to an
+**The problem.** ECDSA's signing formula multiplies the nonce's inverse by the key. If two parties
+each hold a piece, one of them has to compute with the other's piece, without seeing it.
+
+**The idea.** Ordinary encryption makes a ciphertext opaque: change it and decryption produces
+garbage. **Homomorphic** encryption keeps a structure: an operation on ciphertexts corresponds to an
 operation on the plaintexts inside them. Paillier encryption (formal treatment) is **additively**
 homomorphic:
 
-- multiplying two ciphertexts gives an encryption of the sum of the plaintexts;
-- raising a ciphertext to a known power $k$ gives an encryption of $k$ times the plaintext.
+- multiplying two ciphertexts gives an encryption of the sum of their plaintexts;
+- raising a ciphertext to a known power $k$ gives an encryption of $k$ times its plaintext.
 
-It cannot multiply two encrypted values together. Addition is enough for two-party ECDSA. $P_2$
-computes on an encryption of $P_1$'s key share, adds its own contribution, and returns a
-ciphertext that only $P_1$ can decrypt. Paillier is also **randomised**: encrypting the same value
-twice gives different ciphertexts, so equal plaintexts cannot be spotted.
+It cannot multiply two encrypted values together, but addition and multiplication by known numbers
+are enough for two-party ECDSA. Party $P_1$ gives $P_2$ an encryption of $P_1$'s key share. $P_2$
+multiplies that encrypted share by numbers of its own and adds its own terms, all without
+decrypting, and sends back a ciphertext that only $P_1$ can decrypt. Paillier is also randomised:
+encrypting the same value twice gives different ciphertexts, so nobody can spot two equal
+plaintexts.
 
-A toy key with $N = 5 \times 7 = 35$ encrypts plaintexts modulo 35 into ciphertexts modulo
-$35^2 = 1225$. Its private values are $\lambda = \operatorname{lcm}(4, 6) = 12$ and
-$\mu = 12^{-1} \bmod 35 = 3$:
+**Worked with a toy key.** $N = 5 \times 7 = 35$. Plaintexts are numbers modulo 35, and ciphertexts
+are numbers modulo $35^2 = 1225$. The private values are $\lambda = \operatorname{lcm}(4, 6) = 12$
+and $\mu = 12^{-1} \bmod 35 = 3$, since $12 \times 3 = 36 \equiv 1$:
 
 | Operation | Ciphertext | Decrypts to |
 |-------------------------------------|------------|-------------|
@@ -245,7 +338,9 @@ $\mu = 12^{-1} \bmod 35 = 3$:
 | $88^3 \bmod 1225$ | 372 | 12 |
 | Encrypt 4 with randomness 3 | 1062 | 4 |
 
-The teaching module generates 2048-bit moduli (code walkthrough).
+Row 3 multiplied two ciphertexts and decrypted to $4 + 9 = 13$. Row 4 raised a ciphertext to the
+power 3 and decrypted to $3 \times 4 = 12$. Row 5 encrypted 4 again with different randomness and
+got an unrelated ciphertext. A real key uses a 2048-bit $N$ (code walkthrough).
 
 ```{python}
 #| label: check-paillier-toy
@@ -260,27 +355,37 @@ assert pub.mul(c4, 3) == 372 and key.decrypt(372) == 12
 assert pub.encrypt(4, r=3) == 1062 and key.decrypt(1062) == 4
 ```
 
+**Recap.** Paillier lets one party add to and scale another party's encrypted number. That is
+enough to compute an ECDSA signature across two parties.
+
 ### Many sessions at once
 
-A custodian's signers run many signing sessions concurrently, and that creates an attack no single
-session has. In a naive two-round threshold Schnorr, each signer publishes one nonce commitment
-per session. An attacker who controls some signers, or the coordinator, opens many sessions and
-sees the honest signers' commitments in all of them before fixing its own. It then chooses how to
-combine them and which sessions to complete. With enough sessions open, that freedom makes a
-signature on a new message computable. This is the **ROS attack**. Drijvers et al. (2019) used
-Wagner's generalised birthday algorithm to make it practical. Benhamouda et al. (2021) showed it
-runs in polynomial time once the number of concurrent sessions exceeds the bit length of the
-group order, which is 256 for secp256k1. No hash is broken and no share is stolen; the attack
-exploits the attacker's freedom of choice.
+**The problem.** A custodian's signers do not sign one payment at a time; they run many signing
+sessions concurrently. That opens an attack that no single session has.
 
-FROST removes the choice. Each signer commits to two nonces, a **hiding** nonce $d_i$ and a
-**binding** nonce $e_i$. Its effective nonce is $d_i + \rho_i e_i$, where the **binding factor**
-$\rho_i$ is a hash of the message and the full list of commitments in the session. Any change to
-the message or the commitment list changes every signer's effective nonce unpredictably, so there
-is nothing left to choose.
+**The attack.** In a naive two-round threshold Schnorr protocol, each signer publishes one nonce
+commitment per session. An attacker who controls some signers, or the coordinator, opens many
+sessions at once and sees the honest signers' commitments in all of them before fixing its own
+values. It can then choose how to combine them and which sessions to complete. With enough sessions
+open, that freedom of choice makes a signature on a new message, one nobody approved, computable.
+This is the **ROS attack**. Drijvers et al. (2019) used Wagner's generalised birthday algorithm to
+make it practical. Benhamouda et al. (2021) showed it runs in polynomial time, which in practice
+means quickly, once the number of concurrent sessions exceeds the bit length of the group order:
+256 for secp256k1. No hash is broken and no share is stolen. The attack exploits only the
+attacker's freedom to choose after seeing.
 
-Nonces are single-use state, for the reason given in chapter 1. A signer must never reuse a nonce
-and must never restore one from a backup, because restoring a used nonce is nonce reuse.
+**The fix.** FROST removes the choice. Each signer commits to two nonces per session, a **hiding
+nonce** $d_i$ and a **binding nonce** $e_i$. Its effective nonce is $d_i + \rho_i e_i$, where the
+**binding factor** $\rho_i$ is a hash of the message and of the full list of commitments in the
+session. Any change to the message or to the commitment list changes every signer's effective
+nonce unpredictably, so there is nothing left to choose after seeing.
+
+**Nonces are single-use state.** For the reason chapter 1 gave, a signer must never reuse a nonce.
+That includes never restoring one from a backup, because restoring a used nonce and signing again
+is nonce reuse.
+
+**Recap.** Concurrent sessions give an attacker room to choose; FROST's binding factor ties every
+nonce to one message and one set of commitments, which takes the choice away.
 
 ## Formal treatment
 
@@ -293,27 +398,31 @@ $$
 d = \sum_{i \in S} \lambda_i s_i ,
 $$
 
-so $w_i = \lambda_i s_i$ is an **additive** share of $d$ for this signing set. Each party computes
-its $w_i$ locally. Schnorr is linear, so additive key shares and additive nonces
-$k = \sum k_i$ give additive signature shares $z_i = k_i + e\,w_i$, and $z = \sum z_i$
-verifies under $P = dG$. What remains is making that safe against a party who cheats.
+so $w_i = \lambda_i s_i$ is an additive share of $d$ for this signing set. Each party computes its
+$w_i$ alone. Schnorr is linear, so additive key shares and additive nonces $k = \sum k_i$ give
+additive signature shares $z_i = k_i + e\,w_i$, and their sum $z = \sum z_i$ verifies under
+$P = dG$. What the rest of this section adds is protection against a party who cheats.
 
 ### Paillier encryption
 
-Paillier is public-key encryption with an additive homomorphism. Anyone holding only the public
-key $N$ can compute, on ciphertexts mod $N^2$:
+Paillier is public-key encryption with an additive homomorphism. The public key is a modulus
+$N = pq$, the product of two large secret primes, and ciphertexts are numbers modulo $N^2$. Anyone
+holding only $N$ can compute
 
 $$
 \text{Enc}(a) \cdot \text{Enc}(b) = \text{Enc}(a + b), \qquad \text{Enc}(a)^k = \text{Enc}(k \cdot a) .
 $$
 
-ECDSA's $s = k^{-1}(z + rd)$ multiplies secrets held by different parties. Paillier lets one
-party compute on another's secret while it stays encrypted.
+Only the holder of the primes can decrypt. ECDSA's $s = k^{-1}(z + rd)$ multiplies secrets held by
+different parties, and Paillier lets one party compute on another's secret while it stays
+encrypted.
 
 ### Two-party ECDSA (Lindell 2017)
 
-Keys are multiplicative shares: $Q = x_1 x_2 G$. At key generation $P_1$ sends
-$c_{\text{key}} = \text{Enc}_{P_1}(x_1)$ to $P_2$. To sign digest $z$:
+Keys are multiplicative shares: $P_1$ holds $x_1$, $P_2$ holds $x_2$, and the public key is
+$Q = x_1 x_2 G$. At key generation, $P_1$ creates a Paillier key pair and sends
+$c_{\text{key}} = \text{Enc}_{P_1}(x_1)$, its own key share encrypted under its own Paillier key, to
+$P_2$. To sign a digest $z$:
 
 | Step | $P_1$ (holds $x_1$, Paillier private key) | $P_2$ (holds $x_2$, $c_{\text{key}}$) |
 |------|------|------|
@@ -324,95 +433,130 @@ $c_{\text{key}} = \text{Enc}_{P_1}(x_1)$ to $P_2$. To sign digest $z$:
 | 5 | $R = k_1 R_2$, $s' = \text{Dec}(c_3) \bmod q = k_2^{-1}(z + r x_1 x_2)$ | |
 | 6 | $s = k_1^{-1} s' \bmod q$, low-S, verify, output $(r, s)$ | |
 
-$P_2$ never sees $x_1$; $P_1$ never sees $x_2$ or $k_2$. The $\rho q$ term vanishes mod $q$ but hides
-the size of $P_2$'s plaintext from $P_1$. The full protocol adds zero-knowledge proofs:
+Here $q$ is the curve's group order (written $n$ in chapter 1). Step by step:
 
-- knowledge of $x_1$, $x_2$, $k_1$, $k_2$;
-- that $N$ is a valid Paillier modulus;
-- that $c_{\text{key}}$ encrypts $\log_G Q_1$.
+- **Steps 1 and 2** build the shared nonce point. $P_1$ picks $k_1$ and $P_2$ picks $k_2$, and
+  $R = k_1 k_2 G$; neither party knows the full nonce $k = k_1 k_2$.
+- **Steps 3 and 4** are $P_2$ computing on encrypted data. Raising $c_{\text{key}}$ to the power
+  $k_2^{-1} r x_2$ gives an encryption of $k_2^{-1} r x_2 x_1$, by the second homomorphic rule.
+  Multiplying by $c_1$ adds $k_2^{-1} z$, by the first. So $c_3$ encrypts
+  $k_2^{-1}(z + r x_1 x_2)$, plus the masking term $\rho q$.
+- **Step 5.** $P_1$ decrypts and reduces modulo $q$. The masking term $\rho q$ vanishes, because it
+  is a multiple of $q$, but before the reduction it hides the exact size of the number $P_2$
+  computed, which would otherwise leak information about $k_2$ and $x_2$.
+- **Step 6.** Dividing by $k_1$ gives $s = (k_1 k_2)^{-1}(z + r\,x_1 x_2) = k^{-1}(z + r d)$: exactly
+  the ECDSA formula, with $d = x_1 x_2$ and $k = k_1 k_2$.
 
-These are what stop a malicious party from biasing the key or extracting the other's share.
-Coinbase's cb-mpc implements Lindell 2017 with those proofs. Its theory document states the
-protocol is secure only if all executions with a key halt once cheating is detected.
+$P_2$ never sees $x_1$ in the clear; $P_1$ never sees $x_2$ or $k_2$. The full protocol adds
+zero-knowledge proofs of:
+
+- knowledge of $x_1$, $x_2$, $k_1$ and $k_2$;
+- the Paillier modulus $N$ being valid;
+- $c_{\text{key}}$ encrypting the discrete logarithm of $P_1$'s public share $Q_1 = x_1 G$.
+
+These are what stop a malicious party from biasing the key or extracting the other party's share.
+Coinbase's cb-mpc implements Lindell 2017 with those proofs. Its theory document states that the
+protocol is secure only if every execution with a key halts once cheating is detected.
 
 ### CGGMP
 
-Canetti, Gennaro, Goldfeder, Makriyannis and Peled (2020) give t-of-n threshold ECDSA with four
-properties that matter operationally:
+Canetti, Gennaro, Goldfeder, Makriyannis and Peled (2020) give $t$-of-$n$ threshold ECDSA with four
+properties that matter in operation:
 
 - **UC security**, so it stays secure when many sessions run concurrently.
-- **Identifiable abort**: a party that cheats is named, not just detected.
-- **Proactive refresh.**
-- **Presigning**: most of the work happens before the message is known, leaving one online
-  round.
+- **Identifiable abort**: a party that cheats is named, not only detected.
+- **Proactive refresh**, described below.
+- **Presigning**: most of the work happens before the message is known, leaving one round once it
+  is.
 
-The cost is heavy zero-knowledge machinery over Paillier, including an auxiliary-information
-phase that generates safe primes (primes $p$ for which $(p - 1)/2$ is also prime). Among
-open-source Rust libraries, `cggmp21` (LFDT-Lockness)
-implements it; the audit is by Kudelski (**verify current**). cb-mpc's multi-party ECDSA uses a
-different, OT-based protocol (Haitner, Lindell, Nof, Ranellucci 2018).
+The cost is heavy zero-knowledge machinery over Paillier encryption, including an
+auxiliary-information phase that generates safe primes (primes $p$ for which $(p - 1)/2$ is also
+prime). Among open-source Rust libraries, `cggmp21` (LFDT-Lockness) implements it; the audit is by
+Kudelski (**verify current**). cb-mpc's multi-party ECDSA uses a different protocol based on
+oblivious transfer (Haitner, Lindell, Nof, Ranellucci 2018).
 
 ### FROST
 
 FROST (Komlo and Goldberg 2020; RFC 9591) is threshold Schnorr in two rounds:
 
-1. Each signer $i$ draws a hiding nonce $d_i$ and a binding nonce $e_i$ and publishes
-   $D_i = d_i G$, $E_i = e_i G$. This round can run before the message is known.
-2. For message $m$ and commitment list $B$, each signer computes the binding factors
-   $\rho_j = H_1(P, H_4(m), H_5(B), j)$, the group commitment $R = \sum_j (D_j + \rho_j E_j)$ and
-   the challenge $c = H_2(R, P, m)$. It returns
+1. **Commit.** Each signer $i$ draws a hiding nonce $d_i$ and a binding nonce $e_i$ and publishes
+   their point commitments $D_i = d_i G$ and $E_i = e_i G$. This round can run before the message is
+   known.
+2. **Sign.** For the message $m$ and the list $B$ of every participating signer's commitments,
+   each signer computes:
+   - the binding factors $\rho_j = H_1(P, H_4(m), H_5(B), j)$ for every signer $j$;
+   - the group commitment $R = \sum_j (D_j + \rho_j E_j)$, the combined nonce point;
+   - the challenge $c = H_2(R, P, m)$, as in a single-signer Schnorr signature;
+
+   and returns its signature share
 
 $$
 z_i = d_i + e_i \rho_i + \lambda_i s_i c .
 $$
 
-The coordinator outputs $(R, \sum z_i)$, an ordinary Schnorr signature. The binding factor ties
-each signer's effective nonce to this message and this signer set. That defeats the attack on the
-naive two-party Schnorr in chapter 1, where a party picks its nonce after seeing the other's. For
-Bitcoin, the `frost-secp256k1-tr` variant makes the output a BIP340 signature.
+$H_1$ to $H_5$ are built from SHA-256 with a different context string each, so their outputs are
+unrelated, the same domain separation as BIP340's tags (chapter 1, "Hash functions"). $s_i$ is signer $i$'s Shamir share and $\lambda_i$ its Lagrange coefficient for this
+signer set. So $z_i$ is the effective nonce $d_i + \rho_i e_i$ plus the challenge times the additive
+key share $\lambda_i s_i$, which is the formula of the previous section with FROST's two-part
+nonce.
+
+The coordinator outputs $(R, \sum z_i)$, an ordinary Schnorr signature. The binding factor ties each
+signer's effective nonce to this message and this signer set. That defeats the attack on chapter
+1's naive two-party Schnorr, where a party picks its nonce after seeing the other's, and the ROS
+attack on concurrent sessions. For Bitcoin, the `frost-secp256k1-tr` variant makes the output a
+BIP340 signature.
 
 ### Distributed key generation
 
-Pedersen's DKG runs $n$ Shamir dealings at once. Participant $i$ picks a polynomial $f_i$ of degree
-$t-1$ and broadcasts **Feldman commitments** $C_{ik} = a_{ik} G$ to its coefficients, plus a proof
-of knowledge of $a_{i0}$. It sends $f_i(j)$ privately to each $j$. Receiver $j$ checks
+Pedersen's distributed key generation runs $n$ Shamir dealings at once, one by each participant:
+
+1. Participant $i$ picks a random polynomial $f_i$ of degree $t - 1$. It broadcasts **Feldman
+   commitments** $C_{ik} = a_{ik} G$ to its coefficients $a_{ik}$, plus a proof of knowledge of
+   $a_{i0}$, the discrete logarithm of $C_{i0}$.
+2. It sends $f_i(j)$ privately to each other participant $j$.
+3. Receiver $j$ checks each sub-share it received against the sender's commitments,
 
 $$
 f_i(j)\,G = \sum_k j^k\, C_{ik} ,
 $$
 
-then sets its share to $s_j = \sum_i f_i(j)$. The group key is $P = \sum_i C_{i0}$, and the secret
-$\sum_i a_{i0}$ was never in any one place. The proof of knowledge stops a **rogue-key attack**, in
-which the last participant picks its $C_{i0}$ to cancel everyone else's contribution. Feldman
-checks alone stop it only when at least $t$ honest receivers pin the attacker's polynomial. With
-$t = n$ they do not (Exercise 4).
+   and sets its share to the sum of everything it received, $s_j = \sum_i f_i(j)$.
+
+The group key is $P = \sum_i C_{i0}$, the public key of $\sum_i a_{i0}$, and that secret sum was
+never in any one place. The proof of knowledge stops the rogue-key attack described under
+"Zero-knowledge proofs". Feldman checks alone stop it only when at least $t$ honest receivers pin
+down the attacker's polynomial; with $t = n$ they do not (Exercise 4).
 
 ### Proactive refresh
 
-Every holder deals a sharing of **zero** (commitment $C_{i0}$ is the identity) and adds the
-sub-shares it receives to its share. The group key does not change; every share does, and the
-new polynomial is independent of the old one. An attacker who stole one old share and one new
-share holds two points on different polynomials and learns nothing. Refresh defends against a
-**mobile adversary**, one who compromises different machines at different times.
+Every holder deals a sharing of **zero**: a polynomial whose starting value is 0, so its commitment
+$C_{i0}$ is the point at infinity. Each holder adds the sub-shares it receives to its share. The
+group key does not change, because zero was added to the secret, but every share does, and the new
+polynomial is independent of the old one. An attacker who stole one old share and one new share
+holds two points on different polynomials and learns nothing. Refresh therefore defends against a
+mobile adversary, one who compromises different machines at different times. The worked example
+below runs a refresh by hand.
 
 ### Backup, recovery and repair
 
-A lost share is a lost vote; losing more than $n - t$ shares loses the key. Three tools recover
-from that:
+A lost share is a lost vote, and losing more than $n - t$ shares loses the key, because fewer than
+$t$ remain. Three tools recover from that:
 
 - **Encrypted share backup.** Each share is encrypted to an offline recovery key held under
-  different control.
+  different control from the live share.
 - **Publicly verifiable encryption** (cb-mpc's PVE). Anyone can check that a backup ciphertext
   really encrypts the share matching a known public share, without decrypting it. A custodian can
-  therefore prove its backups are valid.
+  therefore show an auditor that its backups would work.
 - **Share repair.** $t$ holders help rebuild a lost holder's share without revealing their own.
-  ZF FROST ships this as `repair_share_part1` to `part3`.
+  ZF FROST provides this as `repair_share_part1` to `part3`.
 
 ## Worked example
 
+### Threshold Schnorr on the toy curve
+
 Threshold Schnorr on the toy curve ($\mathbb{F}_{43}$, $n = 31$), reusing chapter 1's Shamir sharing
-of $d = 9$: shares $(1, 14)$, $(2, 19)$, $(3, 24)$. Parties 1 and 3 sign. The challenge hash is
-fixed at $e = 5$ so that every step can be checked by hand.
+of $d = 9$: shares $(1, 14)$, $(2, 19)$ and $(3, 24)$. Parties 1 and 3 sign. The challenge is fixed
+at $e = 5$, instead of being hashed, so that every step can be checked by hand.
 
 | Step | Party 1 | Party 3 |
 |------|---------|---------|
@@ -423,7 +567,7 @@ fixed at $e = 5$ so that every step can be checked by hand.
 
 - The additive shares sum to the key: $21 + 19 = 40 \equiv 9 = d$. Neither party ever computed 9.
 - Combined: $z = 15 + 6 = 21$ and $R = (3 + 4)G = 7G$.
-- Verification $zG = R + eP$: $7G + 5 \cdot 9G = 52G = 21G$, since $52 \equiv 21 \pmod{31}$.
+- Verification $zG = R + eP$: $7G + 5 \cdot 9G = 52G = 21G$, since $52 = 31 + 21$.
 
 ```{python}
 #| label: check-toy-threshold
@@ -442,7 +586,86 @@ assert TOY.mul(sum(z.values()), G) == TOY.add(R, TOY.mul(e, P))
 print("R =", R, " zG =", TOY.mul(21, G))
 ```
 
+The printed line shows the combined nonce point $R = 7G$ and the point $zG = 21G$ that the
+verifier compares with $R + eP$.
+
+### Distributed key generation on the toy curve
+
+The sharing used above, $9 + 5x$ with shares 14, 19 and 24, can be produced by three participants
+without anyone choosing, or ever seeing, the key 9. Each participant picks its own line modulo 31
+and publishes Feldman commitments to the line's starting value and slope:
+
+| Participant | Its line | Commitments | Sends to 1 | to 2 | to 3 |
+|-------------|----------|-------------|------------|------|------|
+| 1 | $3 + x$ | $3G$, $1G$ | 4 | 5 | 6 |
+| 2 | $2 + 5x$ | $2G$, $5G$ | 7 | 12 | 17 |
+| 3 | $4 - x$ | $4G$, $30G$ | 3 | 2 | 1 |
+| Each receiver's share (column sum) | $9 + 5x$ | | 14 | 19 | 24 |
+
+Participant 3's slope is $-1 \equiv 30$, so its slope commitment is $30G$. Each receiver checks
+every sub-share it gets. For example, participant 3 receives 17 from participant 2 and checks that
+$17G$ equals participant 2's $C_0 + 3C_1 = 2G + 15G$; it does. Had participant 2 sent 18, the check
+would compare $18G = (13, 22)$ with $17G = (34, 3)$ and fail.
+
+The group key is the sum of the three starting-value commitments, $3G + 2G + 4G = 9G = (20, 40)$,
+which everyone can compute. The key itself, $3 + 2 + 4 = 9$, would need all three starting values,
+and each participant knows only its own.
+
+```{python}
+#| label: check-toy-dkg
+lines = {1: (3, 1), 2: (2, 5), 3: (4, 30)}  # each participant's (start, slope) modulo 31
+commitments = {i: (TOY.mul(a, G), TOY.mul(b, G)) for i, (a, b) in lines.items()}
+share = {}
+for j in (1, 2, 3):
+    received = {i: (a + b * j) % n for i, (a, b) in lines.items()}
+    for i, value in received.items():  # Feldman check of each sub-share
+        C0, C1 = commitments[i]
+        assert TOY.mul(value, G) == TOY.add(C0, TOY.mul(j, C1))
+    share[j] = sum(received.values()) % n
+    print(f"participant {j} receives {list(received.values())}, share {share[j]}")
+group_key = TOY.add(TOY.add(commitments[1][0], commitments[2][0]), commitments[3][0])
+assert share == {1: 14, 2: 19, 3: 24} and group_key == TOY.mul(9, G) == Point(20, 40)
+assert TOY.mul(18, G) != TOY.add(commitments[2][0], TOY.mul(3, commitments[2][1]))
+```
+
+Each printed line is one participant's view: the three sub-shares it received, in the order
+participant 1, 2, 3, and the share it keeps. The shares are the ones the threshold example signed
+with.
+
+### Proactive refresh on the toy curve
+
+To refresh, each participant deals a line through zero: participant 1 uses $3x$, participant 2 uses
+$7x$ and participant 3 uses $x$. Their slopes add to 11, so the shared line changes from $9 + 5x$
+to $9 + 16x$, and the key is still 9.
+
+| Holder | Old share | Received ($3x$, $7x$, $x$) | New share |
+|--------|-----------|----------------------------|-----------|
+| 1 | 14 | $3 + 7 + 1 = 11$ | $14 + 11 = 25$ |
+| 2 | 19 | $6 + 14 + 2 = 22$ | $19 + 22 = 41 \equiv 10$ |
+| 3 | 24 | $9 + 21 + 3 = 33 \equiv 2$ | $24 + 2 = 26$ |
+
+New shares 1 and 3 still recover the key with the same weights:
+$17 \times 25 + 15 \times 26 = 425 + 390 = 815 = 26 \times 31 + 9$. An old share from before the
+refresh and a new share from after it do not: $17 \times 14 + 15 \times 26 = 238 + 390 = 628 =
+20 \times 31 + 8$, which is 8, not 9. An attacker who stole share 1 last year and share 3 this year
+has two points on different lines, and they give the wrong key.
+
+```{python}
+#| label: check-toy-refresh
+zero_lines = {1: 3, 2: 7, 3: 1}  # each participant deals slope * x, a line through zero
+old = {1: 14, 2: 19, 3: 24}
+new = {j: (old[j] + sum(m * j for m in zero_lines.values())) % n for j in old}
+assert new == {1: 25, 2: 10, 3: 26}
+assert shamir.reconstruct([shamir.Share(1, new[1]), shamir.Share(3, new[3])], modulus=n) == 9
+assert shamir.reconstruct([shamir.Share(1, old[1]), shamir.Share(3, new[3])], modulus=n) == 8
+print("new shares", list(new.values()), "recover 9; old 1 with new 3 gives 8")
+```
+
 ## Code walkthrough
+
+The worked examples used numbers small enough to check by hand. This section runs the same
+protocols at full size and checks them against an independent verifier, a published test vector,
+and the demo's own signing processes.
 
 ### Two-party ECDSA
 
@@ -478,11 +701,15 @@ public_key.verify(
 print(f"Paillier N: {msg1.paillier_public.n.bit_length()} bits; signature verified")
 ```
 
+The printed line gives the size of $P_1$'s Paillier modulus and confirms that OpenSSL accepted the
+two-party signature as ordinary ECDSA.
+
 ### FROST against RFC 9591
 
-The educational FROST reproduces the RFC's test vector for FROST(secp256k1, SHA-256) exactly:
-nonces, commitments, binding factors, signature shares and the final signature. The full check
-is `tests/mpc/test_frost.py`; this cell repeats the last step.
+RFC 9591 publishes a test vector for FROST(secp256k1, SHA-256): fixed inputs and every
+intermediate value. The educational FROST reproduces it exactly: nonces, commitments, binding
+factors, signature shares and the final signature. The full check is `tests/mpc/test_frost.py`;
+this cell repeats the last step.
 
 ```{python}
 #| label: walkthrough-frost-vector
@@ -517,8 +744,9 @@ print("matches RFC 9591 vector; signers", sorted(nonces))
 
 ### DKG, signing and refresh
 
-Three participants run the DKG; any two sign. After a refresh the key is unchanged and every
-share is new, and an old share combined with a new one produces an invalid signature.
+Three participants run the DKG, and every pair of them signs. After a refresh the key is unchanged
+and every share is new, and an old share combined with a new one produces an invalid signature,
+the full-size version of the refresh example.
 
 ```{python}
 #| label: walkthrough-dkg
@@ -548,16 +776,18 @@ mixed = frost_sign({1: shares[1], 2: new[2]}, group_key, b"m")
 print("old + new share signs:", frost.verify(group_key, b"m", mixed))
 ```
 
+`False` in the printed line is the expected result: the mixed pair's signature does not verify.
+
 ### The demo's signing path: ZF FROST in three processes
 
 `SigningCluster` starts one operating-system process per share and runs the crate's DKG and
-two-round signing across them. The coordinator (this notebook) relays packages and never holds a
-share. The signature is checked with the educational BIP340 verifier from chapter 1, an
-implementation independent of the crate.
+two-round signing across them. The coordinator, here the process building this chapter, relays
+packages and never holds a share. The signature is checked with chapter 1's educational BIP340
+verifier, an implementation independent of the crate.
 
-Each signer releases a share only against an authorisation signed by the policy authority,
-covering exactly the message in the signing package. Module 4 builds the policy engine that
-issues it; here the notebook holds the authority key.
+Each signer releases a signature share only against an authorisation signed by the policy
+authority, covering exactly the message in the signing package. Chapter 4 builds the policy engine
+that issues it; here the chapter holds the authority key itself.
 
 ```{python}
 #| label: walkthrough-cluster
@@ -569,8 +799,8 @@ from custody_lab.foundations import schnorr
 from custody_lab.mpc.cluster import SigningCluster
 from custody_lab.policy import authorisation
 
-authority = authorisation.AuthorityKey.generate()  # Module 4: held by the policy engine
-sighash = bytes.fromhex("6a" * 32)  # stands in for a BIP341 sighash (Module 5)
+authority = authorisation.AuthorityKey.generate()  # chapter 4: held by the policy engine
+sighash = bytes.fromhex("6a" * 32)  # stands in for a BIP341 sighash (chapter 5)
 expires = datetime.now(UTC) + timedelta(seconds=60)
 token = authorisation.issue(authority, b"\x00" * 32, sighash, expires).to_bytes()
 
@@ -585,11 +815,16 @@ assert schnorr.verify(sighash, x_only_key, signature)
 print("BIP340 signature from shares 1 and 3 verifies; key", x_only_key.hex()[:16], "...")
 ```
 
+The printed process identifiers show four different processes: the coordinator and one per share.
+The last line shows that signers 1 and 3 together produced a BIP340 signature for the group key,
+which signer 2 took no part in.
+
 ### Production ECDSA libraries (listings, not executed)
 
-cb-mpc's C API for two-party ECDSA signing (`include/cbmpc/c_api/ecdsa_2p.h`). The caller
-supplies the transport as blocking send/receive callbacks inside `job`, and the key blob holds
-this party's share.
+These two listings are in C and Rust, which this project does not build; they show what calling a
+production threshold-ECDSA library looks like. First, cb-mpc's C API for two-party ECDSA signing
+(`include/cbmpc/c_api/ecdsa_2p.h`). The caller supplies the network transport as blocking send and
+receive callbacks inside `job`, and the key blob holds this party's share.
 
 ```c
 cbmpc_error_t cbmpc_ecdsa_2p_sign(const cbmpc_2pc_job_t* job, cmem_t key_blob,
@@ -597,8 +832,9 @@ cbmpc_error_t cbmpc_ecdsa_2p_sign(const cbmpc_2pc_job_t* job, cmem_t key_blob,
                                   cmem_t* sid_out, cmem_t* sig_der_out);
 ```
 
-`cggmp21`'s three phases, abridged from the crate documentation (docs.rs, version 0.6.3). `party`
-is the caller's networking; key share assembly is elided.
+Second, `cggmp21`'s three phases, abridged from the crate documentation (docs.rs, version 0.6.3):
+key generation, the auxiliary-information phase that generates Paillier primes, and signing.
+`party` is the caller's networking; assembling the final key share is left out.
 
 ```rust
 let eid = cggmp21::ExecutionId::new(b"execution id, unique per protocol execution");
@@ -620,34 +856,68 @@ let signature = cggmp21::signing(eid, i, &parties_indexes_at_keygen, &key_share)
 
 ## How this shows up in production
 
-- **Vendors.** MPC wallets and custody platforms build on the protocols in this chapter.
-  Fireblocks built MPC-CMP from the same research line as CGGMP. Coinbase open-sourced cb-mpc
-  (Lindell 2017, HLNR 2018, Lindell 2024 Schnorr). Dfns and the LFDT-Lockness project publish
-  `cggmp21`. Zcash Foundation publishes FROST. Product names and protocol choices change;
-  **verify current**.
-- **The omitted proofs are where real breaks happened.** In 2023, two public disclosures showed
-  key extraction from several open-source GG18/GG20 threshold ECDSA implementations whose
-  zero-knowledge proofs were missing or weak: Fireblocks' "BitForge" and Verichains' "TSShock".
-  Paillier modulus validity was one of the weak points. The library choice matters more than the
-  protocol name.
-- **Halt on failure.** For Lindell 2017, cb-mpc's theory document requires every execution with a
-  key to stop once cheating is detected. An operator runbook needs a "freeze key" action wired to
-  signing failures, not a retry loop.
-- **Nonces are single-use state.** FROST nonces and CGGMP presignatures must never be reused or
-  restored from backup. The demo's signer erases its nonces before returning a share.
-- **Transport and identity are the integrator's job.** cb-mpc's README puts it plainly: the
-  integrating application authenticates peers and protects channels (for example with mutually
-  authenticated TLS), and session identifiers must be unique.
-  The demo uses local pipes; Module 9 discusses the deployed version.
-- **Taproot needs a tweak.** A BIP86 key-path spend signs under the tweaked key
-  $P + H_{\text{TapTweak}}(P)\,G$. The crate provides `sign_with_tweak` and `aggregate_with_tweak`
-  for this; Module 5 uses them.
-- **Where the shares live** (HSM, TEE, plain server) is Module 3. **What authorises a signature**
-  is Module 4.
+**Vendors.** MPC wallets and custody platforms build on the protocols in this chapter. Fireblocks
+built MPC-CMP from the same research line as CGGMP. Coinbase open-sourced cb-mpc, which includes
+Lindell 2017, HLNR 2018 and a Lindell 2024 Schnorr protocol. Dfns and the LFDT-Lockness project
+publish `cggmp21`. The Zcash Foundation publishes FROST. Product names and protocol choices change
+(**verify current**).
+
+**The omitted proofs are where real breaks happened.** In 2023, two public disclosures showed that
+the key could be extracted from several open-source GG18/GG20 threshold ECDSA implementations whose
+zero-knowledge proofs were missing or weak: Fireblocks' "BitForge" and Verichains' "TSShock". One
+weakness behind BitForge was a missing proof that a party's Paillier modulus is well formed: a
+malicious party could send a modulus with small factors and, over a number of signing sessions,
+extract the honest party's key share. That is the kind of proof the teaching Lindell 2017 module
+leaves out. The library choice matters more
+than the protocol name.
+
+**Halt on failure.** For Lindell 2017, cb-mpc's theory document requires every execution with a key
+to stop once cheating is detected, because an attacker who can retry after each failure learns a
+little more each time. An operator runbook therefore needs a "freeze key" action wired to signing
+failures, not an automatic retry loop.
+
+**Nonces are single-use state.** FROST nonces and CGGMP presignatures must never be reused or
+restored from a backup. The demo's signer discards its nonces before it checks a request, so a
+refused request cannot be retried with the same nonces on a different message.
+
+**Transport and identity are the integrator's job.** cb-mpc's README is explicit that the
+application around the library authenticates the parties to each other and protects the channels
+between them, for example with mutually authenticated TLS, and that every session identifier must
+be unique. The demo uses local pipes between processes on one machine; chapter 9 discusses the
+deployed version.
+
+**Taproot needs a tweak.** A Bitcoin Taproot payment of the kind the demo makes (a BIP86 key-path
+spend) is signed under a tweaked key, $P + H_{\text{TapTweak}}(P)\,G$, not under the group key $P$
+itself. The crate provides `sign_with_tweak` and `aggregate_with_tweak` for this, and chapter 5
+explains the tweak.
+
+**Where the shares live** (an HSM, a secure enclave or a plain server) is chapter 3. **What
+authorises a signature** is chapter 4.
+
+## Recap
+
+1. MPC lets several parties compute a signature from their key shares while each learns only the
+   signature. The chain sees one ordinary key and one ordinary signature, unlike multisig.
+2. Protocols run in rounds; a coordinator relays messages and holds nothing secret. Security is
+   stated against an adversary model: semi-honest parties watch, malicious parties lie.
+3. Shamir shares become additive shares for a signing session by multiplying each share by its
+   Lagrange weight; Schnorr then signs additively.
+4. Commitments fix values before others are revealed; Feldman commitments let every receiver check
+   its share; zero-knowledge proofs prove claims about secrets, and stop the rogue-key attack.
+5. ECDSA multiplies secrets, so two-party ECDSA computes on an encrypted key share with Paillier's
+   additive homomorphism, and needs proofs that each party's values are well formed.
+6. FROST signs in two rounds. Its binding factor ties every nonce to one message and one set of
+   commitments, which defeats attacks that rely on choosing after seeing, including ROS.
+7. Distributed key generation creates shares of a key nobody ever held; proactive refresh changes
+   every share without changing the key, so shares stolen at different times do not combine; backup
+   and repair keep the key alive when share holders fail.
+
+Chapter 3 asks where each share should physically live, and chapter 4 builds the policy engine whose
+authorisation every signer checks.
 
 ## Exercises
 
-1. **Compute.** Repeat the toy worked example with parties 2 and 3, the same challenge $e = 5$
+1. **Compute.** Repeat the toy threshold example with parties 2 and 3, the same challenge $e = 5$
    and nonces $k_2 = 3$, $k_3 = 4$. Give $\lambda_2$, $\lambda_3$, both signature shares and $z$.
 2. **Explain.** Why does each FROST signer publish two nonce commitments instead of one?
 3. **Explain.** In Lindell 2017, what would $P_1$ learn if $P_2$ omitted the $\rho q$ term?
@@ -685,10 +955,10 @@ assert [(3 + 5 * w[2]) % n, (4 + 5 * w[3]) % n] == [9, 12]
    forgery (the ROS / Wagner attack). The binding nonce, weighted by $\rho_j$, makes every
    signer's effective nonce depend on the message and the full commitment list, so nothing can
    be chosen after the fact.
-3. The decrypted value would be $k_2^{-1} z + k_2^{-1} r x_2 x_1$ reduced mod $N$, not mod $q$. As an
-   integer it leaks information about $k_2^{-1}$ and $x_2$ through its size and its structure
-   across signatures. Adding a random multiple of $q$ statistically hides the integer while
-   leaving the value mod $q$ unchanged.
+3. The decrypted value would be $k_2^{-1} z + k_2^{-1} r x_2 x_1$ reduced modulo $N$, not modulo
+   $q$. As a whole number it leaks information about $k_2^{-1}$ and $x_2$ through its size and its
+   structure across signatures. Adding a random multiple of $q$ hides the whole number while
+   leaving its value modulo $q$ unchanged.
 4. The group key becomes $C_{10} + C_{20} + C_{30} = A$, a key the attacker alone controls; the
    honest contributions cancel.
    - Feldman checks do not catch it. With degree 2 and only two honest receivers, participant 3

@@ -26,6 +26,26 @@ glossary and atlas link to are kept where the content stays.
   re-pointed to the sections that now teach them. One atlas link re-pointed from the removed
   "Intuition" section.
 
+**Chapter 2, MPC custody.**
+- Changed: "What this chapter is for" states the problem chapter 1 left (the machine that rebuilds
+  the key), explains multisig before comparing it with MPC, and keeps the three-questions table as
+  a summary. Each first-principles section now opens with the problem it solves. The rogue-key
+  attack is explained before the cell that runs it, where the draft pointed forward to the formal
+  treatment. Lindell 2017 is explained step by step, including why the decrypted value is
+  $k_2^{-1}(z + r x_1 x_2)$. FROST's symbols are each named. Two new worked examples by hand: a
+  distributed key generation whose three lines ($3 + x$, $2 + 5x$, $4 - x$) sum to the chapter's
+  sharing $9 + 5x$, with Feldman checks; and a proactive refresh that gives new shares 25, 10 and
+  26, where old share 1 with new share 3 recovers 8 instead of 9. A Recap closes the chapter.
+- Verified: renders to 29 pages (from 22), exit 0; no page ends on a heading; no printed line over
+  80 characters; the DKG table page was rasterised and inspected. The DKG and refresh numbers were
+  found by search so that no sub-share or commitment is zero, and both are asserted in cells.
+- Two statements were narrowed rather than carried: FROST's $H_1$ to $H_5$ are SHA-256 with a
+  context string each (not "tags"), and BitForge is described by its missing-modulus-proof
+  weakness without detail beyond that.
+- Glossary: six rows added (Multisig, Hiding nonce, Binding nonce, Rogue-key attack, Private
+  channel, Publicly verifiable encryption); Signing quorum and one atlas link re-pointed from the
+  removed "Intuition" section.
+
 ## 2026-10-08: Open-source licence, links between chapters, the manual on GitHub, README
 
 **Changed.**

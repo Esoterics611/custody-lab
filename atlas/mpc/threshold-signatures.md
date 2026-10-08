@@ -14,7 +14,7 @@ under one public key; the key is never assembled.
 **In the demo.** `src/custody_lab/mpc/cluster.py` (`SigningCluster`): a 2-of-3 FROST cluster, one
 process per share.
 
-**In the manual.** [Chapter 2](../../manual/chapters/02-mpc-custody.md), "[Intuition](../../manual/chapters/02-mpc-custody.md#intuition)" and "[From Shamir shares to additive shares](../../manual/chapters/02-mpc-custody.md#from-shamir-shares-to-additive-shares)".
+**In the manual.** [Chapter 2](../../manual/chapters/02-mpc-custody.md), "[What this chapter is for](../../manual/chapters/02-mpc-custody.md#what-this-chapter-is-for)" and "[From Shamir shares to additive shares](../../manual/chapters/02-mpc-custody.md#from-shamir-shares-to-additive-shares)".
 
 **Sources.** RFC 9591, section 1; Lindell, "Secure Multiparty Computation" survey, *CACM* 64(1),
 2021.
