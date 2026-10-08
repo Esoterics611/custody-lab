@@ -36,7 +36,9 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Coordinator | The process that relays protocol messages and combines results; it holds no share. | 2 FP, Parties, rounds and a coordinator |
 | Corrupted party | A party the attacker controls. | 2 FP, What the attacker is assumed to do |
 | CPFP | Child-pays-for-parent: spending a stuck transaction's output with a fee high enough for both. | 9, Failure modes |
+| Custodian | A firm that holds assets on behalf of clients; for bitcoin, it controls who can sign with the keys that hold client coins. | 0, What a custodian does |
 | Default-deny | Refusing anything the policy does not explicitly allow. | 4, Intuition |
+| Digital signature | A number computed from a private key and a message that anyone with the public key can check; it fails if the message or the key differs. | 0, Signatures |
 | Discrete logarithm problem | Recovering $d$ from $Q = dG$; about $2^{128}$ steps on secp256k1 by the best known classical methods. | 1 FP, Easy forwards, infeasible backwards |
 | DKG | Distributed key generation: parties create a shared key that no party ever holds. | 2, Distributed key generation |
 | Domain separation | Hashing each class of message under its own tag, so two classes can never produce the same message. | 6 FP, Proof of control |
@@ -82,6 +84,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Key wrapping | Encrypting a key under a key-encryption key with an integrity check (AES key wrap, RFC 3394). | 3 FP, Key wrapping |
 | Lagrange coefficient | The weight on each share when rebuilding $f(0)$; depends only on which shares are present. | 1 FP, Sharing a secret as a line through points |
 | Lamport signature | A one-time signature that reveals one of two hashed secrets per digest bit. | 7 FP, Signatures from a hash alone: Lamport |
+| Ledger | A record of who owns what; Bitcoin's is public, and many independent nodes keep identical copies. | 0, A ledger that nobody operates |
 | Liveness | The property that something good eventually happens: every approved settlement completes. | 9, The brief |
 | Locking script | The condition an output sets for spending it (`scriptPubKey`). | 5 FP, Locking and unlocking |
 | Locktime, sequence | Transaction fields carrying time locks and replacement signals. | 5 FP, What the signature covers: the sighash |
@@ -102,14 +105,17 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Multiplicative share | One of two numbers whose product is the key (Lindell 2017). | 2 FP, Three ways to split a key |
 | Netting | Summing a cycle's fills into one obligation per asset. | 5, Netting |
 | Nitro Enclave | An isolated virtual machine carved from an AWS EC2 instance, with no storage or network, attested through AWS's PKI. | 3, Trusted execution environments |
+| Node | A computer that keeps a full copy of the Bitcoin ledger and checks every transaction and block against the rules. | 0, A ledger that nobody operates |
 | Nonce | A secret random number used once in a signature; reusing it reveals the key. | 1 FP, What a signature proves |
 | One-time signature | A key that may sign only one message; a second signature leaks enough to forge. | 7 FP, Signatures from a hash alone: Lamport |
 | Outpoint | The txid and output index that identify the output an input spends. | 5 FP, Coins are outputs, not balances |
 | Paillier encryption | Additively homomorphic public-key encryption, used by two-party ECDSA. | 2 FP, Encryption that can be computed on; 2, Paillier encryption |
+| Partial signature | One signer's contribution to a threshold signature, computed from its own share; a weighted sum of $t$ of them is the full signature. | 0, Signing with pieces: threshold signing; 2, FROST |
 | Pedersen commitment | $C = vG + rH$: a hiding, binding point commitment; commitments add. | 6, Zero-knowledge proofs of liabilities |
 | Permissioned ledger | A ledger whose operators and participants are admitted, not open to anyone. | 8 FP, Public and permissioned ledgers |
 | PKCS#11 | The OASIS C interface to HSMs: sessions, logins, key handles, attributes and mechanisms. | 3, Hardware security modules |
 | Point at infinity | The zero of the curve group, $\mathcal{O}$; the sum of a point and its reflection. | 1 FP, Points that can be added |
+| Policy engine | The program that decides, by default-deny rules and signed approvals, whether a settlement instruction may be signed, and issues the authorisation. | 0, Deciding which payments happen: policy; 4 |
 | Private key, public key | A secret scalar $d$, and the point $Q = dG$. | 1 FP, Easy forwards, infeasible backwards |
 | Proactive refresh | Replacing every share with a new one for the same key, so old shares become useless. | 2, Proactive refresh |
 | Proof of control | A signature under the custody key over a message that could not be prepared in advance. | 6 FP, Proof of control |
@@ -119,6 +125,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Public ledger | A ledger on which anyone can run a node and submit transactions, and every transaction is visible. | 8 FP, Public and permissioned ledgers |
 | PvP | Payment versus payment: one currency moves if and only if the other does. | 8 FP, Delivery versus payment |
 | Qualified custodian | Under the US adviser custody rule, a bank, broker-dealer, futures commission merchant or eligible foreign institution. | 8, Regulation in the US |
+| Quorum | The minimum number of a group's members who must take part for a decision to count. | 0, Two quorums |
 | Range proof | A zero-knowledge proof that a committed value lies in a stated range, such as $[0, 2^{64})$. | 6, Zero-knowledge proofs of liabilities |
 | RBF | Replace-by-fee: rebroadcasting a transaction that spends the same inputs with a higher fee. | 9, Failure modes |
 | Regtest | Bitcoin Core's local test mode: blocks on command, worthless coins. | 5 FP, Blocks, confirmation and regtest |
@@ -135,6 +142,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Schnorr signature | The pair $(R, s)$ with $s = k + ed$ and $e$ a hash of $R$, the key and the message. | 1 FP, What a signature proves |
 | Script path | Spending a Taproot output by revealing and satisfying a committed script. | 5 FP, Locking and unlocking |
 | Sealing | Encrypting data under a key derived from the processor's secret and the enclave's measurement or signer. | 3 FP, Sealing |
+| Secret sharing | Splitting a secret into shares so that a threshold number of them recover it and fewer reveal nothing; Shamir's scheme puts the shares on a polynomial. | 0, Pieces of a secret: a line through two points; 1, Shamir secret sharing |
 | Security level | One of FIPS 140-3's four grades of physical protection and operator authentication. | 3 FP, Tamper response and certification levels |
 | Semi-honest party | A corrupted party that follows the protocol but records everything it sees. | 2 FP, What the attacker is assumed to do |
 | Sensitive key | A key an HSM never reveals in plaintext. | 3 FP, Key wrapping |
@@ -157,10 +165,12 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | TCB | Trusted computing base: everything that must behave correctly for a key to stay secret. | 3 FP, Three questions for any key store |
 | TEE | Trusted execution environment: processor-protected memory and code on an ordinary server, with remote attestation. | 3, Intuition; 3, Trusted execution environments |
 | Threshold ($t$-of-$n$) | Any $t$ of $n$ share holders can sign; $t - 1$ learn nothing and cannot sign. | 2 FP, What the attacker is assumed to do |
+| Threshold signing | Producing one signature from the partial signatures of $t$ share holders, without the key ever being rebuilt. | 0, Signing with pieces: threshold signing; 2, FROST |
 | Token | A balance on a ledger that moves when its holder's key signs. | 8, Intuition |
 | Tokenisation | Moving an asset's register of ownership onto a ledger as tokens. | 8, Intuition |
 | Tokenised deposit | A commercial bank deposit represented as a token; a claim on the bank. | 8 FP, Four forms of money on a ledger |
 | Tokenised money market fund | Money market fund shares issued as tokens; used as yield-bearing collateral. | 8 FP, Four forms of money on a ledger |
+| Transaction | A signed message that spends whole UTXOs and creates new ones; what goes in minus what comes out is the fee. | 0, Transactions, blocks and confirmation; 5 FP, Coins are outputs, not balances |
 | Trust Services Criteria | The AICPA criteria a SOC 2 report tests: security, and optionally availability, processing integrity, confidentiality, privacy. | 8, Assurance: SOC reports |
 | Tweak | Adding $tG$ to a key, with $t$ a hash, so the key commits to extra data. | 5, Taproot outputs and the BIP86 tweak |
 | Txid | A transaction's id: the double SHA-256 of its serialisation without witnesses. | 5 FP, Coins are outputs, not balances; 5 FP, Locking and unlocking |
