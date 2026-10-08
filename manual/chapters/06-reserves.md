@@ -538,7 +538,7 @@ print(f"reserve ratio {ratio}; proof of control verified from the file")
          fund  Fund the custody address
         trade  FIX 5.0 SP2 trading session with the exchange
           net  Net the settlement cycle into one instruction
-       policy  Policy engine: default deny, quorum, whitelist, velocity
+       policy  Build the transaction and apply the policy
          sign  Threshold signature from 2 of 3 signer processes
     broadcast  Broadcast and confirm on chain
      reserves  Proof-of-reserves snapshot with proof of control
