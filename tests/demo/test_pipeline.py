@@ -53,3 +53,16 @@ def test_a_failing_step_is_reported_and_logged_before_it_propagates(
     assert events[-1] == failed
     logged = (tmp_path / "events.jsonl").read_text().splitlines()
     assert json.loads(logged[-1]) == json.loads(failed.to_json())
+
+
+def test_a_missing_bitcoind_is_reported_as_the_first_step_failing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    events: list[pipeline.Event] = []
+
+    with pytest.raises(RuntimeError, match="bitcoind not found"):
+        pipeline.run(events.append, tmp_path)
+
+    assert [(e.step, e.status) for e in events] == [("chain", "running"), ("chain", "failed")]
+    assert (tmp_path / "events.jsonl").read_text().count("\n") == 2
