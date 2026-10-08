@@ -36,6 +36,8 @@ concept). The rewrite is complete.
 
 ## Reference
 
+- [Operating the demo](demo-walkthrough.md): one run through the dashboard, step by step, with
+  what each value on the screen means and how to check the run's files afterwards.
 - [Glossary](../atlas/glossary.md): every term the manual defines, with a link to the section
   that teaches it.
 - [Atlas](../atlas/index.md): one short entry per concept, for looking things up after reading.
