@@ -115,10 +115,11 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
 
     approvers = {n: Ed25519PrivateKey.generate() for n in ("bob", "carol")}
     custodian_key = Ed25519PrivateKey.generate()
-    node = RegtestNode(workdir / "node")
+    node: RegtestNode | None = None
     report("chain", "running")
-    rpc = node.start()
-    try:
+    try:  # a missing or failing bitcoind is reported as step 1 failing
+        node = RegtestNode(workdir / "node")
+        rpc = node.start()
         rpc.call("createwallet", "exchange")
         exchange = rpc.wallet("exchange")
         mine_to = exchange.call("getnewaddress")
@@ -292,7 +293,8 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
         report(current, "failed", error=f"{type(exc).__name__}: {exc}")
         raise
     finally:
-        node.stop()
+        if node is not None:
+            node.stop()
         shutil.rmtree(workdir / "node", ignore_errors=True)
         (workdir / "audit.jsonl").write_text(
             "".join(json.dumps(asdict(e), default=str) + "\n" for e in engine.audit.entries)
