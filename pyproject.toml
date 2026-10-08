@@ -3,6 +3,8 @@ name = "custody-lab"
 version = "0.1.0"
 description = "Institutional digital-asset custody demo and learning lab (EDUCATIONAL, NOT PRODUCTION)."
 readme = "README.md"
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 authors = [
     { name = "Ronnie Rendel", email = "192616319+Esoterics611@users.noreply.github.com" }
 ]
@@ -47,7 +49,7 @@ markers = ["regtest: starts a Bitcoin Core regtest node (skipped if bitcoind is 
 
 [tool.mypy]
 strict = true
-files = ["src", "tests"]
+files = ["src", "tests", "manual/links.py"]
 
 [[tool.mypy.overrides]]
 module = ["simplefix"]  # ships no type information
