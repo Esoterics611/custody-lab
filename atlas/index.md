@@ -1,14 +1,16 @@
 # Atlas
 
-The atlas is the knowledge base: one concept per file, short enough to reread before an interview. The
-manual chapters teach; the atlas is where you look things up. An entry lives at
-`atlas/<area>/<slug>.md` and has five parts:
+The atlas is the knowledge base: one concept per file, each readable on its own. The manual
+chapters teach in order; the atlas is where a concept is looked up later. An entry lives at
+`atlas/<area>/<slug>.md` and has seven parts:
 
-1. **Definition** — two or three sentences.
-2. **Why custody cares** — the failure it prevents or the property it buys.
-3. **In the demo** — the file and function where it runs.
-4. **In the manual** — chapter and section.
-5. **Sources** — primary references; time-sensitive facts marked **verify current**.
+1. **In one sentence** — the concept, stated so that it can be used without reading further.
+2. **The problem** — what goes wrong for a custodian without it.
+3. **The idea** — how it works, in plain words, with the manual's small worked numbers.
+4. **Why custody cares** — the failure it prevents or the property it buys, and its limits.
+5. **In the demo** — the file and function where it runs, or that it is not built.
+6. **In the manual** — links to the chapter sections that teach it.
+7. **Sources** — primary references; time-sensitive facts marked **verify current**.
 
 Status: `planned` → `draft` → `reviewed`.
 
