@@ -25,9 +25,25 @@ counterpart is named in the code walkthrough. Delete this callout in chapters wi
 trading-infrastructure analogue exists (FIX sequence numbers vs nonces, four-eyes
 approval vs quorum, clearing vs netting), state it and state where it breaks. -->
 
-```{mermaid}
-flowchart LR
-  A[Input] --> B[Step] --> C[Output]
+```{python}
+#| label: fig-intuition
+#| echo: false
+#| fig-cap: "One sentence stating what the figure shows."
+#| fig-width: 6.5
+#| fig-height: 1.0
+import matplotlib.pyplot as plt
+
+steps = ["Input", "Step", "Output"]
+fig, ax = plt.subplots(figsize=(6.5, 1.0))
+for i, label in enumerate(steps):
+    ax.text(i, 0, label, ha="center", va="center",
+            bbox={"boxstyle": "round,pad=0.4", "fc": "white", "ec": "#2a78d6"})
+for i in range(len(steps) - 1):
+    ax.annotate("", xy=(i + 0.72, 0), xytext=(i + 0.28, 0), arrowprops={"arrowstyle": "->"})
+ax.set_xlim(-0.5, len(steps) - 0.5)
+ax.set_ylim(-0.5, 0.5)
+ax.axis("off")
+plt.show()
 ```
 
 ## First principles

@@ -32,7 +32,7 @@ flowchart LR
 
 | Module | Delivers | Depends on | Days |
 |--------|----------|------------|------|
-| M0 Toolchain | **Done 2026-09-24.** Quarto and TinyTeX render the template to PDF. The PyO3 extension links `frost-secp256k1-tr` and builds on `uv sync`. Regtest starts, mines and stops. The Vite scaffold builds. Open: Mermaid in PDF needs `unzip` | none | 1 (took well under 1) |
+| M0 Toolchain | **Done 2026-09-24.** Quarto and TinyTeX render the template to PDF. The PyO3 extension links `frost-secp256k1-tr` and builds on `uv sync`. Regtest starts, mines and stops. The Vite scaffold builds | none | 1 (took well under 1) |
 | M1 Foundations | **Done 2026-09-24.** Educational secp256k1 arithmetic, ECDSA, Schnorr/BIP340, Shamir. Tests use the BIP340 test vectors and `cryptography` as oracles; Hypothesis property tests for Shamir. Chapter 1 renders | M0 | 3 (took under 1) |
 
 ## Phase B: the thin slice
@@ -48,8 +48,8 @@ flowchart LR
 
 | Module | Delivers | Depends on | Days |
 |--------|----------|------------|------|
-| M6 Proof of reserves | Merkle-sum tree over client liabilities, per-client inclusion proofs, snapshot published after each settlement batch, assets read from regtest. zk proofs of liabilities as a chapter section, no code. Chapter 6 | Demo slice | 2 |
-| M7 Post-quantum | ML-DSA and ML-KEM via `cryptography`. Lamport and WOTS+ from scratch as the hash-based teaching version; SLH-DSA library choice still open. Why lattice and hash-based schemes resist threshold signing; migration design (threshold PQ plus HSM fallback). Chapter 7 | M1, M2 | 2 |
+| M6 Proof of reserves | **Done 2026-09-25.** Merkle-sum tree over client liabilities, per-client inclusion proofs, snapshot published after each settlement batch, assets read from regtest, 2-of-3 FROST proof of control. Oracles: an independent hashlib derivation of the root, the Hu, Zhang and Guo total-only attack, Hypothesis properties. zk proofs of liabilities as a chapter section, no code. Chapter 6 | Demo slice | 2 |
+| M7 Post-quantum | **Done 2026-09-25.** ML-DSA and ML-KEM via `cryptography`; SLH-DSA via RustCrypto `slh-dsa` in `rust/custody-pq`; WOTS+ and XMSS from scratch as the hash-based teaching version, Lamport as a chapter illustration. Authorisation tokens are hybrid Ed25519 and ML-DSA-65. Checked against NIST ACVP vectors except ML-KEM decapsulation. Why lattice and hash-based schemes resist threshold signing; migration design (threshold PQ plus HSM fallback). Chapter 7 | M1, M2 | 2 |
 | M3 Key storage | **Done 2026-09-27.** HSM vs MPC vs TEE (SGX, confidential VMs, Nitro) comparison chapter; no module, model cells only. Key wrapping checked against RFC 3394; attestation, sealing, side-channel and key-release models; production placement of each demo part | none | 1 (took under 1) |
 | M8 Industry and regulation | **Done 2026-09-27.** Four forms of on-chain money, DvP and finality (model cell); tokenised funds and collateral, Canton, Kinexys, Agorá, mBridge, MiCA Article 75, US qualified-custodian rules, SOC reports, and the Israeli landscape (public sector, companies, researchers). Facts web-checked and marked **verify current**. Chapter 8 | none | 2 (took under 1) |
 | M9 Capstone | **Done 2026-09-27.** System design walkthrough as questions and answers: brief and assumptions, production architecture figure (matplotlib), component compromise table, deep dives, fourteen failure modes (safety vs liveness), trade-offs, numbers computed from the libraries, and the signing cluster run live | all | 1 (took under 1) |
@@ -66,7 +66,7 @@ imports from Python). The largest open risk is now the Taproot transaction libra
 | `frost-secp256k1-tr` 3.0.0 | Demo threshold signing | DKG and 2-of-3 signing across three processes; signatures verify with the independent BIP340 verifier (**observed**, `tests/mpc/test_signing_cluster.py`). Taproot tweak functions present, not yet used |
 | `simplefix` 1.0.17 | FIX 5.0 SP2 encode/parse | computes BodyLength/CheckSum, parses incrementally (**observed**); ships no type information; last release 2023-09-12 |
 | `quickfix` 1.16.0 | Not planned | sdist only on PyPI, compiles C++ at install (**observed**) |
-| `quarto-cli` 1.10.18 | Manual rendering | installs under uv and renders the template to PDF with TinyTeX (**observed**); Mermaid needs headless Chrome, blocked on `unzip` |
+| `quarto-cli` 1.10.18 | Manual rendering | installs under uv and renders the template to PDF with TinyTeX (**observed**) |
 | Bitcoin Core 31.1 | Regtest chain | SHA256 matched `SHA256SUMS` (GPG signature on that file not checked); start, mine to a bech32m address, stop (**observed**) |
 | FastAPI, Typer, Hypothesis | Dashboard API, CLI, property tests | on PyPI (**observed**) |
 | Taproot transactions | Build the regtest spend | written in `settlement/bitcoin.py` from BIP 341; all BIP 341 wallet vectors pass; Bitcoin Core accepts and mines the spends (**observed**) |

@@ -2,6 +2,37 @@
 
 Newest first.
 
+## 2026-10-08: Build plan brought current; figures are matplotlib, Mermaid dropped
+
+**Changed.**
+- `atlas/project/build-plan.md`: M6 and M7 are marked done on 2026-09-25 with what each delivers.
+  The M7 row names RustCrypto `slh-dsa` instead of calling the SLH-DSA choice open. The M0 and
+  `quarto-cli` rows no longer list Mermaid as a blocker.
+- `manual/chapter-template.qmd`: the Mermaid block is replaced by a matplotlib figure cell, which
+  is what every chapter already uses.
+- `CLAUDE.md`: Toolchain status is done; the note under Commands says figures are matplotlib and
+  why Mermaid is not used; the Quarto rationale no longer counts Mermaid; one Proposed decision.
+
+**Verified.**
+- No `{mermaid}` block exists in `manual/chapters/*.qmd` (`grep`).
+- The template renders to a 4-page PDF (exit 0), the figure caption on page 2. The figure cell was
+  rendered to PNG and inspected; the first version clipped the boxes at the bottom edge, fixed
+  with `set_ylim`.
+
+**Open.**
+- The dashboard has not been viewed in a browser. Playwright's cached Chromium
+  (`~/.cache/ms-playwright/chromium_headless_shell-1243`) does not start on this host:
+  `libnspr4.so` is missing.
+- ML-KEM decapsulation vectors; the three Proposed decisions.
+
+### Deliverables
+
+- The build plan records all ten modules as done, including proof of reserves and post-quantum,
+  with the libraries actually chosen.
+- The chapter template draws its example diagram with matplotlib, so a new chapter renders to PDF
+  on this host without a browser installed.
+- The Mermaid-in-PDF blocker is closed: no chapter uses Mermaid, and the template no longer does.
+
 ## 2026-09-27: Fees charged to the client; no house coins at the custody address
 
 **Changed.**

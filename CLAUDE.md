@@ -101,8 +101,7 @@ toy exchange ──FIX──▶ trading ──fills──▶ settlement batch (n
 - Python cells execute against this project's environment at render time, with `error: false`.
   Every listing in the PDF is code that ran, and a broken listing fails the build. That makes the
   manual part of QA rather than a copy of the code that drifts.
-- Mermaid diagrams, callouts (used for the EDUCATIONAL banner), cross-references and per-chapter
-  PDFs are built in.
+- Callouts (used for the EDUCATIONAL banner), cross-references and per-chapter PDFs are built in.
 
 Runner-up: plain Pandoc + LaTeX. It gives the same math quality, but code does not execute, so
 listings can drift from the repo. Quarto's Typst engine is the fallback if TinyTeX is a burden; how
@@ -124,14 +123,15 @@ uv run custody-lab serve                 # API and built dashboard at http://127
 npm --prefix web run dev                 # dashboard dev server; proxies /api to custody-lab serve
 ```
 
-Mermaid blocks in PDF output need Chrome: `quarto install chrome-headless-shell` needs `unzip`, which
-this host lacks (`sudo apt install -y unzip`).
+Figures are matplotlib cells (`#| label: fig-...`), as in the chapter template. Mermaid is not used: in
+PDF it needs headless Chrome, and `quarto install chrome-headless-shell` needs `unzip`, which this
+host lacks.
 
 ## Module status
 
 | # | Module | Code | Chapter | Atlas |
 |---|--------|------|---------|-------|
-| 0 | Toolchain | done; Mermaid in PDF blocked on `unzip` | n/a | n/a |
+| 0 | Toolchain | done | n/a | n/a |
 | 1 | Foundations | done: `ec`, `hashing`, `ecdsa`, `schnorr`, `shamir`; tests pass | draft with first-principles section; renders (20 pages) | 6 entries, draft |
 | 2 | MPC custody | done: `paillier`, `lindell17`, `frost`, `dkg` (teaching); `cluster` + `rust/custody-frost` (demo signing path); tests pass | draft with first-principles section; renders (22 pages) | 8 entries, draft |
 | 3 | Key storage (chapter only) | n/a; model cells for key wrapping (RFC 3394 vector), attestation, sealing, side channels, key release | draft with first-principles section; renders (16 pages) | 3 entries, draft |
@@ -151,6 +151,7 @@ Newest first. **Proposed** entries await review; they become **Accepted** or are
 
 | Date | Decision | Status |
 |------|----------|--------|
+| 2026-10-08 | Chapter figures are matplotlib cells, including the template's; Mermaid is not used, so headless Chrome is not a dependency | Proposed |
 | 2026-09-27 | The demo charges each settlement's network fee to the client being settled, so the custody address holds client coins only (MiCA Article 75(7)); a house address spent as a second input is the alternative, left as chapter 8's Exercise 4 | Proposed |
 | 2026-09-27 | The server streams a run's events as NDJSON in the `POST /api/runs` response, not server-sent events: `EventSource` sends only GET and reconnects on its own, so a reconnect would start another run | Accepted (owner) |
 | 2026-09-25 | SLH-DSA comes from RustCrypto `slh-dsa` via PyO3 in `rust/custody-pq`, not PyPI `slhdsa` | Accepted (owner) |
