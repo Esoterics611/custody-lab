@@ -14,6 +14,6 @@ holders could sign at that time.
 `publish`); `PolicyEngine.authorise_attestation` in `src/custody_lab/policy/engine.py`. The FROST
 cluster signs under the Taproot output key. Tests: `tests/reserves/test_snapshot.py`.
 
-**In the manual.** Chapter 6, "Proof of control", "Snapshot and attestation", "The whole demo".
+**In the manual.** [Chapter 6](../../manual/chapters/06-reserves.md), "[Proof of control](../../manual/chapters/06-reserves.md#proof-of-control)", "[Snapshot and attestation](../../manual/chapters/06-reserves.md#snapshot-and-attestation)", "[The whole demo](../../manual/chapters/06-reserves.md#the-whole-demo)".
 
 **Sources.** BIP 340 (signature), BIP 341 (`TapSighash` tag); G. G. Dagher et al., ACM CCS 2015.

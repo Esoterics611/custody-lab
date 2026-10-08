@@ -20,6 +20,6 @@ RFC 9591).
 - Teaching code: `src/custody_lab/mpc/frost.py`, matching the RFC 9591 vectors for
   FROST(secp256k1, SHA-256) in `tests/mpc/test_frost.py`.
 
-**In the manual.** Chapter 2, "FROST", the worked example, and the code walkthrough.
+**In the manual.** [Chapter 2](../../manual/chapters/02-mpc-custody.md), "[FROST](../../manual/chapters/02-mpc-custody.md#frost)", the worked example, and the code walkthrough.
 
 **Sources.** RFC 9591; C. Komlo, I. Goldberg, SAC 2020; `github.com/ZcashFoundation/frost`.

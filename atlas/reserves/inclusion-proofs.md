@@ -14,7 +14,7 @@ $n$ leaves needs about $\log_2 n$ siblings: 20 for a million clients.
 **In the demo.** `MerkleSumTree.proof` and `verify` in `src/custody_lab/reserves/merkle_sum.py`.
 The demo checks every client's proof after each settlement (`custody_lab.demo.pipeline`).
 
-**In the manual.** Chapter 6, "Hash trees", "Salts and what a proof reveals", "Inclusion proofs".
+**In the manual.** [Chapter 6](../../manual/chapters/06-reserves.md), "[Hash trees](../../manual/chapters/06-reserves.md#hash-trees)", "[Salts and what a proof reveals](../../manual/chapters/06-reserves.md#salts-and-what-a-proof-reveals)", "[Inclusion proofs](../../manual/chapters/06-reserves.md#inclusion-proofs)".
 
 **Sources.** R. C. Merkle, CRYPTO 1987; Bitcoin's block-header Merkle root (Bitcoin Core
 `consensus/merkle.cpp`).

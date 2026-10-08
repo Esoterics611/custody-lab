@@ -25,7 +25,7 @@ tokenised-bond experiments.
 **In the demo.** Fireblocks' CGGMP co-authors and Lindell 2017 are chapter 2's protocols; Project
 Eden is chapter 8's DvP cell with real participants.
 
-**In the manual.** Chapter 8, "Israel".
+**In the manual.** [Chapter 8](../../manual/chapters/08-industry.md), "[Israel](../../manual/chapters/08-industry.md#israel)".
 
 **Sources.** Bank of Israel and BIS Innovation Hub project reports; TASE announcement of Project
 Eden's completion (June 2023); acquisition reports in the press. Affiliations, statuses and

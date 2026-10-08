@@ -14,6 +14,6 @@ variant, in which $a_i$ and $s$ are vectors of polynomials.
 **In the demo.** No code of its own; ML-KEM and ML-DSA come from `cryptography`. Chapter 7's toy
 cell encrypts one bit with $q = 97$.
 
-**In the manual.** Chapter 7, "Lattices in one bit", "ML-KEM (FIPS 203)".
+**In the manual.** [Chapter 7](../../manual/chapters/07-post-quantum.md), "[Lattices in one bit](../../manual/chapters/07-post-quantum.md#lattices-in-one-bit)", "[ML-KEM (FIPS 203)](../../manual/chapters/07-post-quantum.md#ml-kem-fips-203)".
 
 **Sources.** O. Regev, STOC 2005; NIST FIPS 203 and 204 (2024).

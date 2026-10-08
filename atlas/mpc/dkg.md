@@ -16,7 +16,7 @@ Each participant also proves knowledge of $a_{i0}$.
   processes.
 - Teaching code: `src/custody_lab/mpc/dkg.py` (`Dealer`, `check_round1`, `combine`, `run`).
 
-**In the manual.** Chapter 2, "Distributed key generation", Exercise 4.
+**In the manual.** [Chapter 2](../../manual/chapters/02-mpc-custody.md), "[Distributed key generation](../../manual/chapters/02-mpc-custody.md#distributed-key-generation)", Exercise 4.
 
 **Sources.** T. Pedersen, EUROCRYPT 1991; Gennaro, Jarecki, Krawczyk, Rabin, *Journal of
 Cryptology* 20 (2007); Komlo and Goldberg 2020 (KeyGen with proof of knowledge).

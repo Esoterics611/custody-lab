@@ -13,6 +13,6 @@ asset, amount and destination (the exchange's settlement address).
 **In the demo.** `src/custody_lab/trading/fix.py` (`trade`, `ToyExchange`, `Session`),
 `src/custody_lab/settlement/netting.py` (`net`). Session conventions follow `~/code/fix-client/ROE.md`.
 
-**In the manual.** Chapter 5, "The FIX leg" and "The FIX session".
+**In the manual.** [Chapter 5](../../manual/chapters/05-settlement.md), "[The FIX leg](../../manual/chapters/05-settlement.md#the-fix-leg)" and "[The FIX session](../../manual/chapters/05-settlement.md#the-fix-session)".
 
 **Sources.** FIX Trading Community, FIX 5.0 SP2 and FIXT.1.1 specifications.

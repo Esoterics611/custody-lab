@@ -13,7 +13,7 @@ are detected only by comparing the head hash with a copy published elsewhere (an
 **In the demo.** `src/custody_lab/policy/audit.py` (`AuditLog`, `verify_chain`), in memory. Each
 proof-of-reserves snapshot anchors the head (`src/custody_lab/reserves/snapshot.py`).
 
-**In the manual.** Chapter 4, "Hash-chained audit log", the tamper walkthrough, Exercise 4.
+**In the manual.** [Chapter 4](../../manual/chapters/04-policy.md), "[Hash-chained audit log](../../manual/chapters/04-policy.md#hash-chained-audit-log)", the tamper walkthrough, Exercise 4.
 
 **Sources.** Schneier and Kelsey, *ACM TISSEC* 1999; Crosby and Wallach, USENIX Security 2009;
 RFC 9162.

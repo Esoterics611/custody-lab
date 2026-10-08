@@ -14,7 +14,7 @@ Only the net moves. A negative base means the client delivers base to the exchan
 **In the demo.** `src/custody_lab/settlement/netting.py` (`net`, `NetPosition`), with `Decimal`
 throughout. A Hypothesis test checks that the net base equals buys minus sells.
 
-**In the manual.** Chapter 5, "Netting" and the worked example (four fills netting to −0.85 BTC).
+**In the manual.** [Chapter 5](../../manual/chapters/05-settlement.md), "[Netting](../../manual/chapters/05-settlement.md#netting)" and the worked example (four fills netting to −0.85 BTC).
 
 **Sources.** CPMI-IOSCO, *Principles for Financial Market Infrastructures* (2012), Principle 8
 (settlement finality) and the discussion of netting.

@@ -17,8 +17,8 @@
 public root), checked against NIST ACVP keyGen vectors in `tests/pq/test_wots.py`. Library:
 RustCrypto `slh-dsa` through `rust/custody-pq`, checked in `tests/pq/test_pq_vectors.py`.
 
-**In the manual.** Chapter 7, "Signatures from a hash alone: Lamport", "Winternitz chains and
-the checksum", "A Merkle tree of one-time keys", "SLH-DSA (FIPS 205)", the worked example.
+**In the manual.** [Chapter 7](../../manual/chapters/07-post-quantum.md), "[Signatures from a hash alone: Lamport](../../manual/chapters/07-post-quantum.md#signatures-from-a-hash-alone-lamport)", "[Winternitz chains and
+the checksum](../../manual/chapters/07-post-quantum.md#winternitz-chains-and-the-checksum)", "[A Merkle tree of one-time keys](../../manual/chapters/07-post-quantum.md#a-merkle-tree-of-one-time-keys)", "[SLH-DSA (FIPS 205)](../../manual/chapters/07-post-quantum.md#slh-dsa-fips-205)", the worked example.
 
 **Sources.** NIST FIPS 205 (2024), SP 800-208 (2020); Lamport 1979; Merkle, CRYPTO 1989; Hülsing,
 AFRICACRYPT 2013; Bernstein et al., ACM CCS 2019.

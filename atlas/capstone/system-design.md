@@ -30,7 +30,7 @@ Safety wins over liveness: a component in doubt refuses.
 **In the demo.** `demo/pipeline.py` runs the eight-step settlement; chapter 9's walkthrough shows
 any two of three signers producing valid signatures under one key and a replayed token refused.
 
-**In the manual.** Chapter 9: "Architecture", "Deep dives", "Failure modes", "Trade-offs".
+**In the manual.** [Chapter 9](../../manual/chapters/09-capstone.md): "[Architecture](../../manual/chapters/09-capstone.md#architecture)", "[Deep dives](../../manual/chapters/09-capstone.md#deep-dives)", "[Failure modes](../../manual/chapters/09-capstone.md#failure-modes)", "[Trade-offs](../../manual/chapters/09-capstone.md#trade-offs)".
 
 **Sources.** RFC 9591; BIP 340, 341, 86; BIP 125; Alpern and Schneider, "Defining Liveness"
 (1985); Canetti et al., CGGMP (ACM CCS 2020).

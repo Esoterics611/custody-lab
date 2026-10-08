@@ -108,11 +108,11 @@ toy exchange ──FIX──▶ trading ──fills──▶ settlement batch (n
 | `src/custody_lab/` | Python package, one subpackage per demo module (`foundations`, `mpc`, `policy`, `trading`, `settlement`, `reserves`, `pq`); `demo/pipeline.py` runs all of them end to end; `demo/cli.py` is the `custody-lab` command (`run`, `serve`); `demo/server.py` streams each run's events to the dashboard |
 | `tests/` | pytest + Hypothesis |
 | `atlas/` | knowledge base; `atlas/index.md` is the index; `atlas/glossary.md` defines every term the manual uses; `atlas/project/` holds the plan, feasibility notes and session log |
-| `manual/` | chapter sources; `manual/_quarto.yml` holds the shared PDF settings; `manual/chapter-template.qmd` is the template; chapters go in `manual/chapters/NN-slug.qmd`; `00-orientation.qmd` is the plain-language entry point. Code lines wrap; printed output does not, so keep it under 80 characters |
+| `manual/` | chapter sources; `manual/_quarto.yml` holds the shared settings for both outputs; `manual/chapter-template.qmd` is the template; chapters go in `manual/chapters/NN-slug.qmd`; `00-orientation.qmd` is the plain-language entry point. Each chapter builds to a PDF (not committed) and to GitHub Markdown beside its source (`NN-slug.md` and `NN-slug_files/`, committed, so the manual reads and links on GitHub). `manual/links.py` is a Pandoc filter: chapter links per format, "chapter N" auto-links, previous/next lines, heading anchors. `manual/README.md` is the contents page. Code lines wrap; printed output does not, so keep it under 80 characters |
 | `rust/custody-frost/` | PyO3 extension over ZF `frost-secp256k1-tr`; a uv workspace member built by maturin on `uv sync` |
 | `rust/custody-pq/` | PyO3 extension over RustCrypto `slh-dsa` (FIPS 205); a uv workspace member, like `custody-frost` |
 | `web/` | Dashboard: Vite + React + TypeScript. One page: starts a run, shows each step as its events arrive, and which process holds which share. `custody-lab serve` serves the build in `web/dist` |
-| `scripts/` | `regtest.sh` (start / stop / cli) and `bitcoin-regtest.conf` |
+| `scripts/` | `regtest.sh` (start / stop / cli) and `bitcoin-regtest.conf`; `render-manual.sh` (every chapter, or the ones named, to PDF and Markdown) |
 | `var/` | local runtime data, gitignored (`var/regtest`; demo runs in `var/demo/<run>/`) |
 
 ## Toolchain
@@ -146,7 +146,8 @@ it handles this manual's math has not been checked.
 uv sync                                  # environment; also builds rust/custody-frost (needs cargo on PATH)
 uv run pytest                            # tests
 uv run ruff check && uv run mypy         # lint, types
-uv run quarto render manual/chapters/NN-slug.qmd --to pdf
+scripts/render-manual.sh                 # every chapter to PDF and GitHub Markdown; commit the .md and _files
+scripts/render-manual.sh manual/chapters/NN-slug.qmd   # one chapter
 scripts/regtest.sh start                 # regtest node; data in var/regtest
 scripts/regtest.sh cli getblockchaininfo
 scripts/regtest.sh stop
@@ -184,6 +185,8 @@ Newest first. **Proposed** entries await review; they become **Accepted** or are
 
 | Date | Decision | Status |
 |------|----------|--------|
+| 2026-10-08 | The project is open source under MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`, standard texts), copyright Esoterics611 | Accepted (owner) |
+| 2026-10-08 | Chapters are also built to GitHub Markdown and committed beside their sources, so the manual reads on GitHub; PDFs stay local builds. `manual/links.py` (standard library, a Pandoc JSON filter) rewrites chapter links per format and links every "chapter N" | Accepted (owner) |
 | 2026-10-08 | The manual, atlas and glossary follow the writing standard above: each concept explained at length, problem first, with a worked example; chapter 0 is the pilot | Accepted (owner) |
 | 2026-10-08 | Chapter figures are matplotlib cells, including the template's; Mermaid is not used, so headless Chrome is not a dependency | Proposed |
 | 2026-09-27 | The demo charges each settlement's network fee to the client being settled, so the custody address holds client coins only (MiCA Article 75(7)); a house address spent as a second input is the alternative, left as chapter 8's Exercise 4 | Proposed |

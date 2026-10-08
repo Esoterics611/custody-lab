@@ -15,7 +15,7 @@ a financial audit or a proof of reserves.
 **In the demo.** The policy engine and audit log are controls a SOC 2 report would test; the demo
 has no period of operating evidence.
 
-**In the manual.** Chapter 8, "Regulation in the US", "Assurance: SOC reports", Exercise 6.
+**In the manual.** [Chapter 8](../../manual/chapters/08-industry.md), "[Regulation in the US](../../manual/chapters/08-industry.md#regulation-in-the-us)", "[Assurance: SOC reports](../../manual/chapters/08-industry.md#assurance-soc-reports)", Exercise 6.
 
 **Sources.** SEC withdrew the 2023 safeguarding proposal (June 2025); SAB 122 rescinded SAB 121
 (January 2025); SEC staff no-action letter on state trust companies as qualified custodians for

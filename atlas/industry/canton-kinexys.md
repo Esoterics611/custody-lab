@@ -13,7 +13,7 @@ possible without a cross-chain protocol.
 **In the demo.** None; the demo settles on a public-style chain (Bitcoin regtest) without a cash
 leg.
 
-**In the manual.** Chapter 8, "Institutional ledgers: Canton and Kinexys".
+**In the manual.** [Chapter 8](../../manual/chapters/08-industry.md), "[Institutional ledgers: Canton and Kinexys](../../manual/chapters/08-industry.md#institutional-ledgers-canton-and-kinexys)".
 
 **Sources.** Broadridge Distributed Ledger Repo on Canton at about USD 280 billion a day
 (reported); DTCC and Digital Asset plan to tokenise DTC-custodied Treasuries on Canton, announced

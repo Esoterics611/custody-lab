@@ -1,0 +1,878 @@
+# Module 1: Foundations
+
+2026-09-25
+
+Previous: [Chapter 0, Orientation](00-orientation.md) \| [All
+chapters](../README.md) \| Next: [Chapter 2, MPC
+Custody](02-mpc-custody.md)
+
+> [!WARNING]
+>
+> ### EDUCATIONAL, NOT PRODUCTION
+>
+> The code in `custody_lab.foundations` uses variable-time arithmetic
+> and is written to be read. Production systems use libsecp256k1
+> (Bitcoin Core’s library) or a vendor HSM. Where a real library is used
+> in this chapter (`cryptography` for ECDSA verification and Ed25519),
+> it is named.
+
+<a id="learning-objectives"></a>
+
+## Learning objectives
+
+- Explain modular arithmetic, the group of curve points, its generator
+  and its order, and why coordinates live modulo $p$ while keys and
+  nonces live modulo $n$.
+- Explain what the nonce hides in a Schnorr signature and why the
+  commitment must come before the challenge, and show why reusing a
+  nonce reveals the private key.
+- Sign and verify with ECDSA and BIP340 Schnorr, and name the three jobs
+  a hash function does inside them.
+- Split a secret with Shamir’s scheme, reconstruct it with Lagrange
+  coefficients, and explain why $t-1$ shares reveal nothing.
+- Explain why Shamir sharing alone does not solve custody signing, and
+  why Schnorr is easier to sign jointly than ECDSA. Both points set up
+  [Module 2](02-mpc-custody.md).
+
+<a id="intuition"></a>
+
+## Intuition
+
+A private key is a number $d$. The public key is the point
+$Q = d \cdot G$: a fixed, published point $G$ added to itself $d$ times.
+Computing $Q$ from $d$ takes microseconds. Recovering $d$ from $Q$ (the
+discrete logarithm problem) has no known method faster than about
+$2^{128}$ steps on secp256k1. Every scheme in this manual rests on that
+asymmetry.
+
+A signature proves knowledge of $d$ for one specific message without
+revealing $d$. Each signature consumes a fresh secret number, the
+**nonce** $k$. FIX sequence numbers are the wrong analogy. A repeated
+sequence number is detected and rejected. A repeated nonce is accepted,
+and anyone holding the two signatures can solve for the private key with
+school algebra (Exercise 3).
+
+Shamir secret sharing splits $d$ into $n$ shares so that any $t$ of them
+rebuild it and fewer reveal nothing. It is the mathematical form of the
+M-of-N smart-card quorum used in HSM key ceremonies. Its weakness for
+custody is the rebuild itself: to sign, the shares must meet in one
+place, and that place holds the whole key. [Module 2](02-mpc-custody.md)
+removes that step.
+
+<div id="fig-curves">
+
+![](01-foundations_files/figure-commonmark/fig-curves-output-1.png)
+
+Figure 1: Left: point addition on $y^2 = x^3 + 7$ over the real numbers.
+The line through $P$ and $Q$ meets the curve a third time at $-R$;
+reflecting gives $R = P + Q$. Right: the same equation over
+$\mathbb{F}_{43}$ has 30 points plus the point at infinity. The group
+law is the same algebra, with every division replaced by a modular
+inverse.
+
+</div>
+
+<a id="first-principles"></a>
+
+## First principles
+
+This section builds the chapter’s vocabulary from school algebra. Each
+number in it is computed on the toy curve and checked by the cell that
+follows.
+
+<a id="arithmetic-on-a-clock"></a>
+
+### Arithmetic on a clock
+
+Arithmetic **modulo** $m$ keeps only the remainder after division by
+$m$, the way a 12-hour clock turns 15:00 into 3. Modulo 7,
+$5 + 4 = 9 \equiv 2$ and $3 \times 5 = 15 \equiv 1$. Results never
+exceed $m - 1$, so a 256-bit key stays 256 bits through any amount of
+arithmetic.
+
+Subtraction works the same way: $2 - 5 = -3 \equiv 4$. Division needs an
+**inverse**. $a^{-1}$ is the number with $a \cdot a^{-1} \equiv 1$, and
+dividing by $a$ means multiplying by $a^{-1}$. Since
+$3 \times 5 \equiv 1$, the inverse of 3 modulo 7 is 5. When $m$ is
+prime, every non-zero number has an inverse:
+
+| $a$              | 1   | 2   | 3   | 4   | 5   | 6   |
+|------------------|-----|-----|-----|-----|-----|-----|
+| $a^{-1} \bmod 7$ | 1   | 4   | 5   | 2   | 3   | 6   |
+
+When $m$ is not prime, some numbers have none. Modulo 8, $2k$ is always
+even, so no $k$ gives $2k \equiv 1$. Every modulus in this manual is
+therefore prime. The integers modulo a prime $p$, with these four
+operations, form the **finite field** $\mathbb{F}_p$. Python computes an
+inverse with `pow(a, -1, m)`.
+
+``` python
+from custody_lab.foundations.ec import TOY, Point
+
+assert (5 + 4) % 7 == 2 and (3 * 5) % 7 == 1 and (2 - 5) % 7 == 4
+assert [pow(a, -1, 7) for a in range(1, 7)] == [1, 4, 5, 2, 3, 6]
+assert all(2 * k % 8 != 1 for k in range(8))  # 2 has no inverse modulo 8
+```
+
+<a id="points-that-can-be-added"></a>
+
+### Points that can be added
+
+An elliptic curve, in this manual, is the set of pairs $(x, y)$ from
+$\mathbb{F}_p$ that satisfy $y^2 = x^3 + 7$. secp256k1, Bitcoin’s curve,
+is this equation with a 256-bit prime $p$. The toy curve uses $p = 43$
+and has 30 such points, drawn in the right panel of the figure.
+
+The curve has a rule that takes two points and returns a third. It is
+called **addition** and written $P + Q$. In the left panel: draw the
+line through $P$ and $Q$, find the third point where it meets the curve,
+and reflect that point across the $x$-axis. Over $\mathbb{F}_p$ there is
+no picture, but the same formulas apply with each division replaced by
+multiplication by an inverse. The formulas are in the formal treatment.
+
+The rule is called addition because it obeys the rules of addition:
+
+- the order of the operands does not matter: $P + Q = Q + P$;
+- grouping does not matter: $(P + Q) + R = P + (Q + R)$;
+- there is a zero, $\mathcal{O}$, with $P + \mathcal{O} = P$;
+- every point has a negative, its reflection $-P = (x, -y)$, with
+  $P + (-P) = \mathcal{O}$.
+
+The zero is an extra element called the **point at infinity**. It is the
+result of adding a point to its reflection: the line through $P$ and
+$-P$ is vertical and meets the curve nowhere else. A set with an
+operation that obeys these four rules is a **group**. It is the only
+abstract structure this manual needs.
+
+The cell checks all four rules on every point of the toy curve (31
+points including $\mathcal{O}$, which the code represents as `None`):
+
+``` python
+elements = [None, *TOY.points()]
+assert all(TOY.add(P, Q) == TOY.add(Q, P) for P in elements for Q in elements)
+assert all(
+    TOY.add(TOY.add(P, Q), R) == TOY.add(P, TOY.add(Q, R))
+    for P in elements for Q in elements for R in elements
+)
+assert all(TOY.add(P, None) == P and TOY.add(P, TOY.neg(P)) is None for P in elements)
+print(f"group rules hold for all {len(elements)} elements")
+```
+
+    group rules hold for all 31 elements
+
+<a id="the-cycle-generator-order-and-scalar"></a>
+
+### The cycle: generator, order and scalar
+
+Start at a fixed point $G = (2, 12)$ and keep adding $G$: $G$, then
+$2G = G + G$, then $3G = 2G + G$, and so on. $kG$ means $G$ added to
+itself $k$ times. The cell walks the toy curve this way, by repeated
+addition:
+
+``` python
+walk, P = [], TOY.G
+for _ in range(33):
+    walk.append(P)  # walk[k - 1] is kG
+    P = TOY.add(P, TOY.G)
+assert len(set(walk[:30])) == 30 and walk[30] is None  # 30 distinct points, then 31G = O
+assert walk[31] == TOY.G and walk[32] == walk[1]  # 32G = G and 33G = 2G: the cycle repeats
+assert all(walk[k - 1] == TOY.mul(k, TOY.G) for k in range(1, 31))
+for row in range(0, 30, 6):
+    print("  ".join(f"{k:>2}G ({p.x:>2},{p.y:>2})"
+                    for k, p in enumerate(walk[row:row + 6], start=row + 1)))
+```
+
+     1G ( 2,12)   2G ( 7, 7)   3G (35,21)   4G (21,18)   5G (12,12)   6G (29,31)
+     7G (25,18)   8G (32,40)   9G (20,40)  10G (42, 7)  11G (40,25)  12G (37,36)
+    13G (13,21)  14G (34,40)  15G (38,21)  16G (38,22)  17G (34, 3)  18G (13,22)
+    19G (37, 7)  20G (40,18)  21G (42,36)  22G (20, 3)  23G (32, 3)  24G (25,25)
+    25G (29,12)  26G (12,31)  27G (21,25)  28G (35,22)  29G ( 7,36)  30G ( 2,31)
+
+The walk visits all 30 points, reaches $31G = \mathcal{O}$, and then
+repeats from $32G = G$. Three terms name what the walk shows:
+
+- $G$ is the **generator**: the published starting point that every key
+  is measured from.
+- The cycle length $n = 31$ is the **order** of the group.
+- A whole number $k$ that multiplies a point is a **scalar**.
+
+The walk repeats every $n$ steps, so $33G$ is the same point as $2G$,
+and scalars matter only modulo $n$. That is why this manual uses two
+moduli:
+
+- point coordinates are computed modulo $p = 43$, the field the points
+  live in;
+- scalars (private keys, nonces, shares) are computed modulo $n = 31$,
+  the position on the cycle.
+
+Mixing them up is a classic implementation bug. The ECDSA example below
+shows both in one signature: $x_R = 42$ but $r = 11$.
+
+Positions add: $aG + bG = (a + b)G$, because both sides are $G$ added to
+itself $a + b$ times. Every signature check in this manual is an
+application of that one fact.
+
+The second half of the cycle mirrors the first. $30G = (2, 31)$ is the
+reflection of $G = (2, 12)$, and in general $(n - k)G = -(kG)$ has the
+same $x$-coordinate as $kG$. BIP340’s 32-byte “x-only” keys and ECDSA’s
+low-S rule both follow from this.
+
+<a id="easy-forwards-infeasible-backwards"></a>
+
+### Easy forwards, infeasible backwards
+
+A **private key** is a secret scalar $d$. The matching **public key** is
+the point $Q = dG$. On the toy curve, $d = 7$ gives $Q = (25, 18)$.
+
+Computing $Q$ from $d$ is fast even for a 256-bit $d$, because doubling
+skips ahead. $2G$, $4G$, $8G$ and so on each cost one addition, and $d$
+is a sum of powers of two: $13G = 8G + 4G + G$. A 256-bit key needs
+about 256 doublings and at most 256 further additions. This method is
+**double-and-add**, `Curve.mul` in the code.
+
+Computing $d$ from $Q$ is the **discrete logarithm problem**. The
+doubling shortcut does not run in reverse, and no known structure
+relates a point to its position on the walk. On the toy curve, trying
+every position finds $d = 7$ on the seventh try. On secp256k1, $n$ is
+about $2^{256}$, and the best known classical methods need about
+$\sqrt{n} \approx 2^{128}$ steps (Pollard’s rho algorithm). Every scheme
+in chapters 1 to [5](05-settlement.md) depends on that. A large quantum
+computer running Shor’s algorithm would solve the problem. None exists
+at the required scale (**verify current**); [Module
+7](07-post-quantum.md) covers the response.
+
+``` python
+G = TOY.G
+assert TOY.add(TOY.add(TOY.mul(8, G), TOY.mul(4, G)), G) == TOY.mul(13, G)
+Q = TOY.mul(7, G)
+tries = next(k for k in range(1, TOY.n) if TOY.mul(k, G) == Q)
+assert Q == Point(25, 18) and tries == 7
+print(f"Q = ({Q.x}, {Q.y}); brute force found d = {tries}")
+```
+
+    Q = (25, 18); brute force found d = 7
+
+<a id="what-a-signature-proves"></a>
+
+### What a signature proves
+
+A signature has to convince anyone holding $Q$ that the holder of $d$
+approved a specific message, without revealing $d$. The mechanism is
+easiest to see first as a live exchange between a **prover**, who holds
+$d$, and a **verifier**, who holds only $Q$. This is Schnorr’s
+identification protocol (1989). It is a challenge-response login: the
+verifier sends a random challenge, and the prover answers in a way only
+the key holder can. Unlike a password or a shared MAC key, nothing the
+verifier sees helps it answer a challenge itself.
+
+| Step | Prover (knows $d$) | Verifier (knows $Q = dG$) |
+|----|----|----|
+| 1\. Commit | picks a random secret $k$; sends $R = kG$ |  |
+| 2\. Challenge |  | picks a random $e$; sends it |
+| 3\. Respond | sends $s = k + e\,d \bmod n$ |  |
+| 4\. Check |  | accepts if and only if $sG = R + eQ$ |
+
+**An honest prover passes**, because positions add:
+$sG = (k + ed)G = kG + e(dG) = R + eQ$.
+
+**The nonce hides the key.** The response $s = k + ed$ contains $d$, but
+added to $k$, which is random, secret and used once. For any fixed $d$
+and $e$, a uniformly random $k$ makes $s$ uniformly random, so $s$
+carries no information about $d$. A one-time pad hides a message the
+same way. $k$ is the **nonce** (“number used once”), and it is the only
+thing between $s$ and the key.
+
+**The prover must commit first.** If the prover knew $e$ before choosing
+$R$, it could pass without knowing $d$: pick any $s$, then set
+$R = sG - eQ$. The check holds by construction. Sending $R$ first fixes
+it before $e$ exists. A **commitment** is a value published now that
+fixes a choice before the information that could bias it arrives.
+Commitments recur throughout [Module 2](02-mpc-custody.md).
+
+**Reusing the nonce reveals the key.** Two runs with the same $k$ and
+different challenges give $s_1 = k + e_1 d$ and $s_2 = k + e_2 d$.
+Subtracting, $s_1 - s_2 = (e_1 - e_2)\,d$, so
+$d = (s_1 - s_2)/(e_1 - e_2)$: two equations in two unknowns. A FIX
+engine rejects a repeated sequence number. Nothing rejects a repeated
+nonce, because each run is valid on its own.
+
+On the toy curve, with $d = 7$, $Q = (25, 18)$ and nonce $k = 10$:
+
+| Step | Computation | Value |
+|----|----|----|
+| Commitment | $R = 10G$ | $(42, 7)$ |
+| Response to $e_1 = 5$ | $s_1 = 10 + 5 \cdot 7 = 45 \equiv 14$ | $14$ |
+| Check | $14G = R + 5Q$ | holds |
+| Same nonce, $e_2 = 12$ | $s_2 = 10 + 12 \cdot 7 = 94 \equiv 1$ | $1$ |
+| Key from the two runs | $(14 - 1) \cdot (5 - 12)^{-1} = 13 \cdot 22 = 286 \equiv 7$ | $d = 7$ |
+| Forgery, $e = 4$ known first | $s = 1$, $R = G - 4Q = (1 - 28)G \equiv 4G$ | $R = (21, 18)$ |
+
+$(5 - 12)^{-1} = 24^{-1} = 22$ because
+$24 \cdot 22 = 528 = 17 \cdot 31 + 1$.
+
+``` python
+n, k = TOY.n, 10
+R = TOY.mul(k, G)
+s1 = (k + 5 * 7) % n
+assert s1 == 14 and TOY.mul(s1, G) == TOY.add(R, TOY.mul(5, Q))
+s2 = (k + 12 * 7) % n
+assert s2 == 1 and (s1 - s2) * pow(5 - 12, -1, n) % n == 7  # the key, from two runs
+R_forged = TOY.add(G, TOY.neg(TOY.mul(4, Q)))  # s = 1, with e = 4 known in advance
+assert R_forged == Point(21, 18) and G == TOY.add(R_forged, TOY.mul(4, Q))
+```
+
+**From an exchange to a signature.** A signature cannot wait for a live
+verifier; anyone checks it later. The **Fiat-Shamir transform** removes
+the verifier by computing the challenge as a hash of the commitment, the
+public key and the message: $e = H(R \,\|\, Q \,\|\, m)$. The prover
+still cannot choose $R$ after $e$, because $e$ is computed from $R$, and
+a cryptographic hash (formal treatment, “Hash functions”) gives no way
+to pick an $R$ that produces a convenient $e$. Including $m$ in the hash
+ties the proof to that message. The pair $(R, s)$ is a **Schnorr
+signature**; the formal treatment gives BIP340’s version. ECDSA uses the
+same ingredients (a nonce, a commitment $R = kG$, a hash) in a different
+equation, and a reused ECDSA nonce reveals the key in the same way
+(Exercise 3).
+
+<a id="sharing-a-secret-as-a-line-through-points"></a>
+
+### Sharing a secret as a line through points
+
+Two points determine a line; one point does not. Shamir’s scheme (1979)
+is built on that fact. To share a secret $s$ so that any two of three
+parties can recover it:
+
+1.  Choose a random line that crosses the vertical axis at $s$:
+    $f(x) = s + c_1 x$, with a random slope $c_1$.
+2.  Give party $i$ the point $(i, f(i))$ for $i = 1, 2, 3$. That point
+    is its **share**.
+3.  Any two shares determine the line, and the line’s value at $x = 0$
+    is the secret.
+
+One share alone reveals nothing. For every candidate secret there is
+exactly one line through that share and that candidate. Modulo a prime
+this is exact: the slope is drawn uniformly from every value modulo that
+prime, and each candidate secret matches exactly one of them, so every
+secret remains equally likely. For a threshold of $t$, the line becomes
+a polynomial of degree $t - 1$ (a parabola for $t = 3$). $t$ points
+determine it and $t - 1$ points do not.
+
+Recovering $s$ does not require the line’s equation. $f(0)$ is a
+weighted sum of the shares: for shares 1 and 3,
+$s = \lambda_1 f(1) + \lambda_3 f(3)$. The weights $\lambda_i$ are the
+**Lagrange coefficients**. They depend only on which shares are present,
+not on their values. [Module 2](02-mpc-custody.md) relies on this: each
+party multiplies its own share by its own weight, without seeing anyone
+else’s share.
+
+The worked example below shares $s = 9$ and gives party 1 the share
+$(1, 14)$. That share fits every one of the 31 possible secrets:
+
+``` python
+from custody_lab.foundations import shamir
+
+lines = [
+    shamir.split(s, threshold=2, count=3, modulus=31, coefficients=[(14 - s) % 31])
+    for s in range(31)
+]
+assert all(line[0] == shamir.Share(1, 14) for line in lines)
+print("share (1, 14) is consistent with all 31 secrets, one line each")
+```
+
+    share (1, 14) is consistent with all 31 secrets, one line each
+
+<a id="formal-treatment"></a>
+
+## Formal treatment
+
+<a id="fields-and-curves"></a>
+
+### Fields and curves
+
+$\mathbb{F}_p$ is the integers modulo a prime $p$ with the usual $+$ and
+$\times$. Every non-zero element has an inverse, computed in Python as
+`pow(a, -1, p)`. An elliptic curve over $\mathbb{F}_p$ is the set of
+solutions of $y^2 = x^3 + ax + b$ plus a point at infinity
+$\mathcal{O}$, which acts as zero. For $P \ne Q$ the sum $R = P + Q$ is
+
+$$
+\lambda = \frac{y_Q - y_P}{x_Q - x_P}, \qquad
+x_R = \lambda^2 - x_P - x_Q, \qquad
+y_R = \lambda (x_P - x_R) - y_P ,
+$$
+
+and for doubling ($P = Q$) the slope is the tangent,
+$\lambda = (3x_P^2 + a) / (2y_P)$. The points form a group of order $n$.
+**Two moduli, two roles:** coordinates are reduced mod $p$; scalars
+(keys $d$, nonces $k$) are reduced mod $n$, because
+$n \cdot G = \mathcal{O}$.
+
+secp256k1 is $y^2 = x^3 + 7$ with $p = 2^{256} - 2^{32} - 977$ and a
+prime $n$ just below $p$. The toy curve in this chapter is the same
+equation over $\mathbb{F}_{43}$, with $n = 31$.
+
+<a id="hash-functions"></a>
+
+### Hash functions
+
+A cryptographic hash $H$ maps any input to a fixed-size digest (SHA-256:
+32 bytes). It must resist three attacks: finding an input for a given
+digest (preimage), finding a second input with the same digest as a
+given one (second preimage), and finding any two inputs with the same
+digest (collision). Inside a signature scheme the hash does three jobs:
+
+1.  **Digest.** The signer signs $z = H(m)$, not $m$. This is also why
+    an MPC signer can sign a hash it did not compute.
+2.  **Challenge.** In Schnorr, $e = H(R \,\|\, P \,\|\, m)$ replaces the
+    verifier’s random challenge (the Fiat-Shamir transform; see “What a
+    signature proves”).
+3.  **Nonce derivation.** BIP340, EdDSA and RFC 6979 derive $k$ from a
+    hash of the key and the message, so a broken random-number generator
+    cannot cause nonce reuse.
+
+BIP340 **tags** each hash:
+$H_{\text{tag}}(x) = \text{SHA256}(\text{SHA256}(\text{tag}) \,\|\, \text{SHA256}(\text{tag}) \,\|\, x)$.
+A nonce hash and a challenge hash can never collide, even on equal
+input.
+
+<a id="ecdsa"></a>
+
+### ECDSA
+
+Key: $d \in [1, n-1]$, $Q = dG$. To sign the digest $z$:
+
+$$
+k \xleftarrow{\$} [1, n-1], \quad R = kG, \quad r = x_R \bmod n, \quad s = k^{-1}(z + r d) \bmod n .
+$$
+
+To verify $(r, s)$: $u_1 = z s^{-1}$, $u_2 = r s^{-1}$,
+$X = u_1 G + u_2 Q$; accept iff $x_X \bmod n = r$. Both $(r, s)$ and
+$(r, n - s)$ verify, because negating $s$ corresponds to negating $k$,
+and $-R$ has the same $x$. Bitcoin Core relays only the **low-S** form
+(BIP 146), so the signer replaces $s$ by $n - s$ when $s > n/2$.
+
+<a id="schnorr-and-bip340"></a>
+
+### Schnorr and BIP340
+
+Key: $d$, $P = dG$. To sign:
+
+$$
+R = kG, \quad e = H(R \,\|\, P \,\|\, m) \bmod n, \quad s = k + e\,d \bmod n .
+$$
+
+To verify: accept iff $sG = R + eP$. The signature equation is
+**linear** in the secrets: $s$ is a sum. If two parties hold
+$d = d_1 + d_2$ and $k = k_1 + k_2$, then $s = s_1 + s_2$ with
+$s_i = k_i + e\,d_i$. ECDSA’s $s = k^{-1}(z + rd)$ multiplies secrets
+($k^{-1}$ times $d$), so splitting it needs heavier tools (Paillier
+encryption or oblivious transfer). That is the whole reason [Module
+2](02-mpc-custody.md) has a two-party ECDSA protocol and a separate,
+simpler FROST protocol.
+
+BIP340 adds three Bitcoin-specific rules:
+
+- Keys and $R$ are **x-only** (32 bytes, even $y$ implied). The signer
+  negates $d$ or $k$ when its point has odd $y$.
+- Every hash is tagged.
+- $k$ is derived from $d$, the message and 32 bytes of auxiliary
+  randomness.
+
+<a id="eddsa"></a>
+
+### EdDSA
+
+EdDSA (RFC 8032; Ed25519 on Curve25519) is Schnorr on a twisted Edwards
+curve with one change that matters for custody: the nonce is
+**deterministic**, $k = H(\text{prefix} \,\|\, m)$, with no randomness
+at all. That removes nonce-reuse risk for a single signer. A threshold
+group cannot compute that hash without a costly MPC, so threshold EdDSA
+(FROST) uses random nonces instead. A verifier cannot tell the
+difference.
+
+<a id="shamir-secret-sharing"></a>
+
+### Shamir secret sharing
+
+To share secret $s$ with threshold $t$ among $n$ parties over
+$\mathbb{Z}_q$, pick random $c_1, \dots, c_{t-1}$ and give party $i$ the
+share $(i, f(i))$ where $f(x) = s + c_1 x + \dots + c_{t-1}x^{t-1}$. Any
+$t$ shares determine $f$, and
+
+$$
+s = f(0) = \sum_{i \in S} \lambda_i f(i), \qquad
+\lambda_i = \prod_{j \in S,\, j \ne i} \frac{0 - j}{i - j} \bmod q .
+$$
+
+With $t-1$ shares, every candidate secret is consistent with exactly one
+polynomial, so the shares carry no information about $s$ (Shamir 1979).
+
+<a id="worked-example"></a>
+
+## Worked example
+
+<a id="doubling-on-the-toy-curve"></a>
+
+### Doubling on the toy curve
+
+$G = (2, 12)$ on $y^2 = x^3 + 7$ over $\mathbb{F}_{43}$. Check:
+$12^2 = 144 \equiv 15$ and $2^3 + 7 = 15$.
+
+| Step | Computation | Value |
+|----|----|----|
+| Tangent slope | $\lambda = 3 \cdot 2^2 / (2 \cdot 12) = 12 \cdot 24^{-1}$; $24^{-1} \equiv 9$ since $24 \cdot 9 = 216 = 5 \cdot 43 + 1$ | $\lambda = 108 \equiv 22$ |
+| $x_{2G}$ | $22^2 - 2 - 2 = 480$ | $480 \equiv 7$ |
+| $y_{2G}$ | $22\,(2 - 7) - 12 = -122$ | $-122 \equiv 7$ |
+
+So $2G = (7, 7)$. The code agrees, and the render of this chapter fails
+if it does not:
+
+``` python
+from custody_lab.foundations.ec import TOY, Point
+
+assert TOY.mul(2, TOY.G) == Point(7, 7)
+print(f"{len(TOY.points())} affine points + infinity = {TOY.n} = n")
+```
+
+    30 affine points + infinity = 31 = n
+
+<a id="ecdsa-on-the-toy-curve"></a>
+
+### ECDSA on the toy curve
+
+Private key $d = 7$, message digest $z = 17$, nonce $k = 10$. Scalars
+are mod $n = 31$.
+
+| Step | Computation | Value |
+|----|----|----|
+| Public key | $Q = 7G$ | $(25, 18)$ |
+| Nonce point | $R = 10G$ | $(42, 7)$ |
+| $r$ | $x_R \bmod n = 42 \bmod 31$ | $11$ |
+| $k^{-1}$ | $10 \cdot 28 = 280 = 9 \cdot 31 + 1$ | $28$ |
+| $s$ | $28\,(17 + 11 \cdot 7) = 28 \cdot 94$; $94 \equiv 1$ | $28$ |
+| Low-S | $28 > 31/2$, so $s \leftarrow 31 - 28$ | $3$ |
+| Signature |  | $(r, s) = (11, 3)$ |
+| Verify: $w = s^{-1}$ | $3 \cdot 21 = 63 = 2 \cdot 31 + 1$ | $21$ |
+| $u_1, u_2$ | $17 \cdot 21 \bmod 31$, $11 \cdot 21 \bmod 31$ | $16, 14$ |
+| $X$ | $16G + 14Q$ | $(42, 36)$ |
+| Check | $42 \bmod 31 = 11 = r$ | valid |
+
+$X = (42, 36) = -R$: the low-S flip negated the nonce, and $-R$ has the
+same $x$. Note also $x_R = 42$ but $r = 11$: coordinates are mod $p$,
+the signature is mod $n$.
+
+``` python
+from custody_lab.foundations import ecdsa
+
+Q = TOY.mul(7, TOY.G)
+sig = ecdsa.sign(7, 17, curve=TOY, k=10)
+assert (Q, sig) == (Point(25, 18), ecdsa.Signature(r=11, s=3))
+assert ecdsa.verify(Q, 17, sig, curve=TOY)
+print(Q, sig)
+```
+
+    Point(x=25, y=18) Signature(r=11, s=3)
+
+<a id="shamir-2-of-3-over-mathbbz_31"></a>
+
+### Shamir 2-of-3 over $\mathbb{Z}_{31}$
+
+Secret $s = 9$, $c_1 = 5$, so $f(x) = 9 + 5x$ and the shares are
+$(1, 14)$, $(2, 19)$, $(3, 24)$. From shares 1 and 3:
+$\lambda_1 = \frac{0-3}{1-3} = 3 \cdot 2^{-1} = 3 \cdot 16 \equiv 17$
+and $\lambda_3 = \frac{0-1}{3-1} = -16 \equiv 15$. Then
+$14 \cdot 17 + 24 \cdot 15 = 598 = 19 \cdot 31 + 9$, so $s = 9$.
+
+``` python
+from custody_lab.foundations import shamir
+
+shares = shamir.split(9, threshold=2, count=3, modulus=31, coefficients=[5])
+assert [(sh.x, sh.y) for sh in shares] == [(1, 14), (2, 19), (3, 24)]
+assert shamir.lagrange_coefficient(1, [1, 3], 31) == 17
+assert shamir.reconstruct([shares[0], shares[2]], modulus=31) == 9
+```
+
+<a id="code-walkthrough"></a>
+
+## Code walkthrough
+
+<a id="ecdsa-on-secp256k1-checked-by-an-independent-library"></a>
+
+### ECDSA on secp256k1, checked by an independent library
+
+The educational signer produces a signature; `cryptography` (OpenSSL
+underneath) verifies it. The verifier cannot tell how the signature was
+made. The same holds in [Module 2](02-mpc-custody.md), where the
+signature comes from several machines.
+
+``` python
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import (
+    Prehashed,
+    encode_dss_signature,
+)
+
+from custody_lab.foundations.ec import SECP256K1
+from custody_lab.foundations.hashing import sha256
+
+d, Q = ecdsa.generate_keypair()
+digest = sha256(b"SETTLE batch=42 asset=BTC qty=1.50000000 to=bcrt1p...")
+sig = ecdsa.sign(d, ecdsa.hash_to_int(digest))
+assert ecdsa.verify(Q, ecdsa.hash_to_int(digest), sig)
+
+library_key = ec.EllipticCurvePublicNumbers(Q.x, Q.y, ec.SECP256K1()).public_key()
+der = encode_dss_signature(sig.r, sig.s)
+library_key.verify(der, digest, ec.ECDSA(Prehashed(hashes.SHA256())))  # raises if invalid
+print("verified by cryptography; low-S:", sig.s <= SECP256K1.n // 2)
+```
+
+    verified by cryptography; low-S: True
+
+<a id="bip340-against-the-official-test-vector"></a>
+
+### BIP340 against the official test vector
+
+Test vector 0 from BIP 340: secret key 3, all-zero auxiliary randomness,
+all-zero message. The full vector set (19 cases, including invalid ones)
+runs in `tests/foundations/test_schnorr.py`.
+
+``` python
+from custody_lab.foundations import schnorr
+
+seckey = (3).to_bytes(32, "big")
+sig = schnorr.sign(bytes(32), seckey, aux_rand=bytes(32))
+assert schnorr.pubkey_gen(seckey).hex().upper() == (
+    "F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9")
+assert sig.hex().upper() == (
+    "E907831F80848D1069A5371B402410364BDF1C5F8307B0084C55F1CE2DCA8215"
+    "25F66A4A85EA8B71E482A74F382D2CE5EBEEE8FDB2172F477DF4900D310536C0")
+print(len(schnorr.pubkey_gen(seckey)), "byte key,", len(sig), "byte signature")
+```
+
+    32 byte key, 64 byte signature
+
+<a id="shamir-on-a-real-private-key"></a>
+
+### Shamir on a real private key
+
+A secp256k1 private key split 2-of-3. Any two shares rebuild it, and the
+rebuilt key produces the same public key. Rebuilding is the step [Module
+2](02-mpc-custody.md) eliminates.
+
+``` python
+from itertools import combinations
+
+d, Q = ecdsa.generate_keypair()
+shares = shamir.split(d, threshold=2, count=3)
+for pair in combinations(shares, 2):
+    assert SECP256K1.mul(shamir.reconstruct(pair), SECP256K1.G) == Q
+print("all three 2-of-3 subsets rebuild the key")
+```
+
+    all three 2-of-3 subsets rebuild the key
+
+<a id="ed25519-with-a-production-library"></a>
+
+### Ed25519 with a production library
+
+`cryptography`’s Ed25519 is the real-library counterpart for EdDSA.
+Signing the same message twice gives the same signature, because the
+nonce is a hash of the key and the message.
+
+``` python
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+key = Ed25519PrivateKey.generate()
+msg = b"approve instruction 42"
+sig1, sig2 = key.sign(msg), key.sign(msg)
+key.public_key().verify(sig1, msg)
+print(len(sig1), "byte signature; deterministic:", sig1 == sig2)
+```
+
+    64 byte signature; deterministic: True
+
+<a id="linearity-a-naive-two-party-schnorr-signature"></a>
+
+### Linearity: a naive two-party Schnorr signature
+
+The same Schnorr equation, split between two parties who never share
+$d_i$ or $k_i$. It is **insecure as written**: a malicious party can
+choose its public key or nonce after seeing the other’s (rogue-key and
+nonce-manipulation attacks). Commitments and binding factors that stop
+this are what FROST adds in [Module 2](02-mpc-custody.md). It uses
+textbook Schnorr (full points, SHA-256 challenge), not BIP340’s x-only
+encoding.
+
+``` python
+import secrets
+
+G, n = SECP256K1.G, SECP256K1.n
+d1, d2 = 1 + secrets.randbelow(n - 1), 1 + secrets.randbelow(n - 1)
+k1, k2 = 1 + secrets.randbelow(n - 1), 1 + secrets.randbelow(n - 1)
+P = SECP256K1.add(SECP256K1.mul(d1, G), SECP256K1.mul(d2, G))  # joint public key
+R = SECP256K1.add(SECP256K1.mul(k1, G), SECP256K1.mul(k2, G))  # joint nonce point
+assert P is not None and R is not None
+e = int.from_bytes(sha256(f"{R}{P}settle 42".encode()), "big") % n
+s = (k1 + e * d1 + k2 + e * d2) % n  # each party contributes k_i + e*d_i
+assert SECP256K1.mul(s, G) == SECP256K1.add(R, SECP256K1.mul(e, P))
+print("s1 + s2 verifies under P1 + P2; nobody held d = d1 + d2")
+```
+
+    s1 + s2 verifies under P1 + P2; nobody held d = d1 + d2
+
+<a id="how-this-shows-up-in-production"></a>
+
+## How this shows up in production
+
+- **Constant-time libraries.** Bitcoin Core and most wallets use
+  libsecp256k1. The code in this chapter branches on secret bits in
+  `Curve.mul`, so its running time leaks the key to anyone who can time
+  it.
+- **Nonce failures are the classic ECDSA break.** Sony’s PlayStation 3
+  firmware signing reused a constant nonce (disclosed 2010). An Android
+  `SecureRandom` flaw in 2013 caused repeated nonces in Bitcoin wallets
+  and led to thefts. RFC 6979 deterministic nonces and BIP340’s hashed
+  nonces exist because of failures like these. Biased nonces, not only
+  repeated ones, can be exploited with lattice methods.
+- **Malleability.** Anyone can turn a valid $(r, s)$ into $(r, n-s)$.
+  Bitcoin policy accepts only low-S, and SegWit removed signatures from
+  the transaction ID, so malleating a signature no longer changes the
+  ID.
+- **Taproot.** Bitcoin’s Taproot outputs (BIP 341) commit to a BIP340
+  x-only key. The demo’s regtest settlements spend exactly such outputs,
+  signed by FROST.
+- **Shamir in operations.** HSM vendors implement M-of-N card or key
+  quorums for administrative and key-backup operations. Hardware wallets
+  offer Shamir backups (SLIP-39). In every case the secret is rebuilt
+  inside one trusted device at the moment of use. For an HSM that is the
+  design; for a multi-party custody service it is the single point of
+  compromise that MPC removes.
+- **HSM curve support.** secp256k1 ECDSA is widely supported in HSM
+  firmware; BIP340 Schnorr and Ed25519 support varies by vendor and
+  firmware version (**verify current**).
+
+<a id="exercises"></a>
+
+## Exercises
+
+1.  **Compute.** Using $G = (2, 12)$ and $2G = (7, 7)$ on the toy curve,
+    compute $3G = G + 2G$ by hand.
+2.  **Explain.** In the toy ECDSA example, the verifier computed
+    $X = (42, 36)$, not $R = (42, 7)$. Why is the signature still valid?
+3.  **Attack.** Two messages are signed on secp256k1 with the same
+    nonce. Recover the private key from the two signatures and the two
+    digests. Account for low-S normalisation.
+4.  **Compute.** Reconstruct the secret from Shamir shares $(2, 19)$ and
+    $(3, 24)$ over $\mathbb{Z}_{31}$.
+5.  **Design.** A custodian keeps each client’s key Shamir-shared 2-of-3
+    across three data centres, and rebuilds it in memory to sign. Name
+    the attack this does not stop and what [Module 2](02-mpc-custody.md)
+    changes.
+6.  **Forge.** On the toy curve, with $Q = 7G = (25, 18)$, a verifier
+    announces the challenge $e = 3$ before the prover commits. Without
+    using $d$, find the commitment $R$ that passes the check
+    $sG = R + eQ$ with $s = 2$.
+
+<a id="solutions"></a>
+
+## Solutions
+
+1.  $\lambda = (7 - 12)/(7 - 2) = -5 \cdot 5^{-1} = -1 \equiv 42$.
+    $x = 42^2 - 2 - 7 = 1755 \equiv 35$ (since $42 \equiv -1$,
+    $42^2 \equiv 1$ and $1 - 9 = -8 \equiv 35$).
+    $y = 42\,(2 - 35) - 12 = (-1)(-33) - 12 = 21$. So $3G = (35, 21)$.
+
+``` python
+assert TOY.add(TOY.G, Point(7, 7)) == TOY.mul(3, TOY.G) == Point(35, 21)
+```
+
+2.  Low-S normalisation replaced $s$ by $n - s$, which is the signature
+    for nonce $-k$. The verifier therefore reconstructs
+    $-kG = -R = (42, 43 - 7)$. Verification compares only the
+    $x$-coordinate mod $n$, and $R$ and $-R$ share it.
+
+3.  With a shared $k$: $s_1 = \pm k^{-1}(z_1 + rd)$ and
+    $s_2 = \pm k^{-1}(z_2 + rd)$, where the signs depend on
+    normalisation. For each sign combination,
+    $k = (z_1 - z_2)/(s_1 \mp s_2)$ and $d = (s_1 k - z_1)/r$. Keep the
+    candidate with $dG = Q$.
+
+``` python
+d, Q = ecdsa.generate_keypair()
+k = 1 + secrets.randbelow(n - 1)
+z1, z2 = (ecdsa.hash_to_int(sha256(m)) for m in (b"pay 1 BTC", b"pay 2 BTC"))
+sig1, sig2 = ecdsa.sign(d, z1, k=k), ecdsa.sign(d, z2, k=k)
+assert sig1.r == sig2.r  # the visible symptom of nonce reuse
+
+candidates = []
+for s2 in (sig2.s, n - sig2.s):
+    k_guess = (z1 - z2) * pow(sig1.s - s2, -1, n) % n
+    candidates.append((sig1.s * k_guess - z1) * pow(sig1.r, -1, n) % n)
+recovered = next(c for c in candidates if SECP256K1.mul(c, G) == Q)
+assert recovered == d
+print("private key recovered from two signatures")
+```
+
+    private key recovered from two signatures
+
+4.  $\lambda_2 = \frac{0 - 3}{2 - 3} = 3$ and
+    $\lambda_3 = \frac{0 - 2}{3 - 2} = -2 \equiv 29$.
+    $19 \cdot 3 + 24 \cdot 29 = 753 = 24 \cdot 31 + 9$, so $s = 9$.
+
+``` python
+assert shamir.reconstruct([shamir.Share(2, 19), shamir.Share(3, 24)], modulus=31) == 9
+```
+
+5.  It stops the loss of one data centre, not the compromise of the
+    signing host. Whoever controls the machine that rebuilds the key
+    (malware, an insider, a memory dump) holds the whole key for every
+    later transaction. The dealer that created the shares also saw the
+    key. [Module 2](02-mpc-custody.md) replaces both steps: distributed
+    key generation means no party ever holds $d$, and threshold signing
+    produces the signature from shares without rebuilding $d$.
+
+6.  $R = sG - eQ = 2G - 3 \cdot 7G = (2 - 21)G = -19G \equiv 12G = (37, 36)$.
+    The walk in “The cycle” lists $12G$. This is why the commitment must
+    precede the challenge.
+
+``` python
+R6 = TOY.add(TOY.mul(2, TOY.G), TOY.neg(TOY.mul(3, TOY.mul(7, TOY.G))))
+assert R6 == TOY.mul(12, TOY.G) == Point(37, 36)
+assert TOY.mul(2, TOY.G) == TOY.add(R6, TOY.mul(3, TOY.mul(7, TOY.G)))
+```
+
+<a id="further-reading"></a>
+
+## Further reading
+
+- Certicom Research, *SEC 1: Elliptic Curve Cryptography* (v2.0, 2009)
+  and *SEC 2: Recommended Elliptic Curve Domain Parameters* (v2.0,
+  2010). The ECDSA definition and the secp256k1 parameters.
+- NIST FIPS 186-5, *Digital Signature Standard* (2023). ECDSA and EdDSA
+  as US federal standards.
+- P. Wuille, J. Nick, T. Ruffing, *BIP 340: Schnorr Signatures for
+  secp256k1*. The algorithm implemented in `schnorr.py`, with its
+  rationale for x-only keys and tagged hashes.
+- RFC 8032, *Edwards-Curve Digital Signature Algorithm (EdDSA)*. Ed25519
+  and deterministic nonces.
+- RFC 6979, *Deterministic Usage of DSA and ECDSA*. Nonce derivation
+  without a random-number generator.
+- C. P. Schnorr, “Efficient Signature Generation by Smart Cards”,
+  *Journal of Cryptology* 4(3),
+  1991. The identification protocol in “What a signature proves” and the
+        signature derived from it.
+- A. Fiat, A. Shamir, “How to Prove Yourself: Practical Solutions to
+  Identification and Signature Problems”, CRYPTO 1986. The transform
+  that replaces the verifier’s challenge with a hash.
+- A. Shamir, “How to Share a Secret”, *Communications of the ACM*
+  22(11), 1979. Two pages; the original construction.
+- J. Song, *Programming Bitcoin* (O’Reilly, 2019), chapters 1 to
+  [3](03-key-storage.md). Builds finite fields and ECDSA in Python at
+  the same level as this chapter.
+
+------------------------------------------------------------------------
+
+Previous: [Chapter 0, Orientation](00-orientation.md) \| [All
+chapters](../README.md) \| Next: [Chapter 2, MPC
+Custody](02-mpc-custody.md)

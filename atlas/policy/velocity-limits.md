@@ -13,7 +13,7 @@ amount exceeds the cap.
 `Decimal`; time comes from an injected clock. A Hypothesis test checks that no generated sequence
 of instructions ever exceeds the cap in any window.
 
-**In the manual.** Chapter 4, worked example rows 4 to 7; Exercise 1.
+**In the manual.** [Chapter 4](../../manual/chapters/04-policy.md), worked example rows 4 to 7; Exercise 1.
 
 **Sources.** Pre-trade risk control guidance for comparison: SEC Rule 15c3-5 (market access)
 (**verify current**).

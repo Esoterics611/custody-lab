@@ -2,6 +2,71 @@
 
 Newest first.
 
+## 2026-10-08: Open-source licence, links between chapters, the manual on GitHub, README
+
+**Changed.**
+- Licence (owner's choice): MIT OR Apache-2.0, copyright Esoterics611. `LICENSE-MIT` and
+  `LICENSE-APACHE` are GitHub's standard texts (`gh api /licenses/mit`, `/licenses/apache-2.0`)
+  with only the MIT year and holder filled in. The licence is declared in `pyproject.toml`
+  (`license`, `license-files`), both Rust `Cargo.toml` files and `web/package.json`.
+- `manual/links.py`, a Pandoc JSON filter in standard-library Python, registered in
+  `manual/_quarto.yml`. It rewrites links to sibling `.qmd` sources to `.pdf` or `.md`, links
+  every "chapter N" and "Module N" in running text, adds previous and next lines at the top and
+  bottom of each chapter, and in Markdown output puts an `<a id>` before every heading. It is
+  in mypy's file list.
+- `manual/_quarto.yml` builds a second format, GitHub Markdown, beside each source
+  (`manual/chapters/NN-slug.md`, figures in `NN-slug_files/`). All ten chapters are rendered and
+  the Markdown is committed; PDFs stay uncommitted.
+- `scripts/render-manual.sh` renders every chapter, or the ones named, in both formats.
+- `manual/README.md`, the contents page; `README.md` rewritten: the problem, one run in nine steps
+  with links to chapters, reading order, prerequisites and commands with expected output, what is
+  real and what is a toy, how it is tested, layout, records, licence.
+- `atlas/glossary.md`: every "Taught in" pointer is a link to its section. Each atlas entry's "In
+  the manual" line links its chapter and each quoted section, and each module heading in
+  `atlas/index.md` links its chapter (one-off script, not kept).
+- Chapter 0 links the glossary and atlas.
+- `CLAUDE.md`: layout, commands, two Accepted decisions.
+
+**Verified.**
+- Quarto passes a JSON filter the format (`latex` for PDF, `commonmark` for GitHub Markdown) and
+  the input file in `QUARTO_DOCUMENT_FILE` (observed in a scratch project before the filter was
+  written).
+- `scripts/render-manual.sh`: all ten chapters render in both formats (exit 0).
+- Chapter 0's PDF holds 35 links to sibling chapter PDFs (`pymupdf`); its Markdown has 45 heading
+  anchors and 34 chapter links.
+- A link check over every Markdown file in the repository: 682 relative links, none pointing at a
+  missing file or anchor.
+- No generated Markdown contains a local path or a personal name (`grep` for `/home/`, `/tmp/`,
+  and the account and owner names).
+- The built wheel carries `License-Expression: MIT OR Apache-2.0` and both licence files;
+  `cargo metadata` reads the licence for both crates.
+- `mypy` (strict) and `ruff` are clean on the filter.
+
+**Found (observed).** Two atlas entries cited headings by shortened names that no longer
+matched: `mpc/cggmp.md` ("Production ECDSA libraries") and `settlement/bitcoin-regtest-taproot.md`
+("What a key-path signature signs"). Both now name and link the full headings.
+
+**Open.**
+- How GitHub renders the pages (maths, anchors, alerts) is checked after the push.
+- `pyproject.toml` still names the owner as author, while the licence and history use
+  Esoterics611.
+- Each chapter rewrite changes headings, so the glossary and atlas links need re-pointing with it.
+- Unchanged: the owner's read of chapter 0, the dashboard in a browser, ML-KEM decapsulation
+  vectors, three Proposed decisions.
+
+### Deliverables
+
+- The project is open source under MIT OR Apache-2.0, the same licences as the Rust libraries it
+  builds on.
+- The whole manual reads on GitHub: every chapter is published as a page with its code output
+  and figures, and readers can click from chapter to chapter.
+- Every mention of another chapter, in the PDFs and on GitHub, is a link, and each chapter ends
+  with previous and next links.
+- The glossary and the atlas link each term and concept to the section of the manual that
+  teaches it.
+- The README explains what the project demonstrates and where to start reading, and gives
+  commands to install and run it with the expected output.
+
 ## 2026-10-08: Writing standard; chapter 0 rewritten as the pilot
 
 **Changed.**

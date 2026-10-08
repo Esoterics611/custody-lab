@@ -19,8 +19,8 @@ DORA (Regulation (EU) 2022/2554), applying from 17 January 2025, adds ICT risk m
 charges each settlement's network fee to the client being settled, so the custody address holds
 client coins only and assets equal liabilities after every batch.
 
-**In the manual.** Chapter 8, "Regulation in the EU: MiCA", "Worked example", "Fees without house
-coins".
+**In the manual.** [Chapter 8](../../manual/chapters/08-industry.md), "[Regulation in the EU: MiCA](../../manual/chapters/08-industry.md#regulation-in-the-eu-mica)", "[Worked example](../../manual/chapters/08-industry.md#worked-example)", "[Fees without house
+coins](../../manual/chapters/08-industry.md#fees-without-house-coins)".
 
 **Sources.** Regulation (EU) 2023/1114, Articles 70, 75, 143 (Article 75 text **observed**);
 **verify current** for enforcement after the transition.

@@ -21,7 +21,7 @@ combine them: MPC shares inside TEEs across clouds, or one share behind an HSM o
 nothing against root on the host. Chapter 3's worked example gives the production placement of
 every part.
 
-**In the manual.** Chapter 3, "Comparison", "Combinations", "Worked example".
+**In the manual.** [Chapter 3](../../manual/chapters/03-key-storage.md), "[Comparison](../../manual/chapters/03-key-storage.md#comparison)", "[Combinations](../../manual/chapters/03-key-storage.md#combinations)", "[Worked example](../../manual/chapters/03-key-storage.md#worked-example)".
 
 **Sources.** As for [hsm](hsm.md) and [tee](tee.md); NIST IR 8214C, first call for multi-party
 threshold schemes (2026, **verify current**); Fireblocks on MPC-CMP in SGX (reported;

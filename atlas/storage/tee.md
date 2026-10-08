@@ -19,8 +19,8 @@ Nitro PKI).
 **In the demo.** No TEE. Chapter 3's cells model a measurement, a report, sealing, and a share
 released to an attested signer over ML-KEM.
 
-**In the manual.** Chapter 3, "Remote attestation", "Sealing", "Side channels", "Trusted
-execution environments", "Releasing a share to an attested signer".
+**In the manual.** [Chapter 3](../../manual/chapters/03-key-storage.md), "[Remote attestation](../../manual/chapters/03-key-storage.md#remote-attestation)", "[Sealing](../../manual/chapters/03-key-storage.md#sealing)", "[Side channels](../../manual/chapters/03-key-storage.md#side-channels)", "[Trusted
+execution environments](../../manual/chapters/03-key-storage.md#trusted-execution-environments)", "[Releasing a share to an attested signer](../../manual/chapters/03-key-storage.md#releasing-a-share-to-an-attested-signer)".
 
 **Sources.** V. Costan and S. Devadas, "Intel SGX Explained", IACR ePrint 2016/086; AWS Nitro
 Enclaves User Guide and AWS KMS condition keys for Nitro Enclaves; Van Bulck et al., Foreshadow,

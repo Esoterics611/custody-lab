@@ -13,7 +13,7 @@ unchanged, every share changes, and old and new shares cannot be combined.
 **In the demo.** Teaching code: `src/custody_lab/mpc/dkg.py` (`refresh`). The ZF crate provides
 `keys::refresh` for the signing path; the demo does not call it yet.
 
-**In the manual.** Chapter 2, "Proactive refresh", and the DKG walkthrough, which shows old and new
+**In the manual.** [Chapter 2](../../manual/chapters/02-mpc-custody.md), "[Proactive refresh](../../manual/chapters/02-mpc-custody.md#proactive-refresh)", and the DKG walkthrough, which shows old and new
 shares failing to sign together.
 
 **Sources.** Herzberg, Jarecki, Krawczyk, Yung, "Proactive Secret Sharing", CRYPTO 1995.

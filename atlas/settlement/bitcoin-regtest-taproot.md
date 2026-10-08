@@ -18,7 +18,7 @@ outputs.
 - `regtest.py` runs a private Bitcoin Core node.
 - `tests/settlement/test_regtest_settlement.py` mines a FROST-signed spend.
 
-**In the manual.** Chapter 5, "Taproot outputs and the BIP86 tweak", "What a key-path signature
-signs", "Settling on regtest".
+**In the manual.** [Chapter 5](../../manual/chapters/05-settlement.md), "[Taproot outputs and the BIP86 tweak](../../manual/chapters/05-settlement.md#taproot-outputs-and-the-bip86-tweak)", "[What a key-path signature
+signs: the BIP341 sighash](../../manual/chapters/05-settlement.md#what-a-key-path-signature-signs-the-bip341-sighash)", "[Settling on regtest](../../manual/chapters/05-settlement.md#settling-on-regtest)".
 
 **Sources.** BIP 341, BIP 86, BIP 350; A. Antonopoulos, D. Harding, *Mastering Bitcoin*, 3rd ed.

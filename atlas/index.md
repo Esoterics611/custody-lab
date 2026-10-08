@@ -23,7 +23,7 @@ teaches it.
 | [Threshold signing: cb-mpc feasibility and recommended path](project/threshold-signing-feasibility.md) | draft |
 | [Session log](project/session-log.md) | current |
 
-## 1. Foundations
+## [1. Foundations](../manual/chapters/01-foundations.md)
 
 | Entry | Status |
 |-------|--------|
@@ -34,7 +34,7 @@ teaches it.
 | [`foundations/schnorr-bip340.md`](foundations/schnorr-bip340.md) — Schnorr, BIP340, EdDSA | draft |
 | [`foundations/shamir-secret-sharing.md`](foundations/shamir-secret-sharing.md) — polynomials, Lagrange interpolation | draft |
 
-## 2. MPC custody
+## [2. MPC custody](../manual/chapters/02-mpc-custody.md)
 
 | Entry | Status |
 |-------|--------|
@@ -47,7 +47,7 @@ teaches it.
 | [`mpc/proactive-refresh.md`](mpc/proactive-refresh.md) — same key, new shares | draft |
 | [`mpc/backup-recovery.md`](mpc/backup-recovery.md) — verifiable backup, recovery ceremonies | draft |
 
-## 3. Key storage
+## [3. Key storage](../manual/chapters/03-key-storage.md)
 
 | Entry | Status |
 |-------|--------|
@@ -55,7 +55,7 @@ teaches it.
 | [`storage/tee.md`](storage/tee.md) — SGX, confidential VMs, AWS Nitro Enclaves, attestation | draft |
 | [`storage/hsm-vs-mpc-vs-tee.md`](storage/hsm-vs-mpc-vs-tee.md) — comparison table | draft |
 
-## 4. Policy and authorisation
+## [4. Policy and authorisation](../manual/chapters/04-policy.md)
 
 | Entry | Status |
 |-------|--------|
@@ -65,7 +65,7 @@ teaches it.
 | [`policy/velocity-limits.md`](policy/velocity-limits.md) | draft |
 | [`policy/audit-trail.md`](policy/audit-trail.md) — hash-chained logs | draft |
 
-## 5. Trading to settlement
+## [5. Trading to settlement](../manual/chapters/05-settlement.md)
 
 | Entry | Status |
 |-------|--------|
@@ -74,7 +74,7 @@ teaches it.
 | [`settlement/netting.md`](settlement/netting.md) | draft |
 | [`settlement/bitcoin-regtest-taproot.md`](settlement/bitcoin-regtest-taproot.md) — key-path spend, BIP341 sighash | draft |
 
-## 6. Proof of reserves
+## [6. Proof of reserves](../manual/chapters/06-reserves.md)
 
 | Entry | Status |
 |-------|--------|
@@ -83,7 +83,7 @@ teaches it.
 | [`reserves/proof-of-control.md`](reserves/proof-of-control.md) — signing under the custody key | draft |
 | [`reserves/zk-proof-of-liabilities.md`](reserves/zk-proof-of-liabilities.md) — hidden sums, range proofs | draft |
 
-## 7. Post-quantum
+## [7. Post-quantum](../manual/chapters/07-post-quantum.md)
 
 | Entry | Status |
 |-------|--------|
@@ -94,7 +94,7 @@ teaches it.
 | [`pq/threshold-pq.md`](pq/threshold-pq.md) — why PQ schemes resist MPC | draft |
 | [`pq/migration-design.md`](pq/migration-design.md) | draft |
 
-## 8. Industry and regulation
+## [8. Industry and regulation](../manual/chapters/08-industry.md)
 
 | Entry | Status |
 |-------|--------|
@@ -105,7 +105,7 @@ teaches it.
 | [`industry/qualified-custodian-soc2.md`](industry/qualified-custodian-soc2.md) | draft |
 | [`industry/israeli-landscape.md`](industry/israeli-landscape.md) — public sector, companies and researchers | draft |
 
-## 9. Capstone
+## [9. Capstone](../manual/chapters/09-capstone.md)
 
 | Entry | Status |
 |-------|--------|

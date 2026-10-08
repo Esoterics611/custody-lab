@@ -11,6 +11,6 @@ shares) are mod the group order $n$. Mixing them up is a classic implementation 
 **In the demo.** Teaching code: `src/custody_lab/foundations/ec.py` (`Curve.add` uses modular
 inverses mod `p`); `ecdsa.py` and `shamir.py` work mod `n`.
 
-**In the manual.** Chapter 1, "Fields and curves".
+**In the manual.** [Chapter 1](../../manual/chapters/01-foundations.md), "[Fields and curves](../../manual/chapters/01-foundations.md#fields-and-curves)".
 
 **Sources.** J. Song, *Programming Bitcoin*, chapter 1.

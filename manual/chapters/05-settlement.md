@@ -1,0 +1,619 @@
+# Module 5: Trading to Settlement
+
+2026-09-27
+
+Previous: [Chapter 4, Policy and Authorisation](04-policy.md) \| [All
+chapters](../README.md) \| Next: [Chapter 6, Proof of
+Reserves](06-reserves.md)
+
+> [!WARNING]
+>
+> ### EDUCATIONAL, NOT PRODUCTION
+>
+> Four parts of this module are teaching code:
+>
+> - The FIX session layer: no heartbeats or resend.
+> - The toy exchange.
+> - The transaction builder, written from BIP 341 and validated by its
+>   test vectors.
+> - A regtest-only chain setup.
+>
+> Bitcoin Core is real, and it validates every transaction this chapter
+> broadcasts.
+
+<a id="learning-objectives"></a>
+
+## Learning objectives
+
+- Follow a trade from FIX 5.0 SP2 ExecutionReports to a confirmed
+  on-chain settlement.
+- Explain Bitcoin’s transaction model: outputs as coins, change and fee,
+  locking scripts and witnesses, and what a sighash commits to.
+- Compute a net settlement obligation from a set of fills.
+- Explain off-exchange settlement and what it changes about exchange
+  default risk.
+- Build a Taproot key-path spend: the BIP86 output key, the BIP341
+  sighash, the witness.
+- Name the checks that tie a transaction to the instruction a policy
+  approved.
+
+<a id="intuition"></a>
+
+## Intuition
+
+A FIX engineer knows the first half of this chapter already. Orders go
+out, execution reports come back, and the back office settles the net
+position at the end of a cycle. Custody changes where the assets sit
+while that happens.
+
+In the traditional crypto setup the client **pre-funds the exchange**:
+coins move to the exchange’s wallets before trading. If the exchange
+fails, the coins are an unsecured claim in an insolvency. The collapse
+of FTX in November 2022 made that concrete for many institutions.
+
+**Off-exchange settlement** reverses it:
+
+- The client’s assets stay with its custodian.
+- The exchange sees a mirrored trading balance, backed by assets the
+  custodian has locked for that purpose.
+- At the end of each settlement cycle only the **net** obligation moves,
+  in one direction.
+
+Copper’s ClearLoop is the best-known example: settlement cycles of a few
+hours, and exchanges also post collateral with the custodian. Similar
+networks exist from other custodians (**verify current**).
+
+The demo implements the settlement side of that model:
+
+| Step | Component | Output |
+|----|----|----|
+| 1 | FIX session (5.0 SP2 over FIXT.1.1) with the toy exchange | ExecutionReports |
+| 2 | Netting | one net obligation per asset |
+| 3 | Settlement instruction | asset, amount, destination (the exchange’s settlement address) |
+| 4 | Policy engine ([Module 4](04-policy.md)) | approvals, then an authorisation for one sighash |
+| 5 | Transaction builder | one-input Taproot spend; checked against the instruction |
+| 6 | FROST cluster ([Module 2](02-mpc-custody.md)) | a 64-byte BIP340 signature from 2 of 3 processes |
+| 7 | Bitcoin Core | broadcast, mined, confirmed |
+
+<a id="first-principles"></a>
+
+## First principles
+
+This section covers the Bitcoin half of the chapter, from the ledger
+model to confirmation. The FIX half is in the formal treatment.
+
+<a id="coins-are-outputs-not-balances"></a>
+
+### Coins are outputs, not balances
+
+An account ledger, such as a central bank’s real-time gross settlement
+system, keeps one balance per account; a payment debits one balance and
+credits another. Bitcoin keeps no balances. Its ledger is the set of
+**unspent transaction outputs (UTXOs)**. Each UTXO is an amount together
+with a condition for spending it. A wallet’s balance is the sum of the
+UTXOs it can spend.
+
+A transaction consumes whole UTXOs as **inputs** and creates new
+**outputs**. An output is spent entirely or not at all, like a banknote.
+To pay 0.85 BTC from a 5.00 BTC UTXO, the transaction creates two
+outputs: 0.85 BTC to the payee, and the remainder less the fee back to
+the payer as **change**. Each input names the output it spends by its
+**outpoint**: the id of the transaction that created it (the **txid**, a
+hash of that transaction) and the output’s index.
+
+The **fee** is not a field. It is the total of the inputs minus the
+total of the outputs, and the miner who includes the transaction
+collects it. A transaction that omits its change output pays the whole
+difference to the miner. `transfer.check_matches` therefore computes the
+fee from the input and the outputs and caps it (Exercise 4).
+
+Amounts on chain are integers in **satoshis**: 1 BTC is 100,000,000
+sats. The code keeps amounts as `Decimal` BTC everywhere else and
+converts only at this boundary (`bitcoin.to_sats`). Bitcoin Core does
+not relay an output below the **dust** limit (330 sats for a Taproot
+output under its default policy), so the builder adds change below that
+limit to the fee.
+
+The banknote analogy breaks on ownership. A banknote belongs to whoever
+holds it; a UTXO belongs to whoever can meet its spending condition.
+
+<a id="locking-and-unlocking"></a>
+
+### Locking and unlocking
+
+Each output carries a **locking script** (`scriptPubKey`): the condition
+a spender must meet. The spender supplies a **witness**, the data that
+meets it. For every output the demo creates, the condition is a valid
+signature under one key, and the witness is that signature.
+
+A **Taproot** output (BIP 341, active on Bitcoin since November 2021)
+has the 34-byte locking script `OP_1 <32-byte key>`. It can be spent in
+two ways:
+
+- **key path:** a BIP340 signature under the 32-byte key;
+- **script path:** revealing one of a set of alternative scripts
+  committed inside the key, and satisfying it.
+
+The demo uses the key path only. BIP86 **tweaks** the key so that it
+commits to an empty set of scripts (formal treatment); no hidden script
+path can exist.
+
+An **address** is a locking script written for people: a checksummed
+encoding (bech32m, BIP 350) of the witness version and the key. Taproot
+addresses start with `bc1p` on the main network and `bcrt1p` on regtest.
+Paying an address means creating an output with that locking script. The
+custody address is derived from the FROST group key, so only a quorum of
+signers can spend what it receives.
+
+**SegWit** (BIP 141, 2017) moved signatures into a separate witness
+section, which the txid does not cover. The signature malleability
+described in [chapter 1](01-foundations.md) therefore cannot change a
+transaction’s id.
+
+<a id="what-the-signature-covers-the-sighash"></a>
+
+### What the signature covers: the sighash
+
+A signature signs a 32-byte message. For a transaction, that message is
+the **sighash**, a hash over the transaction’s fields. It cannot be the
+whole serialised transaction, because the witness that will hold the
+signature is part of it. The default Taproot sighash covers:
+
+- the version and locktime;
+- every input’s outpoint, amount, locking script and sequence number;
+- every output.
+
+Changing any amount or destination changes the sighash, and a signature
+over the old sighash no longer verifies. One sighash therefore
+authorises exactly one transaction. That is why the policy engine’s
+authorisation names a sighash ([chapter 4](04-policy.md)), and why each
+signer compares it with the message it is asked to sign.
+
+The **locktime** field and each input’s **sequence** number carry time
+locks and replacement signals. The demo sets locktime 0 and sequence
+`0xFFFFFFFD`, which allows the transaction to be replaced by one that
+pays a higher fee.
+
+The cell builds the worked example’s transaction offline, then makes the
+two changes discussed above:
+
+``` python
+from custody_lab.settlement import bitcoin, transfer
+
+custody = bitcoin.p2tr_script(b"\x11" * 32)  # OP_1 <32-byte key>
+payee = b"\x00\x14" + b"\x22" * 20  # a SegWit v0 locking script
+utxo = transfer.Utxo("ab" * 32, 0, 500_000_000, custody)
+stx = transfer.build([utxo], 85_000_000, payee, custody)
+assert [o.amount for o in stx.tx.outputs] == [85_000_000, 414_999_690]
+assert stx.fee == 310
+print(custody[:2].hex(), "+ 32-byte key:", len(custody), "byte locking script")
+
+no_change = bitcoin.Transaction(stx.tx.inputs, stx.tx.outputs[:1])
+burn = transfer.SettlementTx(no_change, stx.spent, stx.fee)
+refused = False
+try:
+    transfer.check_matches(burn, 85_000_000, payee, custody, max_fee=10_000)
+except ValueError as err:
+    refused = True
+    print("no change output:", err)
+assert refused
+
+one_more = (bitcoin.TxOut(85_000_001, payee), stx.tx.outputs[1])
+altered = transfer.SettlementTx(
+    bitcoin.Transaction(stx.tx.inputs, one_more), stx.spent, stx.fee
+)
+assert altered.sighash() != stx.sighash()
+print("one more satoshi to the payee: different sighash")
+```
+
+    5120 + 32-byte key: 34 byte locking script
+    no change output: fee 415000000 sats outside [0, 10000]
+    one more satoshi to the payee: different sighash
+
+<a id="blocks-confirmation-and-regtest"></a>
+
+### Blocks, confirmation and regtest
+
+Nodes check each transaction they receive and hold valid ones in a
+waiting pool, the **mempool**. Miners select transactions from it by fee
+rate, in satoshis per virtual byte (a size measure in which each witness
+byte counts as a quarter), and assemble them into a **block**. A block
+is valid only with a **proof of work**: a hash of its header below a
+target value, found by trial. Each block names its predecessor, so the
+blocks form a chain.
+
+A transaction in a block has one **confirmation**, and each later block
+adds one. Reversing it requires redoing the proof of work of its block
+and every later one faster than the rest of the network, so each
+confirmation makes reversal more expensive. A custodian’s policy sets
+how many confirmations it waits for before it treats a receipt as final.
+
+**Regtest** is a Bitcoin Core mode for local testing. Proof of work is
+trivial, blocks are mined on command (`generatetoaddress`), and the
+coins have no value. Newly mined coins can be spent only after 100
+further blocks, which is why the demo mines 101 blocks before it funds
+the custody address.
+
+<a id="formal-treatment"></a>
+
+## Formal treatment
+
+<a id="the-fix-leg"></a>
+
+### The FIX leg
+
+The house dialect is FIX 5.0 SP2 application messages on the FIXT.1.1
+session layer, following the house rules of engagement
+(`fix-client/ROE.md`):
+
+- **Session.** `8=FIXT.1.1`; Logon carries `1137=9` (DefaultApplVerID
+  FIX50SP2); sequence numbers start at 1 each session.
+- **NewOrderSingle (D).** ClOrdID(11), Symbol(55), Side(54),
+  TransactTime(60), OrderQty(38), OrdType(40)=2 limit, Price(44).
+- **ExecutionReport (8), fills.** ExecType(150)=F and OrdStatus(39)=2,
+  with OrderID(37), ExecID(17), ClOrdID(11), LastQty(32), LastPx(31),
+  CumQty(14), LeavesQty(151), TradeDate(75) and TransactTime(60).
+- **No AvgPx(6).** It is optional in 5.0 SP2, and an average is a
+  derived number. The receiver computes what it needs from
+  LastQty/LastPx.
+
+Settlement consumes fills only; nothing downstream parses FIX.
+
+<a id="netting"></a>
+
+### Netting
+
+For fills $f$ with side $\sigma_f = +1$ (buy) or $-1$ (sell), quantity
+$q_f$ and price $p_f$:
+
+$$
+\Delta_{\text{base}} = \sum_f \sigma_f q_f, \qquad \Delta_{\text{quote}} = -\sum_f \sigma_f q_f p_f .
+$$
+
+$\Delta_{\text{base}} < 0$ means the client owes the exchange
+$|\Delta_{\text{base}}|$ BTC: the custodian sends it on chain. The quote
+leg (USD) settles over fiat rails and is out of scope here.
+
+<a id="taproot-outputs-and-the-bip86-tweak"></a>
+
+### Taproot outputs and the BIP86 tweak
+
+A Taproot output locks coins to an x-only key $Q$: the scriptPubKey is
+`OP_1 <Q>` (34 bytes). $Q$ is the FROST group key $P$ **tweaked**:
+
+$$
+Q = P + t\,G, \qquad t = H_{\text{TapTweak}}(P_x) .
+$$
+
+With no script tree this is BIP86. The tweak commits to “no script
+path”, so nobody can later claim a hidden spending script. The signers
+sign for $Q$: each FROST share is shifted by $t$ (the crate’s
+`sign_with_tweak`). Three independent implementations compute $Q$ in the
+demo and must agree:
+
+- the Rust crate;
+- `settlement/bitcoin.py`;
+- Bitcoin Core, via the descriptor `tr(P)`.
+
+<a id="what-a-key-path-signature-signs-the-bip341-sighash"></a>
+
+### What a key-path signature signs: the BIP341 sighash
+
+The signature is over
+
+$$
+m = H_{\text{TapSighash}}(\,0\text{x}00 \,\|\, \text{hash\_type} \,\|\, \text{version} \,\|\, \text{locktime}
+\,\|\, h_{\text{prevouts}} \,\|\, h_{\text{amounts}} \,\|\, h_{\text{scripts}} \,\|\, h_{\text{sequences}}
+\,\|\, h_{\text{outputs}} \,\|\, \text{spend\_type} \,\|\, \text{input\_index})
+$$
+
+for the default hash type. It commits to the amount and script of
+**every** input being spent, not just this one. A signer that is told
+the input values can therefore trust the fee it is signing. The witness
+for a key-path spend is the single 64-byte signature.
+
+<a id="binding-the-transaction-to-the-instruction"></a>
+
+### Binding the transaction to the instruction
+
+Before the policy engine authorises a sighash, the settlement layer
+checks the transaction (`transfer.check_matches`):
+
+- it pays exactly the instructed amount to the instructed address;
+- every other output returns to the custody key;
+- the fee, computed from the input minus the outputs, is within a cap.
+
+The authorisation then names that sighash, and every signer compares it
+with the message inside its FROST signing package ([Module
+4](04-policy.md)).
+
+<a id="worked-example"></a>
+
+## Worked example
+
+Four fills in one cycle:
+
+| ClOrdID | Side | Qty (BTC) | Price (USD) | $\sigma q$ | $-\sigma q p$   |
+|---------|------|-----------|-------------|------------|-----------------|
+| C1      | sell | 0.40      | 64,000      | −0.40      | +25,600.00      |
+| C2      | buy  | 0.15      | 63,950.50   | +0.15      | −9,592.575      |
+| C3      | sell | 0.35      | 64,010      | −0.35      | +22,403.50      |
+| C4      | sell | 0.25      | 64,020      | −0.25      | +16,005.00      |
+| **Net** |      |           |             | **−0.85**  | **+54,415.925** |
+
+The client delivers 0.85 BTC = 85,000,000 sats and receives USD
+54,415.925 over fiat rails. The transaction has one input and two
+outputs (payment and change). The fee estimate is
+$(11 + 58 + 2 \cdot 43)$ vB $\times$ 2 sat/vB $= 310$ sats. Spending a
+5.00 BTC UTXO leaves change of
+$500{,}000{,}000 - 85{,}000{,}000 - 310 = 414{,}999{,}690$ sats. The
+demo charges the fee to alpha-capital, the client being settled, so the
+custody address holds client coins only ([chapter 8](08-industry.md)).
+
+``` python
+from decimal import Decimal
+
+from custody_lab.settlement import bitcoin, transfer
+from custody_lab.settlement.netting import net
+from custody_lab.trading.fix import Order, trade
+
+orders = [
+    Order("C1", "BTC-USD", "sell", Decimal("0.40"), Decimal("64000")),
+    Order("C2", "BTC-USD", "buy", Decimal("0.15"), Decimal("63950.50")),
+    Order("C3", "BTC-USD", "sell", Decimal("0.35"), Decimal("64010")),
+    Order("C4", "BTC-USD", "sell", Decimal("0.25"), Decimal("64020")),
+]
+fills, transcript = trade(orders)
+position = net(fills)
+assert position.base == Decimal("-0.85") and position.quote == Decimal("54415.925")
+amount = bitcoin.to_sats(-position.base)
+fee = bitcoin.estimated_vsize(1, 2) * 2
+assert (amount, fee, 500_000_000 - amount - fee) == (85_000_000, 310, 414_999_690)
+print(f"net {position.base} {position.base_asset}, {position.quote} {position.quote_asset}")
+```
+
+    net -0.85 BTC, 54415.925 USD
+
+<a id="code-walkthrough"></a>
+
+## Code walkthrough
+
+<a id="the-fix-session"></a>
+
+### The FIX session
+
+The transcript of the session above, one line per message: direction,
+MsgType, sequence number and the application fields that matter.
+
+``` python
+KEEP = {"35", "34", "1137", "11", "54", "38", "44", "150", "39", "32", "31"}
+for raw in transcript:
+    fields = dict(pair.split("=", 1) for pair in raw.strip("|").split("|"))
+    who = "client  ->" if fields["49"] == "CUSTODY-CLIENT" else "exchange->"
+    shown = " ".join(f"{t}={v}" for t, v in fields.items() if t in KEEP)
+    print(who, shown)
+print("BeginString:", transcript[0].split("|")[0])
+```
+
+    client  -> 35=A 34=1 1137=9
+    exchange-> 35=A 34=1 1137=9
+    client  -> 35=D 34=2 11=C1 54=2 38=0.4 44=64000
+    exchange-> 35=8 34=2 11=C1 150=F 39=2 54=2 38=0.4 32=0.4 31=64000
+    client  -> 35=D 34=3 11=C2 54=1 38=0.15 44=63950.5
+    exchange-> 35=8 34=3 11=C2 150=F 39=2 54=1 38=0.15 32=0.15 31=63950.5
+    client  -> 35=D 34=4 11=C3 54=2 38=0.35 44=64010
+    exchange-> 35=8 34=4 11=C3 150=F 39=2 54=2 38=0.35 32=0.35 31=64010
+    client  -> 35=D 34=5 11=C4 54=2 38=0.25 44=64020
+    exchange-> 35=8 34=5 11=C4 150=F 39=2 54=2 38=0.25 32=0.25 31=64020
+    client  -> 35=5 34=6
+    exchange-> 35=5 34=6
+    BeginString: 8=FIXT.1.1
+
+<a id="settling-on-regtest"></a>
+
+### Settling on regtest
+
+The full path on a throwaway regtest node:
+
+1.  The cluster runs DKG, and three implementations agree on the
+    address.
+2.  The custody address is funded.
+3.  The policy engine approves the net instruction.
+4.  The builder’s transaction is checked against the instruction.
+5.  Two of three signer processes sign the authorised sighash.
+6.  Bitcoin Core accepts and mines the transaction.
+
+``` python
+import tempfile
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from custody_lab.foundations import schnorr
+from custody_lab.mpc.cluster import SigningCluster
+from custody_lab.policy.audit import AuditLog
+from custody_lab.policy.authorisation import AuthorityKey
+from custody_lab.policy.engine import AssetPolicy, Policy, PolicyEngine, Tier
+from custody_lab.policy.model import Approval, SettlementInstruction
+from custody_lab.settlement import chain
+from custody_lab.settlement.regtest import RegtestNode
+
+
+def now() -> datetime:
+    return datetime.now(UTC)
+
+
+approvers = {n: Ed25519PrivateKey.generate() for n in ("bob", "carol")}
+node = RegtestNode(Path(tempfile.mkdtemp(prefix="ch5-")) / "node")
+rpc = node.start()
+rpc.call("createwallet", "exchange")
+exchange = rpc.wallet("exchange")
+mine_to = exchange.call("getnewaddress")
+rpc.call("generatetoaddress", 101, mine_to)
+settle_to = exchange.call("getnewaddress", "", "bech32")  # the exchange's address
+
+btc = AssetPolicy(
+    (Tier(Decimal("10"), 2),), frozenset({settle_to}), timedelta(hours=24), Decimal("20")
+)
+policy = Policy({"BTC": btc}, {n: k.public_key() for n, k in approvers.items()})
+engine = PolicyEngine(policy, AuthorityKey.generate(), AuditLog(now), now)
+
+# 1. DKG; three implementations agree on the custody address.
+cluster = SigningCluster(2, 3, authority=engine.authority_public_key)
+internal = cluster.dkg()
+output_key = cluster.taproot_output_key()
+address = chain.custody_address(rpc, internal)
+assert output_key == bitcoin.taproot_tweak(internal)
+assert chain.script_pubkey(rpc, address) == bitcoin.p2tr_script(output_key)
+print("custody address:", address[:24] + "...", "(Rust = Python = Core)")
+
+# 2. Fund it.
+exchange.call("sendtoaddress", address, "5.00")
+rpc.call("generatetoaddress", 1, mine_to)
+
+# 3-4. Instruction, transaction, check, authorisation.
+ins = SettlementInstruction("settle-1", "BTC", -position.base, settle_to, "ops", now())
+destination = chain.script_pubkey(rpc, settle_to)
+change = bitcoin.p2tr_script(output_key)
+utxos = chain.custody_utxos(rpc, output_key)
+stx = transfer.build(utxos, amount, destination, change)
+transfer.check_matches(stx, amount, destination, change, max_fee=10_000)
+approvals = [Approval.create(ins, n, k) for n, k in approvers.items()]
+token = engine.authorise(ins, approvals, stx.sighash()).to_bytes()
+
+# 5. Two of three signer processes sign; 6. Core accepts and mines.
+signature = cluster.sign(stx.sighash(), [1, 3], token, taproot=True)
+assert schnorr.verify(stx.sighash(), output_key, signature)
+txid = rpc.call("sendrawtransaction", stx.finalize(signature))
+rpc.call("generatetoaddress", 1, mine_to)
+tx_info = rpc.call("getrawtransaction", txid, True)
+left = [str(bitcoin.to_btc(u.amount)) for u in chain.custody_utxos(rpc, output_key)]
+cluster.close()
+node.stop()
+
+print("sighash:", stx.sighash().hex()[:32] + "...")
+print("txid:   ", txid[:32] + "...", f"fee {stx.fee} sats")
+print("confirmations:", tx_info["confirmations"])
+print("custody UTXOs after settlement:", left)
+```
+
+    custody address: bcrt1p38mx5g5vym4uyqa9j7... (Rust = Python = Core)
+    sighash: 9c0af4a0717eab22de579eb0b793ef7e...
+    txid:    170ddfb591e41adf1d1e6e0126c7e220... fee 310 sats
+    confirmations: 1
+    custody UTXOs after settlement: ['4.1499969']
+
+<a id="how-this-shows-up-in-production"></a>
+
+## How this shows up in production
+
+- **Off-exchange networks.** Copper’s ClearLoop launched in 2022. Assets
+  are delegated from the client’s custody account to a trading
+  allocation, exchanges post collateral with the custodian, and
+  settlement runs on multi-hour cycles. The legal agreement between
+  client, exchange and custodian defines who may instruct a settlement
+  and what happens if one side does not deliver. Several other
+  custodians run comparable networks (**verify current**).
+- **Settlement cycle length is a risk dial.** Shorter cycles mean less
+  unsettled exposure and more on-chain transactions and fees. Longer
+  cycles net better and leave more exposure open.
+- **Fees.** Production wallets estimate fees from the mempool. They use
+  replace-by-fee (the demo’s inputs signal it) or child-pays-for-parent
+  to unstick transactions, and they enforce a fee cap, as
+  `check_matches` does.
+- **Finality.** Six confirmations is the customary Bitcoin threshold for
+  large transfers. The settlement system must handle reorganisations
+  that remove a confirmed transaction.
+- **Signer-side verification.** Here the settlement layer checks the
+  transaction and the signers check only the sighash. A production
+  signer decodes the transaction itself (PSBT, BIP 174/370, is the usual
+  interchange format) and re-applies the destination and fee rules. This
+  removes the settlement host from the trusted set.
+- **UTXO management.** One large UTXO per settlement is simple but
+  serialises settlements. Production systems keep a pool of UTXOs,
+  consolidate them when fees are low, and avoid address reuse for
+  privacy.
+
+<a id="exercises"></a>
+
+## Exercises
+
+1.  **Compute.** Add a fifth fill, buy 0.9 BTC at 64,100. What is the
+    net obligation, and which direction does BTC move?
+2.  **Compute.** A settlement of 0.3 BTC spends a 0.30000500 BTC UTXO at
+    2 sat/vB. What outputs does `transfer.build` produce, and what is
+    the fee?
+3.  **Explain.** Why does the BIP341 sighash commit to the amounts of
+    all inputs, when SegWit v0 committed only to the amount of the input
+    being signed?
+4.  **Attack.** A compromised settlement host builds a transaction that
+    pays the approved 0.85 BTC to the approved address and sends 0.01
+    BTC back to the custody key, leaving the rest of a 5.00 BTC input as
+    fee. Which check stops it, and what would happen without that check?
+5.  **Design.** The exchange fails between two settlement cycles, owing
+    the client 2 BTC from the last cycle. What protects the client under
+    the off-exchange model, and what does not?
+
+<a id="solutions"></a>
+
+## Solutions
+
+1.  Net base $= -0.85 + 0.9 = +0.05$: the exchange owes the client 0.05
+    BTC, so BTC moves from the exchange to the custody address. The
+    custodian signs nothing; it confirms receipt.
+2.  Input 30,000,500 sats; payment 30,000,000; fee estimate 310; change
+    $30{,}000{,}500 - 30{,}000{,}000 - 310 = 190$ sats, below the
+    330-sat dust limit. So the transaction has one output, and the fee
+    is $310 + 190 = 500$ sats.
+
+``` python
+u = transfer.Utxo("ab" * 32, 0, 30_000_500, bitcoin.p2tr_script(b"\x11" * 32))
+s = transfer.build([u], 30_000_000, b"\x00\x14" + b"\x22" * 20, u.script_pubkey)
+assert len(s.tx.outputs) == 1 and s.fee == 500
+```
+
+3.  Under SegWit v0 a signer saw only its own input’s amount. An
+    attacker could lie about the value of the other inputs to an offline
+    or hardware signer and make it sign a transaction with a much larger
+    fee than it believed. Committing to every input’s amount and script
+    makes a lie produce an invalid signature.
+4.  `check_matches` computes the fee as
+    $500{,}000{,}000 - 85{,}000{,}000 - 1{,}000{,}000 = 414{,}000{,}000$
+    sats and rejects it against the 10,000-sat cap. Without the cap the
+    policy engine would authorise that sighash and the signers would
+    sign it. About 4.14 BTC would go to whichever miner included the
+    transaction, while every destination and amount check passed.
+5.  What protects the client:
+    - Its custodied assets never left the custodian, so they are not
+      part of the exchange’s estate.
+    - Collateral the exchange posted with the custodian can cover the 2
+      BTC owed, depending on the agreement.
+
+    What does not:
+    - Anything the exchange owed beyond its posted collateral.
+    - Fiat legs held at the exchange.
+    - Positions opened since the last settlement.
+
+    The exposure is bounded by one cycle, not by the whole account.
+
+<a id="further-reading"></a>
+
+## Further reading
+
+- BIP 341 (Taproot), BIP 86 (key-path-only outputs), BIP 350 (bech32m).
+  The rules implemented in `settlement/bitcoin.py`, with the test
+  vectors it passes.
+- BIP 174 and BIP 370 (PSBT). The format production signers exchange
+  unsigned transactions in.
+- FIX Trading Community, FIX 5.0 SP2 and FIXT.1.1 specifications; the
+  house rules of engagement in `fix-client/ROE.md`.
+- Copper, *ClearLoop* product documentation (**verify current**).
+- A. Antonopoulos, D. Harding, *Mastering Bitcoin*, 3rd edition
+  (O’Reilly, 2023), chapters on transactions and Taproot.
+
+------------------------------------------------------------------------
+
+Previous: [Chapter 4, Policy and Authorisation](04-policy.md) \| [All
+chapters](../README.md) \| Next: [Chapter 6, Proof of
+Reserves](06-reserves.md)

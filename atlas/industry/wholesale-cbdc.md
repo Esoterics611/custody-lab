@@ -10,8 +10,8 @@ a key held by a custodian (chapters 2 and 3).
 
 **In the demo.** None.
 
-**In the manual.** Chapter 8, "Wholesale central bank money: Agorá and mBridge"; the Bank of
-Israel's retail experiments (Sela, Icebreaker) under "Israel".
+**In the manual.** [Chapter 8](../../manual/chapters/08-industry.md), "[Wholesale central bank money: Agorá and mBridge](../../manual/chapters/08-industry.md#wholesale-central-bank-money-agorá-and-mbridge)"; the Bank of
+Israel's retail experiments (Sela, Icebreaker) under "[Israel](../../manual/chapters/08-industry.md#israel)".
 
 **Sources.** BIS press release, 27 May 2026: the BIS, eight central banks and more than 40
 private institutions; atomic multi-currency settlement shown in a prototype; real-value testing

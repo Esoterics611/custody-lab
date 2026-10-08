@@ -14,8 +14,8 @@ yield.
 
 **In the demo.** None. Chapter 8, Exercise 5 lists what the demo would need to accept fund tokens.
 
-**In the manual.** Chapter 8, "Four forms of money on a ledger", "Public and permissioned
-ledgers", "Tokenised funds and collateral".
+**In the manual.** [Chapter 8](../../manual/chapters/08-industry.md), "[Four forms of money on a ledger](../../manual/chapters/08-industry.md#four-forms-of-money-on-a-ledger)", "[Public and permissioned
+ledgers](../../manual/chapters/08-industry.md#public-and-permissioned-ledgers)", "[Tokenised funds and collateral](../../manual/chapters/08-industry.md#tokenised-funds-and-collateral)".
 
 **Sources.** About USD 15 billion in tokenised US Treasury products, September 2026, BUIDL and
 USYC the largest (reported, rwa.xyz via the press; **verify current**). CFTC staff guidance
