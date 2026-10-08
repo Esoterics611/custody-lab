@@ -12,32 +12,106 @@ of chapter 3. It is not a reviewed production design. The cells run the demo's s
 code.
 :::
 
-## Learning objectives
+## What this chapter is for
 
-- Present a custody architecture end to end, from a FIX fill to a published proof of reserves,
-  and say what each component holds and what its compromise gives an attacker.
-- Justify the main design decisions against their alternatives, with the cost of each.
-- List the failure modes by component, separating safety failures from liveness failures, each
-  with its detection and response.
-- Quote the sizes and counts the design rests on, derived from the libraries.
+The manual has built a custody system one part at a time: keys and signatures (chapter 1),
+threshold signing (chapter 2), where keys live (chapter 3), the policy engine (chapter 4), the
+settlement path (chapter 5), the proof of reserves (chapter 6), the post-quantum migration
+(chapter 7) and the rules it must meet (chapter 8). Each chapter answered its own question. This
+chapter asks whether the parts make a sound system: what each part holds, what an attacker gains by
+compromising it, what happens when it fails, and what each design choice costs.
 
-## Intuition
+It does this as a system design review, run as questions and answers. Each answer names the
+chapter that builds the part it relies on, so the chapter also works as a map back into the manual.
+The demo is the starting point, and the review describes how a production deployment would differ
+from it.
 
-A system design review runs in a fixed order: requirements, architecture, deep dives, failure
-modes, trade-offs. This chapter runs one for the custody system the manual has built, as
-questions and answers. Each answer names the chapter that builds the part it relies on.
+By the end of this chapter the following should be clear:
 
-A FIX engineer has sat through the same review for a new gateway: session layer, sequence
-numbers, recovery after a disconnect, pre-trade risk checks. The analogy breaks at the last step.
-A gateway that sends a bad order can ask for a cancel, and a venue can bust a trade. A custody
-signature cannot be recalled, so every check the review asks for happens before signing.
+- the custody architecture end to end, from a FIX fill to a published proof of reserves;
+- what each component holds, and what its compromise alone gives an attacker;
+- the difference between safety and liveness, and why a threshold of independent sites improves
+  both;
+- the main design decisions against their alternatives, with the cost of each;
+- the failure modes by component, each with its class, detection and response;
+- the sizes and counts the design rests on, computed from the project's code.
+
+## First principles
+
+### How a design review runs
+
+**The idea.** A system design review runs in a fixed order: the requirements and the assumptions
+behind them, the architecture, deep dives into the decisions that matter, the failure modes, and
+the trade-offs. The order matters because each step depends on the one before: a failure mode is
+only a failure against a stated requirement, and a trade-off only makes sense once the failure it
+accepts is known.
+
+A FIX engineer has sat through the same review for a new gateway: the session layer, sequence
+numbers, recovery after a disconnect, pre-trade risk checks. The comparison stops holding at the
+last step. A gateway that sends a bad order can ask for a cancel, and an exchange can bust a trade.
+A custody signature cannot be recalled, so every check the review asks for has to happen before
+signing.
+
+### Safety and liveness
+
+**The idea.** Every requirement of a custody system falls into one of two classes:
+
+- **Safety** means nothing bad happens: no signature without authorisation, no loss of funds.
+- **Liveness** means something good eventually happens: every approved settlement completes.
+
+The two pull against each other. Requiring more signers makes theft harder and makes signing fail
+more often; refusing anything unclear protects funds and stops legitimate payments. A custodian can
+recover from a liveness failure, since a delayed settlement can be retried, and cannot recover from
+a safety failure, since a stolen coin is gone. So where the two conflict, the design chooses
+safety, and a component in doubt refuses: default deny (chapter 4).
+
+**A threshold improves both, if the sites are independent.** Suppose each signing site is
+available 99 percent of the time and, separately, has a 1 percent chance of being compromised in a
+year, and suppose the sites fail independently of each other. A single key is then available 99
+percent of the time and compromised with probability 1 percent. With 2-of-3, signing needs any two
+of three sites up, and theft needs any two of three compromised:
+
+- **available:** all three up, or exactly two up:
+  $0.99^3 + 3 \times 0.99^2 \times 0.01 \approx 0.9997$;
+- **compromised:** all three, or exactly two:
+  $0.01^3 + 3 \times 0.01^2 \times 0.99 \approx 0.0003$.
+
+Availability rises from 99 to 99.97 percent and the chance of theft falls from 1 in 100 to about 3
+in 10,000, at the same time. The whole gain rests on independence. If one administrator can reach
+all three sites, they fail together, and 2-of-3 is no safer than one key. That is why the design
+puts signers at independent sites under separate administration.
+
+```{python}
+#| label: check-threshold-odds
+from math import comb
+
+
+def at_least(k: int, n: int, p: float) -> float:
+    """Probability that at least k of n independent sites are in a state of probability p."""
+    return sum(comb(n, j) * p**j * (1 - p) ** (n - j) for j in range(k, n + 1))
+
+
+print(f"{'scheme':<8}{'can sign':>12}{'compromised':>14}")
+for t, n in [(1, 1), (2, 3), (3, 5)]:
+    print(f"{t}-of-{n}{at_least(t, n, 0.99):>14.6f}{at_least(t, n, 0.01):>14.2e}")
+assert at_least(2, 3, 0.99) > 0.9997 and at_least(2, 3, 0.01) < 0.0003
+```
+
+The rows compare one key, 2-of-3 and 3-of-5 under the same per-site figures. Each larger threshold
+signs more reliably and is harder to compromise, as long as the independence assumption holds; the
+per-site figures are illustrations, not measurements.
+
+**Recap.** Safety failures are permanent and liveness failures are not, so the design refuses when
+in doubt. A threshold of independent sites improves both; shared administration erases the gain.
 
 ## The brief
 
 **Q.** Design custody for institutional clients that trade bitcoin on an exchange without moving
 their coins to it. Settle once a day, and let every client check that its coins are held.
 
-**A.** First, the assumptions the design will rest on:
+**A.** First, the assumptions the design will rest on. They come first because every later answer
+depends on them: the attacker list decides how many independent sites are needed, and the traffic
+figure decides that a signing protocol taking seconds is acceptable.
 
 | Question | Assumption |
 |----------------------------------|------------------------------------------------------|
@@ -48,10 +122,10 @@ their coins to it. Settle once a day, and let every client check that its coins 
 | Recovery objectives? | Settlements continue after the loss of any one site. No loss of funds after the compromise of any one site or any one person |
 | What do clients see? | An inclusion proof for their balance after each settlement batch |
 
-The requirements divide into two classes. **Safety** means nothing bad happens: no signature
-without authorisation, no loss of funds. **Liveness** means something good eventually happens:
-every approved settlement completes. Where the two conflict the design chooses safety, and a
-component in doubt refuses: default deny (chapter 4).
+The recovery objectives are a liveness requirement (settlements continue after any one site is
+lost) and a safety requirement (no loss after any one site or person is compromised). A 2-of-3
+threshold across independent sites meets both, as the first-principles section showed; where they
+conflict, safety wins.
 
 ## Architecture
 
@@ -114,6 +188,13 @@ ax.set_ylim(-0.1, 3.5)
 ax.axis("off")
 plt.show()
 ```
+
+The figure separates three kinds of component by colour. Blue boxes hold one key share each, at
+three independent sites, one of them offline. Orange outlines hold a secret that authorises
+something: the approvers' keys and the policy engine's authority key. White boxes, the exchange and
+the Bitcoin nodes, are outside the custodian. Grey boxes hold nothing secret, so compromising one of them can delay or misdirect work but cannot by itself produce a
+signature. The arrows follow one settlement from the exchange's fills at the top left to the signed
+transaction and the reserves snapshot on the right.
 
 **Q.** Walk through one settlement.
 
@@ -231,6 +312,16 @@ type. Until then a Taproot key-path output shows its key on chain from the momen
 
 ## Failure modes
 
+**Q.** What can go wrong, and what happens then?
+
+**A.** The table lists the failures by component. *Class* says what is at risk: safety (money or
+integrity), liveness (availability only), or both. *Detection* is how operators find out, and
+*response* is what they do. Three terms in it need defining first. **Replace-by-fee** (**RBF**)
+rebroadcasts a transaction with a higher fee that spends the same inputs. **Child-pays-for-parent**
+(**CPFP**) spends the stuck transaction's change in a new transaction whose fee pays for both. A
+**chain reorganisation** replaces recent blocks with a longer competing branch, which can remove a
+confirmed transaction.
+
 | Failure | Class | Detection | Response |
 |------------------------|-----------|--------------------------|--------------------------------------|
 | One signer down | Liveness | No reply in round 1 | Sign with another pair: any $t$ of $n$ can sign |
@@ -248,11 +339,6 @@ type. Until then a Taproot key-path output shows its key on chain from the momen
 | Exchange defaults mid-cycle | Credit | A missed settlement | Exposure is one cycle's net position; the coins never left custody (chapter 5) |
 | Audit log altered | Integrity | The hash chain breaks; the anchored head differs | Verify the chain; each snapshot carries the head (chapters 4 and 6) |
 
-**Replace-by-fee** (**RBF**) rebroadcasts a transaction with a higher fee that spends the same
-inputs. **Child-pays-for-parent** (**CPFP**) spends the stuck transaction's change in a new
-transaction whose fee pays for both. A **chain reorganisation** replaces recent blocks with a
-longer competing branch, which can remove a confirmed transaction.
-
 The third row comes from reading the demo's signer code: each signer keeps its used-token set in
 process memory. In the demo a restart also loses the share, which lives in the same memory, so the
 restarted signer cannot sign at all. The row applies to a deployment whose shares survive a
@@ -261,6 +347,11 @@ expires, and it names one exact message. A replay therefore yields another signa
 that was already authorised, never on a new one.
 
 ## Trade-offs
+
+**Q.** What did each major decision cost?
+
+**A.** Every row names the choice, the main alternative, and what the choice gives up. None of the
+costs is hidden: each appears somewhere in the failure table or in an earlier chapter.
 
 | Decision | Chosen | Alternative | Cost of the choice |
 |--------------------|------------------------|------------------------|--------------------------------------|
@@ -303,7 +394,10 @@ for name, value in numbers.items():
     print(f"{name:<44}{value:>8,}")
 ```
 
-Chapter 6's demo paid exactly this 310-sat fee. The token is large because it carries an ML-DSA-65
+Reading the rows: a one-input settlement is 155 virtual bytes, so 310 satoshis at 2 satoshis per
+virtual byte, and each further input adds 58 bytes, which is what makes an address per client
+expensive (Exercise 6). The authority key and the token are dominated by ML-DSA-65. The inclusion
+proof for a million clients is 20 siblings. Chapter 6's demo paid exactly this 310-sat fee. The token is large because it carries an ML-DSA-65
 signature of 3,309 bytes and is serialised as hexadecimal text; a binary encoding would halve it.
 
 ## Code walkthrough
@@ -364,6 +458,23 @@ What a production build adds to the demo, each named in an earlier chapter:
 - client statements, a per-movement register and prompt return of assets, to the standard of
   MiCA Article 75 (chapter 8);
 - a SOC 2 Type II period of operating evidence for the controls above.
+
+## Recap
+
+1. A design review runs in order: requirements and assumptions, architecture, deep dives, failure
+   modes, trade-offs.
+2. Safety failures lose money and cannot be undone; liveness failures delay work and can be
+   retried. Where they conflict, the design refuses.
+3. A threshold across independent sites raises availability and lowers the chance of theft at the
+   same time; shared administration erases both gains.
+4. Each component's compromise is bounded: the coordinator, settlement engine and reserves
+   publisher hold nothing secret, one signer or one approver is below its threshold, and the
+   authority key, the most valuable secret after the shares, belongs in an HSM.
+5. The failure table separates what loses money from what only delays it, and pairs each failure
+   with its detection and response.
+6. Each major decision has a stated cost: protocol risk for threshold signing, operating cost for
+   independent sites, kilobyte tokens for hybrid signatures, one cycle of credit exposure for
+   netting.
 
 ## Exercises
 
