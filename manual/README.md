@@ -18,8 +18,8 @@ build, so the manual is tested in the same way as the code.
 
 ## Chapters
 
-**Status.** Chapters 0 to 8 follow the manual's writing standard (explanation at length, concept by
-concept). Chapter 9 is a first draft, being rewritten to the same standard, in order.
+**Status.** Chapters 0 to 9 follow the manual's writing standard (explanation at length, concept by
+concept). The rewrite is complete.
 
 | Chapter | The question it answers |
 |---------|-------------------------|

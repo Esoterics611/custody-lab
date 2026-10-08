@@ -136,6 +136,21 @@ glossary and atlas link to are kept where the content stays.
 - Glossary: six rows added (Register, Margin, Repo, Layer 2, Omnibus address, Transfer agent);
   Token and Tokenisation re-pointed from the removed "Intuition" section.
 
+**Chapter 9, Capstone.**
+- Changed: "What this chapter is for" and a new first-principles section: how a design review runs,
+  and safety against liveness, with a worked example of why a threshold of independent sites raises
+  availability (99 to 99.97 percent for 2-of-3) and lowers the chance of compromise (1 in 100 to
+  about 3 in 10,000) at once, and why shared administration erases both. The architecture figure is
+  explained in prose; the failure table opens with how to read it, and RBF, CPFP and reorganisation
+  are defined before the table instead of after it. The worked example's numbers are each
+  explained. A Recap closes the chapter. The question-and-answer structure is kept.
+- Verified: renders to 17 pages (from 14), exit 0; no page ends on a heading; the probability table
+  printed by the new cell matches the text (0.999702 and 2.98e-04 for 2-of-3).
+- Glossary: Safety and Liveness re-pointed to the section that now defines them.
+
+All ten chapters now follow the writing standard. Every rewrite was rendered to both formats, and
+`tests/test_docs_links.py` passes after each.
+
 ## 2026-10-08: Open-source licence, links between chapters, the manual on GitHub, README
 
 **Changed.**

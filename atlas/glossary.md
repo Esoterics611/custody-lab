@@ -100,7 +100,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Lamport signature | A one-time signature that reveals one of two hashed secrets per digest bit. | [7 FP, Signatures from a hash alone: Lamport](../manual/chapters/07-post-quantum.md#signatures-from-a-hash-alone-lamport) |
 | Layer 2 | A chain that processes transactions itself and periodically records its state on another chain, such as Base on Ethereum. | [8, Institutional ledgers: Canton and Kinexys](../manual/chapters/08-industry.md#institutional-ledgers-canton-and-kinexys) |
 | Ledger | A record of who owns what; Bitcoin's is public, and many independent nodes keep identical copies. | [0, A ledger that nobody operates](../manual/chapters/00-orientation.md#a-ledger-that-nobody-operates) |
-| Liveness | The property that something good eventually happens: every approved settlement completes. | [9, The brief](../manual/chapters/09-capstone.md#the-brief) |
+| Liveness | The property that something good eventually happens: every approved settlement completes. | [9 FP, Safety and liveness](../manual/chapters/09-capstone.md#safety-and-liveness); [9, Failure modes](../manual/chapters/09-capstone.md#failure-modes) |
 | Locking script | The condition an output sets for spending it (`scriptPubKey`). | [5 FP, Locking and unlocking](../manual/chapters/05-settlement.md#locking-and-unlocking) |
 | Locktime, sequence | Transaction fields carrying time locks and replacement signals. | [5 FP, What the signature covers: the sighash](../manual/chapters/05-settlement.md#what-the-signature-covers-the-sighash) |
 | Low-S | Bitcoin's rule that an ECDSA $s$ is at most $n/2$, removing one form of malleability. | [1, ECDSA](../manual/chapters/01-foundations.md#ecdsa) |
@@ -165,7 +165,7 @@ Chapter 0 is the orientation; "FP" is a chapter's First principles section.
 | Root of trust | The key a verifier trusts at the base of a chain of signatures, such as the processor maker's. | [3 FP, Remote attestation](../manual/chapters/03-key-storage.md#remote-attestation) |
 | ROS attack | Forging a threshold Schnorr signature by combining commitments across many concurrent sessions. | [2 FP, Many sessions at once](../manual/chapters/02-mpc-custody.md#many-sessions-at-once) |
 | Round | One exchange in which every party sends and then waits for all the others. | [2 FP, Parties, rounds and a coordinator](../manual/chapters/02-mpc-custody.md#parties-rounds-and-a-coordinator) |
-| Safety | The property that nothing bad happens: no signature without authorisation, no loss of funds. | [9, The brief](../manual/chapters/09-capstone.md#the-brief) |
+| Safety | The property that nothing bad happens: no signature without authorisation, no loss of funds. | [9 FP, Safety and liveness](../manual/chapters/09-capstone.md#safety-and-liveness); [9, Failure modes](../manual/chapters/09-capstone.md#failure-modes) |
 | Salt | Random bytes hashed with a value so that the value cannot be found by guessing. | [6 FP, Salts and what a proof reveals](../manual/chapters/06-reserves.md#salts-and-what-a-proof-reveals) |
 | Satoshi | The integer unit of bitcoin: $10^{-8}$ BTC. | [5 FP, Coins are outputs, not balances](../manual/chapters/05-settlement.md#coins-are-outputs-not-balances) |
 | Scalar | A whole number that multiplies a point; keys, nonces and shares are scalars modulo $n$. | [1 FP, The cycle: generator, order and scalar](../manual/chapters/01-foundations.md#the-cycle-generator-order-and-scalar) |
