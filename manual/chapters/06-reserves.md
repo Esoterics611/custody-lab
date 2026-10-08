@@ -1,6 +1,6 @@
 # Module 6: Proof of Reserves
 
-2026-09-27
+2026-10-08
 
 Previous: [Chapter 5, Trading to Settlement](05-settlement.md) \| [All
 chapters](../README.md) \| Next: [Chapter 7, Post-Quantum
@@ -16,60 +16,53 @@ Cryptography](07-post-quantum.md)
 > remove that leak; `dapol` (Rust, DAPOL+) implements one of them and is
 > reading material here, not a dependency.
 
-<a id="learning-objectives"></a>
+<a id="what-this-chapter-is-for"></a>
 
-## Learning objectives
+## What this chapter is for
 
-- Build a Merkle sum tree and an inclusion proof, and explain why a
-  proof carries one sibling per level.
-- Explain why each parent must commit to both children’s sums, and
-  reproduce the attack on a tree that commits only to the total.
-- State what a proof-of-reserves snapshot proves (liabilities included,
-  assets controlled, audit log anchored) and what it does not.
-- Explain why the signature over a snapshot can never authorise a
-  transaction.
+After FTX collapsed in November 2022, clients asked custodians and
+exchanges one question: do you hold what you owe? Until then, the only
+answer most clients received was a balance on a statement, which is a
+line in the custodian’s own books and proves nothing about the coins.
 
-<a id="intuition"></a>
+A **proof of reserves** answers the question with evidence that clients
+can check for themselves. It has two halves:
 
-## Intuition
-
-After FTX’s collapse in November 2022, clients asked custodians and
-exchanges one question: do you hold what you owe? A **proof of
-reserves** answers it in two halves.
-
-- **Assets** are public. The custody address and its coins are on chain,
-  and anyone can sum them. What is not public is who controls that
-  address. A **proof of control** settles it: a signature under the
-  custody key over a message that could not have been prepared in
-  advance.
+- **Assets** are public. The custody address and its coins are on the
+  chain, and anyone can add them up. What is not public is who controls
+  that address: anyone can name an address they do not own. A **proof of
+  control** settles it: a signature under the custody key over a message
+  that could not have been prepared in advance.
 - **Liabilities** are private. Each client’s balance is confidential, so
   the custodian cannot publish the list. It publishes a single
-  commitment to all balances and their total instead, and gives each
-  client a short proof that its own balance is included. If every client
-  checks, the total cannot be understated without some client noticing.
+  commitment to all the balances and their total, and gives each client
+  a short proof that its own balance is included at its true value. If
+  every client checks, the total cannot be understated without some
+  client noticing.
 
 Auditors already use the second idea. In a positive confirmation, the
 auditor writes to a sample of customers and asks each to confirm its
-balance. The analogy breaks in two places. Every client can check, not
-only a sample. And a client who never checks protects nobody: a
-custodian can leave out accounts it expects never to be checked.
+balance. The comparison stops holding in two places. Every client can
+check, not only a sample. And a client who never checks protects nobody:
+a custodian can leave out accounts it expects never to be checked.
 
-The demo publishes a snapshot after each settlement batch. It covers the
-liabilities root and total, the custody output key’s balance at a stated
-block, a FROST signature by the same 2-of-3 cluster that signs
-settlements, and the head of the policy audit log ([chapter
-4](04-policy.md)).
+The demo publishes a snapshot after each settlement batch, in its step
+9. The snapshot covers the liabilities’ commitment and total, the
+custody key’s balance at a stated block, a FROST signature by the same
+2-of-3 cluster that signs settlements, and the head of the policy audit
+log from [chapter 4](04-policy.md).
 
-<div id="fig-sum-tree">
+By the end of this chapter the following should be clear:
 
-![](06-reserves_files/figure-commonmark/fig-sum-tree-output-1.png)
-
-Figure 1: The demo’s liabilities after settlement as a Merkle sum tree,
-in BTC. beta-fund (orange) receives the two blue siblings as its proof.
-It recomputes the outlined nodes and compares the result with the
-published root.
-
-</div>
+- how a Merkle tree commits to a list with one hash, and why an
+  inclusion proof needs only one sibling per level;
+- how a Merkle sum tree adds the totals, and why each parent must commit
+  to both children’s sums, shown by the published attack on a tree that
+  does not;
+- what salts protect and what an inclusion proof still reveals;
+- how a proof of control works, and why its signature can never
+  authorise a transaction;
+- what a proof of reserves proves, and the four things it does not.
 
 <a id="first-principles"></a>
 
@@ -82,46 +75,114 @@ This section assumes [chapter 1](01-foundations.md)’s hash functions and
 
 ### Hash trees
 
-A hash is a fingerprint of its input ([chapter 1](01-foundations.md)).
-To commit to a list with one 32-byte value, hash the items in pairs,
-then hash the pairs in pairs, and continue until one hash remains: the
-**Merkle root** of a **Merkle tree** (Merkle 1987). Changing any item
-changes every hash above it, up to the root.
+**The problem.** A custodian with a million clients wants to commit
+publicly to the full list of balances without publishing it, and to let
+each client check its own entry with a short proof. Hashing the whole
+list into one value commits to it, but then a client could check its
+entry only by receiving the whole list.
 
-To show that one item is in the list, it is enough to give the item and,
+**The idea.** Hash the items in pairs, then hash the pair hashes in
+pairs, and continue until one hash remains. That last hash is the
+**Merkle root** of a **Merkle tree** (Merkle 1987). Changing any item
+changes its hash, which changes its parent’s hash, and so on up to the
+root.
+
+To show that one item is in the tree, it is enough to give the item and,
 at each level, the hash of its **sibling**, the other child of the same
 parent. The verifier recomputes each parent in turn and compares the
 last one with the published root. That list of siblings is an
 **inclusion proof**. It has one entry per level, so a tree over $n$
-items needs about $\log_2 n$ of them: 10 for a thousand clients, 20 for
-a million.
+items needs about $\log_2 n$ siblings: 10 for a thousand clients, 20 for
+a million. The proof stays tiny however large the list grows.
+
+**Worked in code**, with four items A, B, C and D. The root is
+$H(H(h_A \,\|\, h_B) \,\|\,
+H(h_C \,\|\, h_D))$. The proof for B is two hashes: $h_A$, its sibling,
+and $H(h_C \,\|\, h_D)$, its parent’s sibling.
+
+``` python
+import hashlib
+
+
+def H(*parts: bytes) -> bytes:
+    return hashlib.sha256(b"".join(parts)).digest()
+
+
+hA, hB, hC, hD = (H(x) for x in (b"A", b"B", b"C", b"D"))
+root = H(H(hA, hB), H(hC, hD))
+proof_for_B = [hA, H(hC, hD)]  # one sibling per level
+recomputed = H(proof_for_B[0], H(b"B"))  # B's parent
+recomputed = H(recomputed, proof_for_B[1])  # the root
+assert recomputed == root
+assert H(proof_for_B[0], H(b"X")) != H(hA, hB)  # a different item fails at the first level
+print(f"root {root.hex()[:16]}...; B proved with {len(proof_for_B)} sibling hashes")
+```
+
+    root 1b3faa3fcc5ed50c...; B proved with 2 sibling hashes
+
+The verifier never saw C or D, only one hash standing for both.
 
 Bitcoin uses the same structure twice: a block header commits to the
-block’s transactions through a Merkle root, and a Taproot key commits to
-its script tree through another ([chapter 5](05-settlement.md)).
+block’s transactions through a Merkle root, and a Taproot key can commit
+to a tree of spending scripts through another ([chapter
+5](05-settlement.md)).
+
+**Recap.** A Merkle root commits to a list; an inclusion proof is one
+sibling hash per level.
 
 <a id="adding-sums"></a>
 
 ### Adding sums
 
-A **Merkle sum tree** gives every node a sum as well as a hash. A leaf
-carries one client’s balance, and each parent carries the total of its
-two children. The root’s sum is the total liability. An inclusion proof
-now carries each sibling’s sum as well as its hash, and the client
-checks that the sums add up along its path.
+**The problem.** A Merkle root commits to the balances but says nothing
+about their total, and the total is the number a proof of reserves
+exists to publish.
 
-Sums must never be negative. A custodian allowed a negative sibling
-could cancel real balances with an invented one and publish a smaller
-total. The verifier refuses any negative sum.
+**The idea.** A **Merkle sum tree** gives every node a sum as well as a
+hash. A leaf carries one client’s balance, and each parent carries the
+total of its two children. The root’s sum is the total liability. An
+inclusion proof now carries each sibling’s sum as well as its hash, and
+the client checks that the sums add up along its path as well as the
+hashes.
+
+The figure shows the demo’s tree after the [chapter 5](05-settlement.md)
+settlement. beta-fund holds 1.50 BTC. Its proof is two siblings:
+alpha-capital’s leaf, with sum 1.1499969, and the right-hand parent,
+with sum 1.50. beta-fund adds $1.50 + 1.1499969 = 2.6499969$, then
+$2.6499969 + 1.50 = 4.1499969$, and checks the hashes at each step
+against the published root.
+
+<div id="fig-sum-tree">
+
+![](06-reserves_files/figure-commonmark/fig-sum-tree-output-1.png)
+
+Figure 1: The demo’s liabilities after settlement as a Merkle sum tree,
+in BTC. beta-fund (orange) receives the two blue siblings as its proof.
+It recomputes the outlined nodes and compares the result with the
+published root.
+
+</div>
+
+**Sums must never be negative.** A custodian allowed a negative sibling
+sum could invent a client with a negative balance, cancel real balances
+with it, and publish a smaller total. The verifier refuses any negative
+sum, and the tree refuses negative balances.
+
+**Recap.** In a sum tree every node carries its subtree’s total, the
+root’s sum is the total owed, and a client checks the sums as well as
+the hashes along its path.
 
 <a id="what-each-parent-must-commit-to"></a>
 
 ### What each parent must commit to
 
+**The problem.** It matters exactly what goes into each parent’s hash.
 Gregory Maxwell’s original sum tree hashed each parent’s total but not
-the two children’s sums. Hu, Zhang and Guo (2019) showed that this lets
-a custodian understate its liabilities. Take two clients, alice with 1
-BTC and bob with 3 BTC:
+its two children’s individual sums. Hu, Zhang and Guo (2019) showed that
+this lets a custodian understate its liabilities.
+
+**The attack, worked by hand.** Two clients: alice with 1 BTC and bob
+with 3 BTC. The custodian wants to publish a total of 3 instead of 4.
 
 |  | Honest | Custodian’s claim |
 |----|----|----|
@@ -130,56 +191,82 @@ BTC and bob with 3 BTC:
 | Sibling sum shown to bob | 1 (alice) | $3 - 3 = 0$ |
 | Parent hash | $H(4 \,\|\, h_A \,\|\, h_B)$ | $H(3 \,\|\, h_A \,\|\, h_B)$ |
 
-Each client adds its own balance to the sibling sum it was shown, gets
-3, and recomputes $H(3 \,\|\, h_A \,\|\, h_B)$: the published root. Both
-checks pass, and 1 BTC of liabilities has disappeared. The lie is
-possible because the parent hash does not bind the individual sums.
+Each client adds its own balance to the sibling sum it was shown: alice
+gets $1 + 2 = 3$ and bob $3 + 0 = 3$. Each recomputes
+$H(3 \,\|\, h_A \,\|\, h_B)$, which is exactly the published root. Both
+checks pass, and 1 BTC of liabilities has disappeared. The lie works
+because the parent hash covers only the total, so the custodian can
+split that total between the two children differently for each client.
 
-The tree in this chapter hashes both children’s sums into each parent:
-$H(h_A \,\|\, s_A \,\|\, h_B \,\|\, s_B)$. Alice then recomputes
-$H(h_A \,\|\, 1 \,\|\, h_B \,\|\, 2)$ and bob recomputes
+**The fix.** The tree in this chapter hashes both children’s sums into
+each parent: $H(h_A \,\|\, s_A \,\|\, h_B \,\|\, s_B)$. Now alice
+recomputes $H(h_A \,\|\, 1 \,\|\, h_B \,\|\, 2)$ and bob recomputes
 $H(h_A \,\|\, 0 \,\|\, h_B \,\|\, 3)$. Those are different hashes, so at
 most one of them can equal the published root, and the other client
-detects the lie.
+detects the lie. The code walkthrough runs both versions.
+
+**Recap.** Each parent’s hash must bind both children’s sums, or the
+custodian can show different splits to different clients.
 
 <a id="salts-and-what-a-proof-reveals"></a>
 
 ### Salts and what a proof reveals
 
-Each leaf hashes a random 32-byte **salt** with the client’s id and
-balance. Without it, anyone could test guesses of a client’s balance
-against the leaf hash, as with the unsalted commitment in [chapter
-2](02-mpc-custody.md). The salts are new in every snapshot and each
-client receives only its own.
+**The problem.** A leaf’s hash covers a client identifier and a balance.
+Both come from guessable sets: client identifiers are often known, and
+balances are numbers in a narrow range. Anyone could test candidate
+balances against a published leaf hash until one matched, as with the
+unsalted commitment in [chapter 2](02-mpc-custody.md).
 
-An inclusion proof reveals its siblings’ sums. In the figure, beta-fund
-learns alpha-capital’s exact balance (1.1499969 BTC) and the combined
-balance of the other two clients (1.50 BTC). That is a real leak. The
+**The idea.** Each leaf hashes a random 32-byte **salt** together with
+the client’s identifier and balance. Without the salt the search is
+impossible. The salts are new in every snapshot, and each client
+receives only its own, so an observer cannot link a client’s leaves
+across snapshots or see that a balance did not change.
+
+**What remains visible.** An inclusion proof reveals its siblings’ sums.
+In the figure, beta-fund learns alpha-capital’s exact balance, 1.1499969
+BTC, and the combined balance of the other two clients, 1.50 BTC. That
+is a real leak, worst in small trees and at the lowest level. The
 zero-knowledge schemes in the formal treatment close it. The tree is
-padded to a power of two with zero-balance leaves under random hashes.
+padded to a power of two with zero-balance leaves under random hashes,
+so the number of real clients is not exact either.
+
+**Recap.** Salts stop balance-guessing; sibling sums still leak, which
+zero-knowledge schemes fix.
 
 <a id="proof-of-control"></a>
 
 ### Proof of control
 
-A custody address is only an encoding of a key ([chapter
-5](05-settlement.md)), and anyone can name an address they do not
-control. To prove control, the custodian signs a message under the
-custody key. The message has to be one it could not have signed long in
-advance, so the demo’s snapshot includes the hash of a recent block. The
-signature comes from the same FROST cluster that signs settlements,
-under the same Taproot output key.
+**The problem.** A custody address is only an encoding of a key
+([chapter 5](05-settlement.md)). A custodian could quote someone else’s
+address, or an address whose key it has lost, and point at its coins.
 
-The signature must not become a way to move funds. The demo signs
+**The idea.** To prove control, the custodian signs a message under the
+custody key. The message must be one it could not have signed long in
+advance, or a signature made before the key was lost or sold would still
+pass, so the demo’s snapshot includes the hash of a recent block. The
+signature comes from the same FROST cluster that signs settlements,
+under the same Taproot output key, so it also shows the signing quorum
+is working.
+
+**The signature must not become a way to move funds.** The demo signs
 $H_{\text{attest}}(\text{statement})$, a tagged hash with the tag
-`custody-lab/reserves-attestation`; a transaction sighash is a tagged
+`custody-lab/reserves-attestation`. A transaction’s sighash is a tagged
 hash with the tag `TapSighash`. Two tagged hashes with different tags
-can be equal only through a SHA-256 collision. This separation of
-message classes by tag is **domain separation**. The policy engine
-issues an attestation authorisation without approvals, and each signer
-checks that the authorisation’s message is exactly the one in its
-signing package ([chapter 4](04-policy.md)). So the authorisation can
-never sign a spend.
+can be equal only through a SHA-256 collision, so no attestation message
+can ever be a valid sighash. This separation of message classes by tag
+is **domain separation** ([chapter 1](01-foundations.md), “Hash
+functions”). The policy engine issues an attestation authorisation
+without approvals, because signing a statement moves nothing, and each
+signer checks that the authorisation’s message is exactly the one in its
+signing package ([chapter 4](04-policy.md)). So an attestation
+authorisation can never be used to sign a spend.
+
+**Recap.** A signature under the custody key over a fresh, tagged
+statement proves control, and the tag keeps it from ever being a
+transaction signature.
 
 <a id="what-a-proof-of-reserves-does-not-show"></a>
 
@@ -204,8 +291,8 @@ never sign a spend.
 
 ### Leaves and nodes
 
-Amounts are integer satoshis encoded as 8-byte big-endian integers,
-$u_{64}(\cdot)$. With tagged hashes $H_{\text{leaf}}$ and
+Amounts are whole satoshis encoded as 8-byte big-endian integers,
+written $u_{64}(\cdot)$. With tagged hashes $H_{\text{leaf}}$ and
 $H_{\text{node}}$ (tags `custody-lab/por-leaf` and
 `custody-lab/por-node`):
 
@@ -217,24 +304,28 @@ $$
 \text{node}(L, R) = \bigl(H_{\text{node}}(h_L \,\|\, u_{64}(s_L) \,\|\, h_R \,\|\, u_{64}(s_R)),\; s_L + s_R\bigr).
 $$
 
-Leaves are ordered by client id, and the tree is padded to a power of
-two.
+Each node is a pair: a hash and a sum. A leaf’s hash covers the salt,
+the client identifier, a zero byte that ends the identifier, and the
+balance $b_i$. A parent’s hash covers both children’s hashes and both
+children’s sums. Leaves are ordered by client identifier, and the tree
+is padded to a power of two.
 
 <a id="verification"></a>
 
 ### Verification
 
 A client holds $(\text{id}, b, \text{salt})$ and a path of siblings
-$(h, s, \text{side})$. It recomputes its leaf, combines it with each
-sibling in order, and accepts if and only if every sibling sum is
-non-negative and the result equals the published root, hash and sum.
+$(h, s, \text{side})$, where side says whether the sibling is on the
+left or the right. It recomputes its leaf, combines it with each sibling
+in order, and accepts if and only if every sibling sum is non-negative
+and the result equals the published root, hash and sum.
 
-Given a collision-resistant hash, any two clients whose paths pass
-through a node see the same pair of child sums at that node, because
-both sums are inside the node’s hash. With sums non-negative, every
-node’s sum is then at least the total of the verified balances below it.
-So the published total is at least the total of the balances that
-clients verified.
+Why this protects the total: given a collision-resistant hash, any two
+clients whose paths pass through a node see the same pair of child sums
+at that node, because both sums are inside the node’s hash. With sums
+non-negative, every node’s sum is then at least the total of the
+verified balances below it. So the published total is at least the total
+of the balances that clients verified.
 
 <a id="snapshot-and-attestation"></a>
 
@@ -259,14 +350,20 @@ assets divided by liabilities.
 ### Zero-knowledge proofs of liabilities
 
 The leak of sibling sums can be closed by replacing each sum with a
-**Pedersen commitment** $C = vG + rH$. Here $H$ is a second generator
-whose discrete logarithm relative to $G$ nobody knows, and $r$ is
-random. The commitment is hiding because of $r$, and binding because of
-the discrete logarithm. Pedersen commitments add, $C_1 + C_2$ commits to
-$v_1 + v_2$, so a parent’s commitment is the sum of its children’s. A
-**range proof** for each commitment shows that its value lies in
-$[0, 2^{64})$ without revealing it, which replaces the check for
-negative sums.
+**Pedersen commitment** $C = vG + rH$. Here $v$ is the hidden value, $H$
+is a second generator whose discrete logarithm relative to $G$ nobody
+knows, and $r$ is a random number. The commitment is hiding because of
+$r$: for any $v$ there is an $r$ that gives the same $C$. It is binding
+because of the discrete logarithm: opening $C$ to a different value
+would require knowing how $H$ relates to $G$. Pedersen commitments also
+add: $C_1 + C_2$ is a commitment to $v_1 + v_2$, because positions add.
+So a parent’s commitment can be the sum of its children’s, and the
+tree’s arithmetic works on hidden values.
+
+Hidden values bring back the negative-sum attack, since the verifier can
+no longer see a sum. A **range proof** for each commitment shows, in
+zero knowledge, that its value lies in $[0, 2^{64})$ without revealing
+it, which replaces the check for negative sums.
 
 - **Provisions** (Dagher et al. 2015) also hides the assets: the
   exchange proves control of a subset of a larger set of addresses
@@ -280,9 +377,9 @@ negative sums.
 ## Worked example
 
 The demo’s ledger after the settlement in [chapter 5](05-settlement.md):
-alpha-capital’s 2.00 BTC less the 0.85 BTC it delivered and the 310-sat
-network fee it was charged, and three unchanged balances. Leaves are
-sorted by id.
+alpha-capital’s 2.00 BTC less the 0.85 BTC it delivered and the
+310-satoshi network fee it was charged, and three unchanged balances.
+Leaves are sorted by identifier.
 
 | Node           | Children                      | Sum (BTC) |
 |----------------|-------------------------------|-----------|
@@ -333,8 +430,8 @@ print("root total", tree.root.total, "BTC; beta-fund's proof has", len(proof.pat
 ### Inclusion proofs
 
 Every client’s proof verifies against the root. A proof altered in its
-balance, salt or sibling sums does not, and a thousand clients need ten
-siblings each.
+balance, its salt or a sibling’s sum does not. And a thousand clients
+need ten siblings each.
 
 ``` python
 from dataclasses import replace
@@ -354,14 +451,17 @@ print("1000 clients:", len(large.proof("client-7").path), "siblings per proof")
 
     1000 clients: 10 siblings per proof
 
+The assertions cover the three alterations: a balance one satoshi lower,
+a different salt, and a negative sibling sum. Each is refused.
+
 <a id="the-attack-on-a-total-only-tree"></a>
 
 ### The attack on a total-only tree
 
 The cell builds the custodian’s claim from “What each parent must commit
-to” twice. Against a parent that hashes only the total, alice’s and
-bob’s recomputations reach the same root. Against this chapter’s parent
-they reach different roots.
+to” against both kinds of parent. Against a parent that hashes only the
+total, alice’s and bob’s recomputations reach the same root. Against
+this chapter’s parent they reach different roots.
 
 ``` python
 from custody_lab.foundations.hashing import tagged_hash
@@ -389,6 +489,9 @@ assert one_root == {"total_only_parent": True, "parent": False}
     total_only_parent: one root satisfies both clients: True
                parent: one root satisfies both clients: False
 
+`True` for the total-only parent means the lie passes both clients’
+checks; `False` for this chapter’s parent means it cannot.
+
 <a id="the-whole-demo"></a>
 
 ### The whole demo
@@ -398,10 +501,9 @@ throwaway regtest chain: key generation, funding, the FIX session,
 netting, policy, signing, broadcast and the reserves snapshot. The
 second half of the cell checks the published snapshot with nothing but
 the file, the standard library and [chapter 1](01-foundations.md)’s
-BIP340 verifier.
+BIP340 verifier, as an outside party would.
 
 ``` python
-import hashlib
 import json
 import tempfile
 from pathlib import Path
@@ -443,31 +545,66 @@ print(f"reserve ratio {ratio}; proof of control verified from the file")
     liabilities 4.1499969 BTC, assets 4.1499969 BTC,
     reserve ratio 1.00000; proof of control verified from the file
 
+The first nine lines are the demo’s steps, each reported done. The last
+two come from the outside check: the file’s liabilities and assets are
+equal, and the signature in the file verifies under the custody key it
+names.
+
 <a id="how-this-shows-up-in-production"></a>
 
 ## How this shows up in production
 
-- **After FTX.** Several exchanges published Merkle-tree proofs of
-  reserves in November and December 2022. The accounting firm Mazars
-  paused its proof-of-reserves work for crypto clients in December 2022
-  (**verify current**). A proof of reserves is not an audit: it says
-  nothing about controls, off-book liabilities or encumbrance.
-- **Broken implementations.** Chalkias, Chatzigiannis and Ji (2022)
-  reviewed liability proofs used in production and found exploitable
-  defects: SHA-1, hashes truncated to 8 bytes, Merkle trees over the
-  wrong inputs, and no guarantee that user ids are unique.
-- **Zero-knowledge in production.** Some exchanges publish
-  zk-SNARK-based proofs of liabilities that hide individual balances
-  (**verify current**). `dapol` is an open-source Rust implementation of
-  DAPOL+ (**verify current** for maintainer and status).
-- **Custodians and exchanges differ.** A qualified custodian is examined
-  by auditors under frameworks such as SOC 2 ([Module
-  8](08-industry.md)). A published proof of reserves adds evidence that
-  a client can check for itself, between audits.
-- **Frequency and anchoring.** The demo publishes a snapshot per
-  settlement batch and anchors the policy audit head in it ([chapter
-  4](04-policy.md)). A truncated or rewritten audit log then disagrees
-  with a head that was already published.
+**After FTX.** Several exchanges published Merkle-tree proofs of
+reserves in November and December 2022. The accounting firm Mazars
+paused its proof-of-reserves work for crypto clients in December 2022
+(**verify current**). A proof of reserves is not an audit: it says
+nothing about internal controls, off-book liabilities or encumbrance.
+
+**Broken implementations.** Chalkias, Chatzigiannis and Ji (2022)
+reviewed liability proofs used in production and found exploitable
+defects: SHA-1, hashes truncated to 8 bytes, Merkle trees built over the
+wrong inputs, and no guarantee that user identifiers are unique, which
+would let two clients be shown the same leaf.
+
+**Zero-knowledge in production.** Some exchanges publish proofs of
+liabilities based on zk-SNARKs, a family of compact zero-knowledge
+proofs, that hide individual balances (**verify current**). `dapol` is
+an open-source Rust implementation of DAPOL+ (**verify current** for
+maintainer and status).
+
+**Custodians and exchanges differ.** A qualified custodian is examined
+by auditors under frameworks such as SOC 2 ([chapter
+8](08-industry.md)). A published proof of reserves adds evidence that a
+client can check for itself, between audits.
+
+**Frequency and anchoring.** The demo publishes a snapshot per
+settlement batch and anchors the policy audit head in it ([chapter
+4](04-policy.md)). A truncated or rewritten audit log then disagrees
+with a head that was already published.
+
+<a id="recap"></a>
+
+## Recap
+
+1.  A proof of reserves has two halves: assets, which are public on the
+    chain, and liabilities, which are private and must be committed to
+    without being published.
+2.  A Merkle tree commits to a list with one root hash, and an inclusion
+    proof needs one sibling hash per level: 20 for a million clients.
+3.  A Merkle sum tree adds totals; the root’s sum is the total owed.
+    Sums must be non-negative.
+4.  Each parent’s hash must cover both children’s sums. A tree that
+    hashes only the total lets a custodian show each client a different
+    split and hide liabilities.
+5.  Salts stop anyone guessing balances from leaf hashes. Sibling sums
+    still leak, which Pedersen commitments with range proofs remove.
+6.  Proof of control is a signature by the custody key over a fresh
+    statement; its tag means it can never be a transaction signature.
+7.  A proof of reserves does not cover clients who never check,
+    liabilities outside the tree, borrowed assets or encumbrance.
+
+[Chapter 7](07-post-quantum.md) asks what a quantum computer would break
+in all of this, and how a custodian would migrate.
 
 <a id="exercises"></a>
 
