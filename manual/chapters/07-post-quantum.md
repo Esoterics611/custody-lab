@@ -1,6 +1,6 @@
 # Module 7: Post-Quantum Cryptography
 
-2026-09-25
+2026-10-08
 
 Previous: [Chapter 6, Proof of Reserves](06-reserves.md) \| [All
 chapters](../README.md) \| Next: [Chapter 8, Industry and
@@ -17,64 +17,89 @@ Regulation](08-industry.md)
 > README states it has never been independently audited. The Lamport and
 > LWE cells are illustrations, not implementations of a standard.
 
-<a id="learning-objectives"></a>
+<a id="what-this-chapter-is-for"></a>
 
-## Learning objectives
+## What this chapter is for
 
-- Name which primitives in chapters [1](01-foundations.md) to
-  [6](06-reserves.md) a large quantum computer breaks, and which it only
-  weakens.
-- Build a hash-based signature from Lamport keys, Winternitz chains and
-  a Merkle tree, and explain the checksum and why reusing a one-time key
-  is fatal.
-- Describe ML-KEM, ML-DSA and SLH-DSA at the level of their structure,
-  their sizes and the assumption each rests on.
-- Explain why post-quantum signatures are hard to produce with a
-  threshold, and what research offers.
-- Order a custodian’s migration by exposure, and say which steps the
-  custodian controls.
+Every key in chapters [1](01-foundations.md) to [6](06-reserves.md)
+rests on one of two problems being hard: the discrete logarithm
+([chapter 1](01-foundations.md)’s “easy forwards, infeasible backwards”)
+or, for Paillier encryption, factoring large numbers. A **quantum
+computer** is a machine that computes with quantum-mechanical states
+rather than ordinary bits. For most tasks it is no faster than an
+ordinary computer. For a few specific mathematical problems it is
+enormously faster, and those two are among them. A large enough one
+running **Shor’s algorithm** would compute a private key from its public
+key quickly. Every public key in this manual would then give up its
+private key: the secp256k1 custody key, the Ed25519 approval keys, the
+Paillier modulus. No such computer exists (**verify current**). The
+question for a custodian is what has to be done before one does.
 
-<a id="intuition"></a>
+Two clocks run differently, and they decide the order of the work.
 
-## Intuition
-
-A large quantum computer running Shor’s algorithm computes discrete
-logarithms and factors integers quickly. Every public key in chapters
-[1](01-foundations.md) to [6](06-reserves.md) then gives up its private
-key: the secp256k1 keys, the Ed25519 approval keys, the Paillier
-modulus. No such computer exists (**verify current**). The question for
-a custodian is what has to be done before one does.
-
-Two clocks run differently.
-
-- **Signatures** fail when the computer arrives. A forged approval or a
-  stolen coin needs the computer at the time of the attack. But anything
-  whose public key is already visible can be attacked on that day, and a
-  Taproot output shows its key on chain from the moment it is created.
+- **Signatures** fail on the day the computer arrives. A forged approval
+  or a stolen coin needs the computer at the time of the attack. But
+  anything whose public key is already visible can be attacked on that
+  day, and a Taproot output shows its key on the chain from the moment
+  it is created.
 - **Encryption** fails retroactively. Ciphertext recorded today can be
-  decrypted later. A key share backup encrypted to an elliptic-curve
+  decrypted later. A key-share backup encrypted to an elliptic-curve
   recovery key is exposed as soon as someone copies it, even though the
   break comes years later. This is **harvest now, decrypt later**.
 
 A FIX engineer has lived through a smaller version of this: deprecating
-TLS versions and cipher suites across every session a venue accepts. The
-analogy breaks at the chain. A venue can change its cipher suites on a
-date it chooses; a custodian cannot change the signature scheme Bitcoin
-accepts. The parts the custodian controls can move now, and the demo
-moves one of them: its policy authorisations are now signed with both
-Ed25519 and ML-DSA.
+TLS versions and cipher suites across every session an exchange accepts.
+The comparison stops holding at the chain. An exchange can change its
+cipher suites on a date it chooses; a custodian cannot change the
+signature scheme Bitcoin accepts. The parts the custodian controls can
+move now, and the demo moves one of them: its policy authorisations are
+signed with both Ed25519 and ML-DSA, a signature scheme designed to
+resist quantum computers.
+
+By the end of this chapter the following should be clear:
+
+- which primitives in chapters [1](01-foundations.md) to
+  [6](06-reserves.md) a large quantum computer breaks, and which it only
+  weakens;
+- how a signature can be built from a hash function alone: Lamport keys,
+  Winternitz chains with their checksum, and a Merkle tree of one-time
+  keys, and why reusing a one-time key is fatal;
+- the structure of the three NIST standards, ML-KEM, ML-DSA and SLH-DSA,
+  their sizes, and the problem each rests on;
+- why post-quantum signatures are hard to produce with a threshold of
+  signers;
+- the order in which a custodian should migrate, and which steps it
+  controls.
 
 <a id="first-principles"></a>
 
 ## First principles
 
 This section assumes [chapter 1](01-foundations.md) (hashes,
-signatures), [chapter 2](02-mpc-custody.md) (commitments) and [chapter
-6](06-reserves.md) (Merkle trees).
+signatures), [chapter 2](02-mpc-custody.md) (commitments), [chapter
+3](03-key-storage.md) (symmetric encryption and key encapsulation) and
+[chapter 6](06-reserves.md) (Merkle trees).
 
 <a id="what-a-quantum-computer-breaks"></a>
 
 ### What a quantum computer breaks
+
+**The idea.** Two quantum algorithms matter for this manual, and they do
+very different damage.
+
+- **Shor’s algorithm** solves the discrete logarithm and factoring in a
+  number of steps that grows only modestly with the key size. Recovering
+  a 256-bit private key goes from about $2^{128}$ steps to a number of
+  quantum operations that grows roughly with the cube of the key length,
+  which a large enough machine would complete in practical time. Every
+  scheme built on those problems is *broken*: changing the key size does
+  not help.
+- **Grover’s algorithm** speeds up brute-force search of a space of
+  $2^k$ values to about $2^{k/2}$ steps. That halves the effective size
+  of a key or hash: a 256-bit key behaves like a 128-bit one, which is
+  still far beyond reach. Schemes that rest on hash functions or
+  symmetric ciphers are only *weakened*, and choosing 256-bit sizes
+  restores the margin.
 
 | Primitive | Where in this manual | Effect of a large quantum computer |
 |----|----|----|
@@ -84,34 +109,44 @@ signatures), [chapter 2](02-mpc-custody.md) (commitments) and [chapter
 | Feldman, Pedersen commitments | chapters [2](02-mpc-custody.md), [6](06-reserves.md) | binding broken (discrete logarithm); Pedersen hiding survives |
 | SHA-256, tagged hashes | everywhere | weakened only |
 | Merkle trees, hash commitments | chapters [4](04-policy.md), [6](06-reserves.md) | weakened only |
-| AES-256 | this chapter | weakened only |
+| AES-256 | [chapter 3](03-key-storage.md), this chapter | weakened only |
 
-“Weakened only” refers to **Grover’s algorithm**, which searches a space
-of $2^k$ values in about $2^{k/2}$ steps. A 256-bit key or hash
-therefore keeps a large margin. The replacements NIST standardised in
-2024 rest on two kinds of problem that no known quantum algorithm solves
-efficiently: inverting hash functions, and finding short vectors in
-lattices.
+The replacements NIST standardised in 2024 rest on two kinds of problem
+that no known quantum algorithm solves efficiently: inverting hash
+functions, and finding short vectors in lattices. The next three
+sections build the hash-based kind from nothing; the fourth gives the
+idea behind the lattice kind.
+
+**Recap.** Shor breaks every discrete-logarithm and factoring scheme
+outright; Grover only halves the strength of hashes and symmetric keys.
 
 <a id="signatures-from-a-hash-alone-lamport"></a>
 
 ### Signatures from a hash alone: Lamport
 
-A hash is easy to compute and hard to invert, and that is enough to
-build a signature.
+**The problem.** If elliptic-curve keys fall, something else must
+produce signatures. Hash functions survive, and it turns out a hash
+function is all a signature needs, at a price.
 
-- **Key.** Pick 256 pairs of random secrets, one pair per bit of a
-  digest. The public key is the hash of every secret.
+**The idea.** Lamport’s scheme (1979) works bit by bit:
+
+- **Key.** Pick 256 pairs of random secrets, one pair for each bit of a
+  message digest: one secret for “this bit is 0” and one for “this bit
+  is 1”. The public key is the hash of every secret.
 - **Sign.** For each bit of the message digest, reveal the secret for
   that bit’s value.
-- **Verify.** Hash each revealed secret and compare it with the public
-  key.
+- **Verify.** Hash each revealed secret and compare it with the matching
+  public-key entry.
 
-The key is **one-time**. Each signature reveals half of the secrets, and
-every further signature reveals more. After enough signatures an
-attacker knows both secrets at almost every position and can sign a
-message of its choosing. The cell signs eight messages with one key,
-then forges a ninth:
+Nobody can sign without the secrets, because producing a secret from its
+hash means inverting the hash function.
+
+**What breaks: reuse.** The key is **one-time**. Each signature reveals
+half of the secrets, and a second signature on a different digest
+reveals more: wherever the two digests differ, both secrets of that pair
+are now public. After enough signatures, an attacker knows both secrets
+at almost every position and can sign a message of its choosing. The
+cell signs eight messages with one key, then forges a ninth:
 
 ``` python
 import hashlib
@@ -158,29 +193,82 @@ print(f"forged {target.decode()!r} after {tries} tries")
     positions with one leaked secret: 1 of 256
     forged 'pay 1000 BTC to attacker, attempt 2' after 2 tries
 
+The first printed line shows how few positions still had only one secret
+leaked after eight signatures. The second shows that a forgery on an
+arbitrary message took two attempts: the attacker just tries messages
+until every bit of the digest lands on a leaked secret.
+
+**Recap.** A hash function alone gives a signature, but each key may
+sign once.
+
 <a id="winternitz-chains-and-the-checksum"></a>
 
 ### Winternitz chains and the checksum
 
-Lamport spends two 32-byte secrets per bit. **Winternitz** signatures
-sign several bits per secret with a **hash chain**. The secret is hashed
-$w - 1$ times, and the end of the chain goes into the public key. With
-$w = 16$, one chain signs a 4-bit digit $a$: the signer reveals the
-value $a$ steps along the chain, and the verifier hashes it the
-remaining $15 - a$ steps to the end.
+**The problem.** Lamport’s signatures are large: two 32-byte secrets per
+bit of the digest, 16 KB of key for one signature. Winternitz signatures
+sign several bits per secret.
 
-Chains run only forward, so anyone holding a signature can advance a
-digit: from the value at position $a$ they can compute position $a + 1$
-and sign a larger digit. A **checksum** stops this. The signer also
-signs $\sum (15 - a_i)$ over all message digits. Raising a message digit
-lowers the checksum, and lowering a digit would require running a chain
-backwards, which means inverting the hash.
+**The idea.** Take one secret and hash it repeatedly, forming a **hash
+chain**: position 0 is the secret, position 1 is its hash, position 2
+the hash of that, and so on. The last position goes into the public key.
+To sign a digit $a$, the signer reveals position $a$. The verifier
+hashes it the remaining steps to the end and compares with the public
+key.
 
-**WOTS+** is the version FIPS 205 standardises. Every hash call takes a
-public seed and a 32-byte **address** that names its layer, tree, key
-pair, chain and step, so no two calls in the scheme hash the same input.
-For SLH-DSA-SHA2-128f a digest is 16 bytes: 32 message digits plus 3
-checksum digits, 35 chains in all.
+**Worked by hand**, with chains of length 4, so each chain signs one
+digit from 0 to 3. To sign the digit 2, the signer reveals position 2,
+and the verifier hashes once to reach position 3, the public end.
+
+The chain runs only forward, and that is a weakness. Anyone holding
+position 2 can hash it once to get position 3, which is a valid
+signature for the digit 3. A signature on 2 can be turned into a
+signature on 3 without the secret.
+
+A **checksum** stops this. The signer also signs, on a second chain, the
+value $3 - a$: here $3 - 2 = 1$, so it reveals position 1 of the
+checksum chain. To raise the message digit to 3, an attacker would also
+have to lower the checksum digit to $3 - 3 = 0$, which means going from
+position 1 back to position 0 of the checksum chain: inverting the hash.
+Raising any message digit lowers the checksum, so every forgery needs
+one backward step somewhere.
+
+``` python
+def chain(start: bytes, steps: int) -> bytes:
+    for _ in range(steps):
+        start = H(start)
+    return start
+
+
+message_secret, checksum_secret = H(b"message chain"), H(b"checksum chain")
+public_ends = (chain(message_secret, 3), chain(checksum_secret, 3))
+
+
+def toy_sign(digit: int) -> tuple[bytes, bytes]:
+    return chain(message_secret, digit), chain(checksum_secret, 3 - digit)
+
+
+def toy_verify(digit: int, sig: tuple[bytes, bytes]) -> bool:
+    return (chain(sig[0], 3 - digit), chain(sig[1], digit)) == public_ends
+
+
+sig = toy_sign(2)
+assert toy_verify(2, sig)
+raised = (H(sig[0]), sig[1])  # advance the message chain one step: digit 3
+assert not toy_verify(3, raised)  # the checksum chain would have to step backwards
+print("digit 2 signed; raising it to 3 fails on the checksum chain")
+```
+
+    digit 2 signed; raising it to 3 fails on the checksum chain
+
+**WOTS+ in the standard.** WOTS+ is the version FIPS 205 standardises,
+with chains of length 16, so each chain signs a 4-bit digit. Every hash
+call also takes a public seed and a 32-byte **address** naming its
+layer, tree, key pair, chain and step, so no two calls anywhere in the
+scheme hash the same input. For SLH-DSA-SHA2-128f a digest is 16 bytes:
+32 message digits plus 3 checksum digits, 35 chains in all. The cell
+runs the teaching WOTS+ and repeats the advancing attack on a real
+signature:
 
 ``` python
 import secrets
@@ -210,30 +298,44 @@ print("one chain advanced a step: the checksum no longer matches")
     digits: [0, 1, 2, 3, 4, 5, 6, 7] ... checksum digits: [0, 15, 0]
     one chain advanced a step: the checksum no longer matches
 
+The first printed line shows the message digits (the hexadecimal digits
+of the message, one per chain) and the three checksum digits. The second
+confirms that advancing one chain, the forgery the checksum exists to
+stop, produces a public key that does not match.
+
+**Recap.** A hash chain signs a digit by revealing a position along it;
+a checksum on a second chain makes any attempt to raise a digit require
+stepping some chain backwards.
+
 <a id="a-merkle-tree-of-one-time-keys"></a>
 
 ### A Merkle tree of one-time keys
 
-A one-time key is not enough for a custodian that signs every day.
-**XMSS** puts $2^{h'}$ WOTS+ public keys at the leaves of a Merkle tree
-([chapter 6](06-reserves.md)), and the root becomes the long-term public
-key. A signature is one WOTS+ signature plus the authentication path
-from its leaf to the root.
+**The problem.** A one-time key is not enough for a custodian that signs
+every day.
+
+**The idea.** **XMSS** puts $2^{h'}$ WOTS+ public keys at the leaves of
+a Merkle tree ([chapter 6](06-reserves.md)), and the tree’s root becomes
+the long-term public key. A signature is one WOTS+ signature from one
+leaf, plus the authentication path from that leaf to the root, which
+proves the one-time key belongs to the long-term key.
 
 That makes the signer **stateful**. It must never use a leaf twice, so
 it has to record which leaves it has used, and restoring a signer from a
-backup can restore a used leaf. XMSS and LMS (NIST SP 800-208) are
-stateful schemes and are standardised on that basis.
+backup can bring back a leaf it has already used. XMSS and LMS (NIST SP
+800-208) are stateful schemes and are standardised on that basis, with
+that operational risk stated.
 
 **SLH-DSA** (FIPS 205) removes the state. It stacks XMSS trees into a
 **hypertree** of $d$ layers, in which each tree signs the root of the
-tree below it. It signs the message with **FORS**, a few-time scheme, at
-a leaf chosen from a hash of the message. With $2^{66}$ leaves in the
-SHA2-128f parameter set, a collision between two messages’ leaves is
-negligible, and nothing has to be recorded. The price is size: a
-17,088-byte signature. The public root is the root of the top layer’s
-tree. The cell computes it from NIST’s seeds and compares it with NIST’s
-expected public key.
+tree below it. It signs the message itself with **FORS**, a few-time
+scheme (one that tolerates a small number of signatures per key), at a
+leaf chosen by a hash of the message. With $2^{66}$ leaves in the
+SHA2-128f parameter set, two messages landing on the same leaf often
+enough to matter is negligible, and nothing has to be recorded. The
+price is size: a 17,088-byte signature. The public root is the root of
+the top layer’s tree. The cell computes it from NIST’s seeds and
+compares it with NIST’s expected public key.
 
 ``` python
 import json
@@ -253,24 +355,41 @@ print(f"NIST tcId {nist['tcId']}: teaching root matches; leaf 5 path has",
 
     NIST tcId 21: teaching root matches; leaf 5 path has 3 siblings
 
+The printed line names the NIST test case whose public key the teaching
+code reproduced, and the number of siblings in an XMSS authentication
+path: one per level of the tree.
+
+**Recap.** XMSS turns many one-time keys into one long-term key with a
+Merkle tree, at the cost of remembering which leaves are used; SLH-DSA
+picks leaves by hash from a tree so large that no record is needed.
+
 <a id="lattices-in-one-bit"></a>
 
 ### Lattices in one bit
 
-ML-KEM and ML-DSA rest on **learning with errors** (LWE). Take a secret
-vector $s$ and publish many equations $b_i = a_i \cdot s + e_i \bmod q$,
-where each $a_i$ is random and each **error** $e_i$ is small. Without
-the errors, a handful of equations would give $s$ by Gaussian
-elimination. With the errors, recovering $s$ from large instances is
-believed hard, for quantum computers as well (Regev 2005).
+**The problem.** Hash-based signatures are large. The other NIST family,
+built on lattices, is much smaller and also gives encryption, which
+hashes alone cannot.
 
-Encryption follows. To encrypt a bit, add up a random subset of the
-equations and add $\lfloor q/2 \rfloor$ if the bit is 1. The holder of
-$s$ subtracts $s$’s contribution and is left with the bit plus a sum of
-small errors: near 0 means 0, near $q/2$ means 1. The toy below uses
-$q = 97$, a secret of length 4 and eight equations. That is small enough
-to solve by exhaustive search; ML-KEM-768 uses vectors of polynomials
-with 768 coefficients in all.
+**The idea.** ML-KEM and ML-DSA rest on **learning with errors** (LWE).
+Take a secret list of numbers $s$ and publish many equations
+$b_i = a_i \cdot s + e_i \bmod q$, where each $a_i$ is a random list of
+numbers, $a_i \cdot s$ is the sum of their products with $s$, and each
+**error** $e_i$ is a small random number, such as $-1$, $0$ or $1$.
+Without the errors, a handful of equations would give $s$ by ordinary
+elimination, the method taught in school for simultaneous equations.
+With the errors, elimination amplifies them until the answer is noise,
+and recovering $s$ from large instances is believed hard for quantum
+computers as well as ordinary ones (Regev 2005).
+
+**Encryption follows.** To encrypt a bit, add up a random subset of the
+published equations, and add $\lfloor q/2 \rfloor$ (half the modulus) if
+the bit is 1. The holder of $s$ subtracts $s$’s contribution and is left
+with the bit’s offset plus a sum of small errors: a result near 0 means
+0, and a result near $q/2$ means 1. Everyone else sees only sums of
+noisy equations. The toy below uses $q = 97$, a secret of length 4 and
+eight equations, small enough to break by exhaustive search; ML-KEM-768
+uses vectors of polynomials with 768 coefficients in all.
 
 ``` python
 import random
@@ -302,9 +421,15 @@ print("all", 2 * len(subsets), "(bit, subset) pairs decrypt correctly")
     secret [41, 19, 50, 83] errors [1, -1, 0, 0, -1, 1, -1, 1]
     all 512 (bit, subset) pairs decrypt correctly
 
-The error sum is at most 8 in absolute value, well inside the $q/4 = 24$
-margin, so decryption never fails here. Real parameters choose the error
-distribution so that failure is negligible.
+The cell encrypts both bit values under every one of the 256 possible
+subsets and decrypts all 512 correctly. The error sum is at most 8 in
+absolute value, well inside the $q/4 = 24$ margin, so decryption never
+fails here. Real parameters choose the error distribution so that
+failure is negligible.
+
+**Recap.** LWE hides a secret behind equations with small errors; the
+holder of the secret can strip the equations away and read a bit from
+what is left.
 
 <a id="formal-treatment"></a>
 
@@ -314,31 +439,38 @@ distribution so that failure is negligible.
 
 ### ML-KEM (FIPS 203)
 
-A **key encapsulation mechanism** (KEM) replaces “encrypt a key to
-someone”: the sender runs `encapsulate` on the recipient’s public key
-and obtains a 32-byte shared secret and a ciphertext; the recipient runs
+[Chapter 3](03-key-storage.md) introduced a key encapsulation mechanism:
+the sender runs `encapsulate` on the recipient’s public key and obtains
+a 32-byte shared secret and a ciphertext; the recipient runs
 `decapsulate` on the ciphertext and obtains the same secret. ML-KEM is
-built on module-LWE: the $a_i$ and $s$ above become vectors of
-polynomials. Parameter sets 512, 768 and 1024 target NIST security
-categories 1, 3 and 5.
+built on module-LWE: the numbers in the LWE equations above become
+polynomials, and the lists become short vectors of polynomials, which
+makes keys smaller for the same security. Parameter sets 512, 768 and
+1024 target NIST security categories 1, 3 and 5, roughly the strength of
+AES-128, AES-192 and AES-256.
 
 <a id="ml-dsa-fips-204"></a>
 
 ### ML-DSA (FIPS 204)
 
 ML-DSA is a Fiat-Shamir signature ([chapter 1](01-foundations.md)) over
-module lattices. In outline, with a secret $s_1$ of small coefficients:
+module lattices. In outline, with a secret $s_1$ whose coefficients are
+small:
 
 $$
 y \xleftarrow{\$} \text{(small)}, \quad w = Ay, \quad c = H(\mu \,\|\, \text{HighBits}(w)), \quad z = y + c\,s_1 .
 $$
 
-This has the same shape as Schnorr’s $s = k + e\,d$. The difference is
-**rejection**: if $z$ is too large, or a low-bits condition fails, the
-signer discards the attempt and starts again with a new $y$. Without
-rejection, the distribution of $z$ would reveal $s_1$. This is
-**Fiat-Shamir with aborts** (Lyubashevsky 2009). Signing takes several
-attempts on average, and each rejected attempt must stay secret.
+$y$ plays the nonce’s role, $w$ the commitment’s, $c$ the challenge’s
+(computed from the message digest $\mu$ and the commitment), and $z$ the
+response’s. This has the same shape as Schnorr’s $s = k + e\,d$. The
+difference is **rejection**: if $z$ is too large, or a condition on the
+low bits fails, the signer discards the attempt and starts again with a
+new $y$. Without rejection, the distribution of $z$ would show traces of
+$s_1$, because small numbers do not hide each other the way uniformly
+random numbers modulo $n$ do. This is **Fiat-Shamir with aborts**
+(Lyubashevsky 2009). Signing takes several attempts on average, and each
+rejected attempt must stay secret.
 
 <a id="slh-dsa-fips-205"></a>
 
@@ -347,13 +479,16 @@ attempts on average, and each rejected attempt must stay secret.
 A signature is a randomiser $R$, a FORS signature on the message digest,
 and $d$ XMSS signatures up the hypertree. The verifier recomputes the
 FORS public key, then each XMSS root in turn, and compares the last with
-PK.root. Security rests only on the hash function. The “s” parameter
-sets give smaller, slower signatures and the “f” sets larger, faster
-ones.
+the public root. Security rests only on the hash function. The “s”
+parameter sets give smaller, slower signatures and the “f” sets larger,
+faster ones.
 
 <a id="sizes"></a>
 
 ### Sizes
+
+The cell measures every scheme in the manual with the libraries the
+project uses.
 
 ``` python
 import custody_pq
@@ -392,14 +527,20 @@ for name, pk_len, sig_len in rows:
     SHA2-128f                           32      17,088
     ML-KEM-768 (ciphertext)          1,184       1,088
 
+Sizes are in bytes. ML-DSA-65’s signature is about 50 times a BIP340
+signature, and SLH-DSA’s is between 120 and 270 times; for ML-KEM the
+last column is the ciphertext, not a signature. On a blockchain, where
+every byte costs fees, these sizes are the main obstacle to adoption.
+
 <a id="the-demos-hybrid-authorisation"></a>
 
 ### The demo’s hybrid authorisation
 
 The policy engine’s authorisation ([chapter 4](04-policy.md)) is the one
-signature path the custodian controls end to end. Its token now carries
-two signatures over the same payload: Ed25519, and ML-DSA-65 with the
-FIPS 204 context string `custody-lab/authorisation`. A signer accepts a
+signature path the custodian controls end to end. Its token carries two
+signatures over the same payload: Ed25519, and ML-DSA-65 with the FIPS
+204 context string `custody-lab/authorisation`, a label that keeps these
+signatures from being valid in any other context. A signer accepts a
 token only if both verify. A forger would have to break both schemes:
 Ed25519 falls to a quantum computer, and ML-DSA is new enough that a
 flaw in it cannot be ruled out. The authority’s public key is 1,984
@@ -457,6 +598,13 @@ from what it does not.
 | Settlements ([chapter 5](05-settlement.md)) | FROST BIP340, Taproot key path | key visible on chain | new output type and signature | Bitcoin consensus, research |
 | Transport (FIX, internal) | TLS | recorded sessions | hybrid key exchange | TLS stacks (**verify current**) |
 
+The order follows the two clocks. Share backups come first, because a
+copy taken today is broken whenever a quantum computer arrives; nothing
+can be done for a ciphertext already copied. Internal signatures the
+custodian controls come next, because changing them needs nobody else’s
+agreement. Settlement signatures come last, because they depend on the
+chain.
+
 Three facts shape the chain row.
 
 - **Taproot shows the key.** A key-path output (BIP 341) holds the
@@ -479,21 +627,23 @@ Three facts shape the chain row.
 
 ## Worked example
 
-The WOTS+ checksum for the all-zero 16-byte digest, with $w = 16$:
+The WOTS+ checksum for the all-zero 16-byte digest, with chains of
+length 16:
 
 | Step | Computation | Value |
 |----|----|----|
-| Message digits | 32 nibbles of 0x00…00 | all 0 |
+| Message digits | 32 nibbles (4-bit digits) of 0x00…00 | all 0 |
 | Checksum | $\sum_{i=1}^{32} (15 - 0)$ | 480 |
 | Shift | $(8 - (3 \cdot 4) \bmod 8) \bmod 8 = 4$ bits: $480 \cdot 16$ | 7680 = 0x1E00 |
 | Checksum digits | the first three nibbles of 0x1E00 | 1, 14, 0 |
 | Revealed positions | 32 message chains at 0, checksum chains at 1, 14, 0 | 35 values |
 
-The signature of the zero digest reveals the 32 message chains’ secrets
-themselves, at position 0. An attacker can advance them to sign any
-digest. But any change raises some message digit, which lowers the
-checksum below 480. The checksum digits (1, 14, 0) would then have to
-move backwards on at least one chain.
+The shift step aligns the checksum’s bits to whole bytes before it is
+split into three 4-bit digits. The signature of the zero digest reveals
+the 32 message chains’ secrets themselves, at position 0. An attacker
+can advance them to sign any digest. But any change raises some message
+digit, which lowers the checksum below 480. The checksum digits (1, 14,
+0) would then have to move backwards on at least one chain.
 
 ``` python
 digits = wots.digits_with_checksum(bytes(16))
@@ -546,15 +696,20 @@ print(f"ML-DSA rejects NIST's case: {rejected['reason']!r}")
     SLH-DSA signature reproduced; ML-DSA key reproduced;
     ML-DSA rejects NIST's case: 'modified message'
 
+The last line quotes NIST’s own description of why that test signature
+is invalid; the library rejected it, as it must.
+
 <a id="a-share-backup-under-ml-kem"></a>
 
 ### A share backup under ML-KEM
 
 A key share from [chapter 2](02-mpc-custody.md)’s teaching DKG,
-encrypted to a recovery key with ML-KEM-768 and AES-256-GCM. A recording
-of the ciphertext stays unreadable to a future quantum computer, as long
-as ML-KEM holds. Production designs combine ML-KEM with X25519, so that
-the backup also stays safe if ML-KEM falls.
+encrypted to a recovery key with ML-KEM-768 and AES-256-GCM: the KEM
+delivers a fresh AES key, and AES-GCM encrypts the share under it
+([chapter 3](03-key-storage.md)). A recording of the ciphertext stays
+unreadable to a future quantum computer, as long as ML-KEM holds.
+Production designs combine ML-KEM with X25519, an elliptic-curve key
+exchange, so that the backup also stays safe if ML-KEM falls.
 
 ``` python
 import os
@@ -578,6 +733,10 @@ print(f"backup: {len(kem_ciphertext)} + {len(n12)} + {len(sealed)} bytes; share 
 ```
 
     backup: 1088 + 12 + 48 bytes; share restored
+
+The printed sizes are the three parts of the backup: the 1,088-byte
+encapsulation, the 12-byte nonce, and the 32-byte share with its 16-byte
+tag.
 
 <a id="the-hybrid-authorisation"></a>
 
@@ -621,23 +780,54 @@ print(f"authority key {len(authority.public_bytes())} bytes; token {len(token.to
 
 ## How this shows up in production
 
-- **Standards.** NIST published FIPS 203 (ML-KEM), FIPS 204 (ML-DSA) and
-  FIPS 205 (SLH-DSA) in August 2024. SP 800-208 covers the stateful XMSS
-  and LMS.
-- **Libraries.** OpenSSL now ships ML-KEM, ML-DSA and SLH-DSA;
-  `cryptography` 50 exposes the first two on this host, and RustCrypto
-  publishes pure-Rust crates for all three (**verify current** for audit
-  status).
-- **Key exchange first.** Major browsers and TLS stacks already
-  negotiate hybrid X25519 + ML-KEM key exchange, because recorded
-  traffic is the exposure that exists today (**verify current**).
-- **HSMs.** Vendor support for ML-DSA and ML-KEM inside HSMs depends on
-  firmware version and certification status (**verify current**). A
-  custodian’s approval devices set the pace for hybrid approvals.
-- **Bitcoin.** BIP 360 and BIP 361 are proposals; activation needs
-  community consensus and has no date. Coins whose public keys are
-  already on chain, including every Taproot key-path output, cannot be
-  protected by a later change unless their owners move them first.
+**Standards.** NIST published FIPS 203 (ML-KEM), FIPS 204 (ML-DSA) and
+FIPS 205 (SLH-DSA) in August 2024. SP 800-208 covers the stateful XMSS
+and LMS.
+
+**Libraries.** OpenSSL now ships ML-KEM, ML-DSA and SLH-DSA;
+`cryptography` 50 exposes the first two on this host, and RustCrypto
+publishes pure-Rust crates for all three (**verify current** for audit
+status).
+
+**Key exchange first.** Major browsers and TLS stacks already negotiate
+hybrid X25519 + ML-KEM key exchange, because recorded traffic is the
+exposure that exists today (**verify current**).
+
+**HSMs.** Vendor support for ML-DSA and ML-KEM inside HSMs depends on
+firmware version and certification status (**verify current**). A
+custodian’s approval devices set the pace for hybrid approvals.
+
+**Bitcoin.** BIP 360 and BIP 361 are proposals; activation needs
+community consensus and has no date. Coins whose public keys are already
+on chain, including every Taproot key-path output, cannot be protected
+by a later change unless their owners move them first.
+
+<a id="recap"></a>
+
+## Recap
+
+1.  A large quantum computer running Shor’s algorithm breaks every
+    discrete-logarithm and factoring scheme in this manual; Grover’s
+    algorithm only halves the strength of hashes and symmetric keys.
+2.  Signatures fail on the day the computer arrives; encryption fails
+    retroactively, so recorded ciphertext is exposed today.
+3.  A hash function alone gives one-time signatures (Lamport); hash
+    chains with a checksum sign several bits per secret (Winternitz); a
+    Merkle tree turns many one-time keys into one long-term key (XMSS),
+    and a hypertree removes the need to track used leaves (SLH-DSA).
+4.  Lattice schemes rest on learning with errors: equations with small
+    errors hide a secret. ML-KEM encapsulates keys; ML-DSA signs with
+    Fiat-Shamir with aborts.
+5.  Post-quantum signatures are much larger than BIP340’s and hard to
+    produce with a threshold: ML-DSA’s rejection test needs the combined
+    value, and SLH-DSA has no algebra to split.
+6.  A custodian should migrate backups first, then the internal
+    signatures it controls, and settlements when the chain allows. The
+    demo already signs its authorisations with Ed25519 and ML-DSA-65
+    together.
+
+[Chapter 8](08-industry.md) places the custody system in the financial
+industry and its regulation.
 
 <a id="exercises"></a>
 

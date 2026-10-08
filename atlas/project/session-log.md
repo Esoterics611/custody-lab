@@ -108,6 +108,20 @@ glossary and atlas link to are kept where the content stays.
 - Glossary: two rows added (Assets and liabilities, Statement); Proof of reserves re-pointed from
   the removed "Intuition" section.
 
+**Chapter 7, Post-quantum cryptography.**
+- Changed: "What this chapter is for" explains what a quantum computer is and keeps the two clocks
+  (signatures fail on the day, encryption retroactively). "What a quantum computer breaks" separates
+  Shor (broken) from Grover (weakened) before its table. A new by-hand example with two chains of
+  length 4 shows the Winternitz advance attack and the checksum that stops it, before the FIPS 205
+  WOTS+ cell. LWE is explained in school terms (elimination, and why errors defeat it). The migration
+  order is argued from the two clocks. Each cell's output is described. A duration claim for a
+  future quantum computer ("hours or days") was replaced by how the work scales, which is what the
+  sources support.
+- Verified: renders to 21 pages (from 18), exit 0; no page ends on a heading; the backup sizes
+  (1,088 + 12 + 48 bytes) and both half-forged token refusals in the text match the rendered output.
+- Glossary: two rows added (Quantum computer, Checksum); Harvest now decrypt later and Shor's
+  algorithm re-pointed from the removed "Intuition" section.
+
 ## 2026-10-08: Open-source licence, links between chapters, the manual on GitHub, README
 
 **Changed.**
