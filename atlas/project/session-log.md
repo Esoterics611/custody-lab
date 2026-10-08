@@ -122,6 +122,20 @@ glossary and atlas link to are kept where the content stays.
 - Glossary: two rows added (Quantum computer, Checksum); Harvest now decrypt later and Shor's
   algorithm re-pointed from the removed "Intuition" section.
 
+**Chapter 8, Industry and regulation.**
+- Changed: "What this chapter is for" states the chapter's central idea (ownership moving from a
+  register to keys) and where the demo connects. A new first-principles section, "Registers and
+  tokens". Jargon is explained where it appears: money market fund, margin, repo, layer 2, transfer
+  agent, primary dealers, ERC-20 and ERC-1155, omnibus address. The DvP cell's two trades are
+  explained before it runs. The regulatory statements (the MiCA Article 75 table, the US rules, the
+  SOC definitions) and every dated fact are kept as they were, not reworded; the new paragraphs
+  around them say what each points to for a key-holding system, framed as the chapter's reading.
+- Verified: renders to 17 pages (from 14), exit 0; no page ends on a heading; the DvP balances, the
+  two legs and the fee walkthrough's equal assets and liabilities in the text match the rendered
+  output. One sentence that carried no fact was cut before rendering.
+- Glossary: six rows added (Register, Margin, Repo, Layer 2, Omnibus address, Transfer agent);
+  Token and Tokenisation re-pointed from the removed "Intuition" section.
+
 ## 2026-10-08: Open-source licence, links between chapters, the manual on GitHub, README
 
 **Changed.**
