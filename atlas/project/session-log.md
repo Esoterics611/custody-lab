@@ -96,6 +96,18 @@ glossary and atlas link to are kept where the content stays.
 - Glossary: four rows added (Off-exchange settlement, Pre-funding, Input and output, SegWit); one
   atlas link re-pointed from the removed "Intuition" section.
 
+**Chapter 6, Proof of reserves.**
+- Changed: "What this chapter is for" replaces the intuition section. "Hash trees" builds a
+  four-item tree and an inclusion proof in a cell before sums are introduced; "Adding sums" walks
+  beta-fund's proof by hand next to the figure. The total-only attack, salts and proof of control
+  each open with the problem they address. Pedersen commitments are explained (why hiding, why
+  binding, why they add), and why hidden values need range proofs. Each cell's output is described.
+- Verified: renders to 16 pages (from 13), exit 0, running the whole demo during the build; no page
+  ends on a heading. The demo printed all nine steps done, liabilities and assets 4.1499969 BTC and
+  a reserve ratio of 1.00000, as the text states.
+- Glossary: two rows added (Assets and liabilities, Statement); Proof of reserves re-pointed from
+  the removed "Intuition" section.
+
 ## 2026-10-08: Open-source licence, links between chapters, the manual on GitHub, README
 
 **Changed.**
