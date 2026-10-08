@@ -24,6 +24,13 @@ interface Holder {
 
 const PENDING: StepState = { status: 'pending', detail: {} }
 
+const NO_SHARES: Record<Status, string> = {
+  pending: 'Key generation has not run.',
+  running: 'Key generation is running.',
+  failed: 'Key generation failed.',
+  done: 'Key generation reported no signers.',
+}
+
 async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
   const reader = body.getReader()
   const decoder = new TextDecoder()
@@ -132,7 +139,7 @@ function Signers({ keys, sign }: { keys?: StepState; sign?: StepState }) {
     <section className="signers">
       <h2>Key shares</h2>
       {holders.length === 0 ? (
-        <p className="muted">Key generation has not run.</p>
+        <p className="muted">{NO_SHARES[keys?.status ?? 'pending']}</p>
       ) : (
         <ul>
           {holders.map(({ share, pid }) => {

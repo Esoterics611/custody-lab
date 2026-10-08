@@ -21,6 +21,7 @@ client coins only and assets equal liabilities after every batch (MiCA Article 7
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 from collections.abc import Callable
@@ -52,7 +53,7 @@ STEPS = {
     "fund": "Fund the custody address",
     "trade": "FIX 5.0 SP2 trading session with the exchange",
     "net": "Net the settlement cycle into one instruction",
-    "policy": "Policy engine: default deny, quorum, whitelist, velocity",
+    "policy": "Build the transaction and apply the policy",
     "sign": "Threshold signature from 2 of 3 signer processes",
     "broadcast": "Broadcast and confirm on chain",
     "reserves": "Proof-of-reserves snapshot with proof of control",
@@ -71,6 +72,7 @@ ORDERS = [
     Order("C4", "BTC-USD", "sell", Decimal("0.25"), Decimal("64020")),
 ]
 SIGNERS = [1, 3]
+FEE_CAP_SATS = 10_000  # the most network fee a settlement may pay
 RUNS = Path("var/demo")
 
 
@@ -158,7 +160,13 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
             funding = sum(LEDGER.values(), Decimal(0))
             fund_txid = exchange.call("sendtoaddress", address, str(funding))
             rpc.call("generatetoaddress", 1, mine_to)
-            report("fund", "done", txid=fund_txid, amount=funding, ledger=LEDGER)
+            report(
+                "fund",
+                "done",
+                txid=fund_txid,
+                amount=f"{funding} BTC",
+                ledger={client: f"{balance} BTC" for client, balance in LEDGER.items()},
+            )
 
             report("trade", "running")
             fills, transcript = trade(ORDERS)
@@ -182,8 +190,8 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 "net",
                 "done",
                 fills=position.fills,
-                base=position.base,
-                quote=position.quote,
+                client_delivers=f"{-position.base} {position.base_asset}",
+                client_receives=f"{position.quote:,} {position.quote_asset}",
                 instruction={"asset": ins.asset, "amount": ins.amount, "to": ins.destination},
             )
 
@@ -193,7 +201,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
             change = bitcoin.p2tr_script(output_key)
             utxos = chain.custody_utxos(rpc, output_key)
             stx = transfer.build(utxos, amount, destination, change)
-            transfer.check_matches(stx, amount, destination, change, max_fee=10_000)
+            transfer.check_matches(stx, amount, destination, change, max_fee=FEE_CAP_SATS)
             first = [Approval.create(ins, "bob", approvers["bob"])]
             try:
                 engine.authorise(ins, first, stx.sighash())
@@ -205,12 +213,23 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
             report(
                 "policy",
                 "done",
+                matches_instruction=True,  # check_matches raises otherwise
+                fee=f"{stx.fee} sats",
+                fee_cap=f"{FEE_CAP_SATS:,} sats",
+                sighash=stx.sighash().hex(),
                 initiator=ins.initiator,
+                policy_checks=[
+                    "asset",
+                    "amount",
+                    "tier",
+                    "whitelist",
+                    "velocity",
+                    "not authorised before",
+                    "approvals",
+                ],
                 with_one_approval=f"{pending.status.value}: {pending.reason}",
                 approved_by=["bob", "carol"],
                 authorisation_id=token.authorisation_id,
-                sighash=stx.sighash().hex(),
-                checks=["asset", "amount", "tier quorum", "whitelist", "velocity", "fee cap"],
             )
 
             report("sign", "running", signers=SIGNERS)
@@ -229,7 +248,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 txid=txid,
                 block=block_hash,
                 confirmations=confirmations,
-                fee_sats=stx.fee,
+                fee=f"{stx.fee} sats",
             )
 
             report("reserves", "running")
@@ -259,14 +278,14 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
             report(
                 "reserves",
                 "done",
-                liabilities=snapshot.liabilities,
-                assets=snapshot.assets,
+                liabilities=f"{snapshot.liabilities} BTC",
+                assets=f"{snapshot.assets} BTC",
                 reserve_ratio=snapshot.reserve_ratio,
                 root=snapshot.liabilities_root,
                 inclusion_proofs_verify=proofs_ok,
                 proof_of_control=True,
                 audit_head=snapshot.audit_head,
-                snapshot=str(path),
+                snapshot=os.path.relpath(path),  # no home directory on screen
             )
             del custodian_key  # reserved for signing published snapshots in a later module
     except Exception as exc:
