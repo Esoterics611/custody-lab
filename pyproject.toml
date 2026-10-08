@@ -6,7 +6,7 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 authors = [
-    { name = "Ronnie Rendel", email = "192616319+Esoterics611@users.noreply.github.com" }
+    { name = "Esoterics611", email = "192616319+Esoterics611@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
