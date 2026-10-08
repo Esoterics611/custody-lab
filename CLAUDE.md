@@ -163,7 +163,7 @@ host lacks.
 | # | Module | Code | Chapter | Atlas |
 |---|--------|------|---------|-------|
 | 0 | Toolchain | done | n/a | n/a |
-| 1 | Foundations | done: `ec`, `hashing`, `ecdsa`, `schnorr`, `shamir`; tests pass | draft with first-principles section; renders (20 pages) | 6 entries, draft |
+| 1 | Foundations | done: `ec`, `hashing`, `ecdsa`, `schnorr`, `shamir`; tests pass | rewritten to the writing standard; renders (27 pages) | 6 entries, draft |
 | 2 | MPC custody | done: `paillier`, `lindell17`, `frost`, `dkg` (teaching); `cluster` + `rust/custody-frost` (demo signing path); tests pass | draft with first-principles section; renders (22 pages) | 8 entries, draft |
 | 3 | Key storage (chapter only) | n/a; model cells for key wrapping (RFC 3394 vector), attestation, sealing, side channels, key release | draft with first-principles section; renders (16 pages) | 3 entries, draft |
 | 4 | Policy and authorisation | done: `model`, `audit`, `authorisation`, `engine`; signers enforce authorisations; tests pass | draft; renders (12 pages) | 5 entries, draft |

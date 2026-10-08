@@ -2,6 +2,30 @@
 
 Newest first.
 
+## 2026-10-08: Chapters rewritten to the writing standard
+
+The owner asked for the rest of the rewrite after chapter 0 (2026-10-08). Each chapter keeps its
+verified facts, cells and citations; what changes is the explanation around them. Headings that the
+glossary and atlas link to are kept where the content stays.
+
+**Chapter 1, Foundations.**
+- Changed: "What this chapter is for" replaces the learning objectives and the intuition section,
+  whose terms came before their explanations. New first-principles sections: why multiplication on
+  a clock is not one-way (the key recovered by one division, in a cell); hash functions, with what
+  each of the three attacks would break, moved ahead of the Fiat-Shamir transform that uses them;
+  a toy Schnorr signature with a real SHA-256 challenge, worked by hand ($e = 18$, $s = 12$) with
+  the altered message rejected. The Lagrange weights are derived on the clock from chapter 0's
+  1.5 and $-0.5$. The x-only and low-S rules, previously stated without reason, are explained in
+  the formal treatment from the cycle's mirror. ECDSA verification is derived. A Recap closes the
+  chapter.
+- Verified: renders to 27 pages (from 20), exit 0; no page ends on a heading; no printed line over
+  80 characters; the two new table pages were rasterised and inspected. Every point quoted on the
+  walk was computed: the draft gave $5G = (29, 12)$, which is $25G$; it is $(12, 12)$, now asserted
+  in a cell. The BIP340 vector count (19) was read from the test's CSV.
+- Glossary: five rows added (Elliptic curve, Point addition, Prover, Verifier, Tagged hash); four
+  re-pointed to the sections that now teach them. One atlas link re-pointed from the removed
+  "Intuition" section.
+
 ## 2026-10-08: Open-source licence, links between chapters, the manual on GitHub, README
 
 **Changed.**
