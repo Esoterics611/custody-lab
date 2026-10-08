@@ -125,7 +125,9 @@ uv run custody-lab serve     # then open http://127.0.0.1:8000 and press "Run th
 
 **Expect:** nine numbered steps that turn from pending to running to done as the events arrive,
 and a key-shares panel listing signers 1, 2 and 3 with their process ids, two of them marked as
-having signed.
+having signed. [The demo walkthrough](manual/demo-walkthrough.md) takes one run through the
+dashboard step by step: what each value on the screen means, and how to check the run's files
+afterwards.
 
 Linting, type checking and the manual:
 
