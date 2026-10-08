@@ -41,13 +41,18 @@ Newest first.
 - The built wheel carries `License-Expression: MIT OR Apache-2.0` and both licence files;
   `cargo metadata` reads the licence for both crates.
 - `mypy` (strict) and `ruff` are clean on the filter.
+- After the push, GitHub's rendered HTML (`gh api .../contents/<file>`, `Accept:
+  application/vnd.github.html`): chapter 0 has 71 formulas marked up for maths display, its
+  figure, 34 relative chapter links and its heading anchors; the README and chapter 1 show their
+  warning boxes. GitHub's licence detection reports Apache-2.0 only, reading one of the two files.
 
 **Found (observed).** Two atlas entries cited headings by shortened names that no longer
 matched: `mpc/cggmp.md` ("Production ECDSA libraries") and `settlement/bitcoin-regtest-taproot.md`
 ("What a key-path signature signs"). Both now name and link the full headings.
 
 **Open.**
-- How GitHub renders the pages (maths, anchors, alerts) is checked after the push.
+- Whether every formula displays correctly on GitHub needs a look in a browser; the HTML only
+  shows that GitHub marks each one up for its maths display.
 - `pyproject.toml` still names the owner as author, while the licence and history use
   Esoterics611.
 - Each chapter rewrite changes headings, so the glossary and atlas links need re-pointing with it.
