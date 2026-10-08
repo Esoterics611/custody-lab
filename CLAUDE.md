@@ -10,9 +10,6 @@ An institutional digital-asset custody demo and learning lab. It has two outputs
 2. A manual (one PDF per module) plus the `atlas/` knowledge base, together teaching every concept
    the demo uses.
 
-The reader is a senior backend/QA engineer with 20+ years in fintech (FIX gateways, a wholesale/retail
-CBDC for the Bank of Israel), new to applied cryptography.
-
 **Depth target: training, initial exposure, and a showcase.** Choose breadth and a working demo
 over protocol depth. State results and cite proofs; do not reproduce them. When a topic starts
 pulling toward research depth, stop and cut it to a chapter paragraph.
