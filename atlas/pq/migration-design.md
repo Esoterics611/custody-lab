@@ -12,7 +12,7 @@ post-quantum or hybrid schemes: by exposure first, and by who controls the chang
 **In the demo.** Authorisation tokens are hybrid Ed25519 + ML-DSA-65. Approvals, proof of control
 and settlements are still classical.
 
-**In the manual.** Chapter 7, "Migration design", Exercise 5.
+**In the manual.** [Chapter 7](../../manual/chapters/07-post-quantum.md), "[Migration design](../../manual/chapters/07-post-quantum.md#migration-design)", Exercise 5.
 
 **Sources.** NIST IR 8547 initial public draft (2024) (**verify current**); BIP 360
 (Pay-to-Merkle-Root) and BIP 361 (**verify current**).

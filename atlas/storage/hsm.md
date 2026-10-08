@@ -15,8 +15,8 @@ operator authentication). Most expose the OASIS PKCS#11 interface.
 **In the demo.** No HSM. Chapter 3's worked example places the policy authority key and the share
 backups' recovery key in HSMs, and the key-wrapping cell reproduces RFC 3394's test vector.
 
-**In the manual.** Chapter 3, "Key wrapping", "Tamper response and certification levels",
-"Hardware security modules".
+**In the manual.** [Chapter 3](../../manual/chapters/03-key-storage.md), "[Key wrapping](../../manual/chapters/03-key-storage.md#key-wrapping)", "[Tamper response and certification levels](../../manual/chapters/03-key-storage.md#tamper-response-and-certification-levels)",
+"[Hardware security modules](../../manual/chapters/03-key-storage.md#hardware-security-modules)".
 
 **Sources.** NIST FIPS 140-3 (2019), ISO/IEC 19790:2012; RFC 3394 and NIST SP 800-38F; OASIS
 PKCS #11 Specification Version 3.2 (2026, **verify current**); NIST SP 800-186 (secp256k1 allowed

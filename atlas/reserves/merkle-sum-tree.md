@@ -14,8 +14,8 @@ so the root commits to every balance and to total liabilities.
 **In the demo.** `src/custody_lab/reserves/merkle_sum.py` (`MerkleSumTree`, `leaf`, `parent`).
 Tests: `tests/reserves/test_merkle_sum.py`, including the total-only attack.
 
-**In the manual.** Chapter 6, "Adding sums", "What each parent must commit to", the worked
-example and "The attack on a total-only tree".
+**In the manual.** [Chapter 6](../../manual/chapters/06-reserves.md), "[Adding sums](../../manual/chapters/06-reserves.md#adding-sums)", "[What each parent must commit to](../../manual/chapters/06-reserves.md#what-each-parent-must-commit-to)", the worked
+example and "[The attack on a total-only tree](../../manual/chapters/06-reserves.md#the-attack-on-a-total-only-tree)".
 
 **Sources.** K. Hu, Z. Zhang, K. Guo, *Computers & Security*, 2019 (IACR ePrint 2018/1139);
 K. Chalkias, P. Chatzigiannis, Y. Ji, IACR ePrint 2022/043.

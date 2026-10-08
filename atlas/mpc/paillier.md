@@ -14,7 +14,7 @@ with the public key alone.
 **In the demo.** Teaching code: `src/custody_lab/mpc/paillier.py` (`generate_keypair`,
 `PublicKey.add`, `PublicKey.mul`), tested in `tests/mpc/test_paillier.py`.
 
-**In the manual.** Chapter 2, "Paillier encryption".
+**In the manual.** [Chapter 2](../../manual/chapters/02-mpc-custody.md), "[Paillier encryption](../../manual/chapters/02-mpc-custody.md#paillier-encryption)".
 
 **Sources.** P. Paillier, "Public-Key Cryptosystems Based on Composite Degree Residuosity
 Classes", EUROCRYPT 1999.

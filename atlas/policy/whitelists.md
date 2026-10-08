@@ -12,6 +12,6 @@ other address is denied regardless of approvals.
 **In the demo.** `src/custody_lab/policy/engine.py` (`AssetPolicy.whitelist`, check 4). Whitelist
 governance is not implemented.
 
-**In the manual.** Chapter 4, worked example row 9; Exercise 5.
+**In the manual.** [Chapter 4](../../manual/chapters/04-policy.md), worked example row 9; Exercise 5.
 
 **Sources.** Vendor policy documentation for address allow-lists (**verify current** per vendor).

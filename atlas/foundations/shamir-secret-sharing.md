@@ -15,6 +15,6 @@ shares are consistent with every possible secret.
 `lagrange_coefficient`, `reconstruct`). `lagrange_coefficient` is reused by the educational FROST in
 Module 2.
 
-**In the manual.** Chapter 1, "Shamir secret sharing", the 2-of-3 worked example, Exercise 5.
+**In the manual.** [Chapter 1](../../manual/chapters/01-foundations.md), "[Shamir secret sharing](../../manual/chapters/01-foundations.md#shamir-secret-sharing)", the 2-of-3 worked example, Exercise 5.
 
 **Sources.** A. Shamir, "How to Share a Secret", *CACM* 22(11), 1979; SatoshiLabs SLIP-0039.

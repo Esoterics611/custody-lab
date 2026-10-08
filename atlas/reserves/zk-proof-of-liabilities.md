@@ -11,7 +11,7 @@ still verify inclusion, but no sibling sum or total is revealed.
 
 **In the demo.** Not implemented (chapter section only, per the build plan).
 
-**In the manual.** Chapter 6, "Zero-knowledge proofs of liabilities".
+**In the manual.** [Chapter 6](../../manual/chapters/06-reserves.md), "[Zero-knowledge proofs of liabilities](../../manual/chapters/06-reserves.md#zero-knowledge-proofs-of-liabilities)".
 
 **Sources.** G. G. Dagher et al., "Provisions", ACM CCS 2015; Y. Ji, K. Chalkias, "Generalized
 Proof of Liabilities" (DAPOL+), ACM CCS 2021; Rust implementation `dapol` (**verify current**).

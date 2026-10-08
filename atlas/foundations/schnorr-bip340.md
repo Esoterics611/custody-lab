@@ -20,7 +20,7 @@ EdDSA (Ed25519) is Schnorr on an Edwards curve with a fully deterministic nonce.
 `verify`), checked against all 19 BIP 340 test vectors. The demo signs with `frost-secp256k1-tr`
 (Module 2).
 
-**In the manual.** Chapter 1, "Schnorr and BIP340", "EdDSA", "Linearity: a naive two-party Schnorr
-signature".
+**In the manual.** [Chapter 1](../../manual/chapters/01-foundations.md), "[Schnorr and BIP340](../../manual/chapters/01-foundations.md#schnorr-and-bip340)", "[EdDSA](../../manual/chapters/01-foundations.md#eddsa)", "[Linearity: a naive two-party Schnorr
+signature](../../manual/chapters/01-foundations.md#linearity-a-naive-two-party-schnorr-signature)".
 
 **Sources.** BIP 340; BIP 341; RFC 8032.

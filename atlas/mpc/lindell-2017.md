@@ -16,7 +16,7 @@ output is standard ECDSA.
 `src/custody_lab/mpc/lindell17.py` (`Party1`, `Party2`). Signatures verify with `cryptography`
 in `tests/mpc/test_lindell17.py`. Not on the demo's signing path.
 
-**In the manual.** Chapter 2, "Two-party ECDSA (Lindell 2017)", Exercise 3.
+**In the manual.** [Chapter 2](../../manual/chapters/02-mpc-custody.md), "[Two-party ECDSA (Lindell 2017)](../../manual/chapters/02-mpc-custody.md#two-party-ecdsa-lindell-2017)", Exercise 3.
 
 **Sources.** Y. Lindell, CRYPTO 2017 and *Journal of Cryptology* 34 (2021); cb-mpc
 `docs/theory/ecdsa-2pc-theory.pdf`.

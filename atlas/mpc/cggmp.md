@@ -14,6 +14,6 @@ generates safe primes.
 listing. The crate's README reports a Kudelski audit; it lacks key refresh and identifiable abort
 (**verify current**).
 
-**In the manual.** Chapter 2, "CGGMP" and "Production ECDSA libraries".
+**In the manual.** [Chapter 2](../../manual/chapters/02-mpc-custody.md), "[CGGMP](../../manual/chapters/02-mpc-custody.md#cggmp)" and "[Production ECDSA libraries (listings, not executed)](../../manual/chapters/02-mpc-custody.md#production-ecdsa-libraries-listings-not-executed)".
 
 **Sources.** IACR ePrint 2021/060; `github.com/LFDT-Lockness/cggmp21`.

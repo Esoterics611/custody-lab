@@ -1,4 +1,5 @@
-# Shared PDF settings for every chapter. A chapter's front matter carries only title and date.
+# Shared settings for every chapter: the PDF and the GitHub Markdown. A chapter's front matter carries
+# only title and date.
 project:
   type: default
 
@@ -24,6 +25,16 @@ format:
         \ifdefined\Highlighting
           \RecustomVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,commandchars=\\\{\}}
         \fi
+
+  # GitHub Markdown beside each source (manual/chapters/NN-slug.md), so the manual reads and links
+  # on GitHub. Figures are PNG files in NN-slug_files/.
+  gfm:
+    fig-format: png
+    fig-dpi: 150
+
+# Chapter links, "chapter N" auto-links, previous/next lines and heading anchors: see links.py.
+filters:
+  - links.py
 
 jupyter: python3
 

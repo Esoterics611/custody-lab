@@ -10,6 +10,6 @@ Merkle trees for proof of reserves (Module 6) and the hash-chained audit log (Mo
 
 **In the demo.** `src/custody_lab/foundations/hashing.py` (`sha256`, `tagged_hash`).
 
-**In the manual.** Chapter 1, "Hash functions".
+**In the manual.** [Chapter 1](../../manual/chapters/01-foundations.md), "[Hash functions](../../manual/chapters/01-foundations.md#hash-functions)".
 
 **Sources.** BIP 340, "Tagged Hashes"; NIST FIPS 180-4 (SHA-2).

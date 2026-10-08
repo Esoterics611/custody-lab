@@ -14,6 +14,6 @@ public key, 1,088-byte ciphertext.
 host. Key generation from seeds is checked against NIST ACVP vectors in
 `tests/pq/test_pq_vectors.py`. Chapter 7 encrypts a DKG share backup with it and AES-256-GCM.
 
-**In the manual.** Chapter 7, "ML-KEM (FIPS 203)", "A share backup under ML-KEM".
+**In the manual.** [Chapter 7](../../manual/chapters/07-post-quantum.md), "[ML-KEM (FIPS 203)](../../manual/chapters/07-post-quantum.md#ml-kem-fips-203)", "[A share backup under ML-KEM](../../manual/chapters/07-post-quantum.md#a-share-backup-under-ml-kem)".
 
 **Sources.** NIST FIPS 203 (2024); NIST ACVP-Server `ML-KEM-keyGen-FIPS203`.

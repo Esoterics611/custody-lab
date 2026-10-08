@@ -14,7 +14,7 @@ administrative quorum, or split with on-chain multisignature where the chain sup
 **In the demo.** Not implemented. The demo's post-quantum signature (ML-DSA-65 in the
 authorisation token) is held by the policy engine alone.
 
-**In the manual.** Chapter 7, "Threshold post-quantum signatures", Exercise 6.
+**In the manual.** [Chapter 7](../../manual/chapters/07-post-quantum.md), "[Threshold post-quantum signatures](../../manual/chapters/07-post-quantum.md#threshold-post-quantum-signatures)", Exercise 6.
 
 **Sources.** del Pino et al., "Threshold Raccoon", EUROCRYPT 2024 (ePrint 2024/184); Trilithium
 (ePrint 2025/675); Quorus (ePrint 2025/1163) (**verify current**).

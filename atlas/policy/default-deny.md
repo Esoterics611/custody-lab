@@ -11,6 +11,6 @@ a new asset nobody wrote a rule for, is an open door that no later control can c
 the first failure decides). Tested in `tests/policy/test_policy_engine.py`, including a
 Hypothesis test that every unknown asset is denied.
 
-**In the manual.** Chapter 4, "The decision function".
+**In the manual.** [Chapter 4](../../manual/chapters/04-policy.md), "[The decision function](../../manual/chapters/04-policy.md#the-decision-function)".
 
 **Sources.** NIST SP 800-53 Rev. 5, AC-3 (access enforcement) and SC-7(5) (deny by default).

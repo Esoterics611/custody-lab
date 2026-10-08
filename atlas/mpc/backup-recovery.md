@@ -15,6 +15,6 @@
 **In the demo.** Not implemented. cb-mpc provides PVE (`docs/spec/publicly-verifiable-encryption-spec.pdf`).
 ZF FROST provides `keys::repairable::repair_share_part1` to `part3` (observed in the crate source).
 
-**In the manual.** Chapter 2, "Backup, recovery and repair".
+**In the manual.** [Chapter 2](../../manual/chapters/02-mpc-custody.md), "[Backup, recovery and repair](../../manual/chapters/02-mpc-custody.md#backup-recovery-and-repair)".
 
 **Sources.** cb-mpc README, "Key Management Responsibilities"; ZF FROST crate documentation.

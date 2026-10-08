@@ -1,0 +1,584 @@
+# Module 8: Industry and Regulation
+
+2026-09-27
+
+Previous: [Chapter 7, Post-Quantum Cryptography](07-post-quantum.md) \|
+[All chapters](../README.md) \| Next: [Chapter 9,
+Capstone](09-capstone.md)
+
+> [!WARNING]
+>
+> ### EDUCATIONAL, NOT PRODUCTION
+>
+> This chapter describes markets and law as of 27 September 2026, and
+> both change quickly. Every fact that can change is marked **verify
+> current**. Each is labelled **observed** (read in a primary source:
+> the regulation, a central bank or company publication) or **reported**
+> (read in a secondary source: press, law-firm summaries). The
+> delivery-versus-payment cell is a model, not a settlement system.
+> Nothing here is legal advice.
+
+<a id="learning-objectives"></a>
+
+## Learning objectives
+
+- Distinguish tokenised deposits, stablecoins, tokenised money market
+  funds and central bank digital currency by issuer and by what the
+  holder owns.
+- Explain delivery versus payment and atomic settlement, and name the
+  risk they remove.
+- Describe Canton, Kinexys, Agorá and mBridge, and where custody sits in
+  each.
+- State what MiCA, the US qualified-custodian rule and a SOC 2 report
+  each require or show, and map the demo’s controls onto them.
+- Place Israel’s central bank, market infrastructure, companies and
+  researchers against the topics of this manual.
+
+<a id="intuition"></a>
+
+## Intuition
+
+A **token** is a balance on a ledger that moves when its holder’s key
+signs. Whoever controls the key controls the balance. Securities and
+banking law assume something different: a register, such as a central
+securities depository or a bank’s books, records who owns what, and
+custodians hold assets for clients inside that register.
+**Tokenisation** moves the register onto a ledger. The custodian’s job
+becomes holding keys. The regulator’s question becomes who may hold keys
+for others, and under which controls.
+
+A FIX engineer’s post-trade world treats a trade and its settlement as
+separate events. Allocation and confirmation follow the execution
+report, and a depository settles the cycle later, T+1 in US equities.
+Tokenised settlement can make trade and settlement one event: the asset
+and the cash move in one ledger transaction. The analogy breaks at
+correction. A depository can unwind an erroneous settlement under its
+rules. A public-chain transfer has no operator that can reverse it, so
+every check has to happen before the signature ([chapter
+4](04-policy.md)).
+
+<a id="first-principles"></a>
+
+## First principles
+
+This section assumes [chapter 5](05-settlement.md) (transactions and
+netting).
+
+<a id="four-forms-of-money-on-a-ledger"></a>
+
+### Four forms of money on a ledger
+
+What a token holder owns depends on the issuer, not on the ledger:
+
+| Form | Issuer | The holder owns | Example |
+|----|----|----|----|
+| **Tokenised deposit** | A commercial bank | A deposit claim on that bank, like any account balance | JPM Coin (JPMD), Kinexys |
+| **Stablecoin** | A non-bank issuer | A claim on the issuer, backed by reserves the law requires it to hold | USDC; BILS in Israel |
+| **Tokenised money market fund** | A fund manager | A fund share that pays yield | BlackRock BUIDL |
+| **Central bank digital currency** (**CBDC**) | A central bank | Central bank money: **wholesale** for banks only, **retail** for the public | Agorá (wholesale), the digital shekel design (retail) |
+
+The first two are used for payment, the third as collateral that earns a
+return, and the fourth for settlement between banks. A custodian holding
+any of them holds keys to a claim, and the claim’s strength comes from
+the issuer’s regulation, not from the cryptography.
+
+<a id="delivery-versus-payment"></a>
+
+### Delivery versus payment
+
+**Settlement risk** is the risk that one side of a trade delivers and
+the other does not. **Delivery versus payment** (**DvP**) removes it for
+securities: the asset moves if and only if the cash moves. **Payment
+versus payment** (**PvP**) applies the same rule to two currencies. The
+failure PvP prevents is **Herstatt risk**, named after a German bank
+closed in 1974 after it had received Deutsche marks from counterpart
+banks and before it paid the dollars it owed them. On one ledger, DvP
+can be **atomic**: both legs are one transaction, valid or invalid
+together.
+
+``` python
+import copy
+from decimal import Decimal
+
+
+def settle_dvp(ledger, buyer, seller, asset, qty, cash, price) -> bool:
+    """Both legs or neither: check every balance first, then apply both."""
+    legs = [(asset, seller, buyer, qty), (cash, buyer, seller, price)]
+    if any(ledger[token].get(payer, Decimal(0)) < amount for token, payer, _, amount in legs):
+        return False
+    for token, payer, payee, amount in legs:
+        ledger[token][payer] -= amount
+        ledger[token][payee] = ledger[token].get(payee, Decimal(0)) + amount
+    return True
+
+
+ledger = {"BOND": {"treasury": Decimal(100)}, "ILS": {"fund": Decimal(50_000)}}
+before = copy.deepcopy(ledger)
+assert not settle_dvp(ledger, "fund", "treasury", "BOND", Decimal(60), "ILS", Decimal(60_600))
+assert ledger == before  # the cash leg would fail, so the bond did not move either
+assert settle_dvp(ledger, "fund", "treasury", "BOND", Decimal(40), "ILS", Decimal(40_400))
+for token, balances in ledger.items():
+    print(token, {holder: str(amount) for holder, amount in balances.items()})
+```
+
+    BOND {'treasury': '60', 'fund': '40'}
+    ILS {'fund': '9600', 'treasury': '40400'}
+
+The [chapter 5](05-settlement.md) settlement is not DvP: the demo
+delivers bitcoin on chain and leaves the dollar leg unsettled. The code
+walkthrough measures that gap.
+
+<a id="settlement-finality"></a>
+
+### Settlement finality
+
+**Settlement finality** is the point after which a settlement cannot be
+unwound, as a matter of law. For a payment or securities settlement
+system designated under finality law, the system’s rules fix that point
+and protect it in insolvency. A Bitcoin confirmation ([chapter
+5](05-settlement.md)) is technical finality, and probabilistic: each
+block makes reversal costlier. It becomes legal finality only where a
+rulebook or statute says so. Permissioned ledgers define finality in
+their rules.
+
+<a id="public-and-permissioned-ledgers"></a>
+
+### Public and permissioned ledgers
+
+On a **public ledger** (Bitcoin, Ethereum, Base) anyone can run a node
+and submit transactions, and every transaction is visible to everyone.
+On a **permissioned ledger** the operators and participants are
+admitted. Institutions need permissioned features even on public
+ledgers, for two reasons: positions are confidential, and regulated
+assets may only be held by eligible investors. A tokenised fund on a
+public chain therefore usually restricts transfers to an **allowlist**
+kept by the fund’s transfer agent: [chapter 4](04-policy.md)’s
+whitelist, enforced by the asset instead of the custodian.
+
+<a id="formal-treatment"></a>
+
+## Formal treatment
+
+<a id="tokenised-funds-and-collateral"></a>
+
+### Tokenised funds and collateral
+
+- **Size.** Tokenised US Treasury products held about USD 15 billion in
+  September 2026, with BlackRock’s BUIDL and Circle’s USYC the two
+  largest (reported, rwa.xyz figures cited in the press; **verify
+  current**).
+- **Collateral is the main use.** A fund token can be posted as margin
+  and moved at any hour, while it keeps earning the fund’s yield. US
+  Commodity Futures Trading Commission (CFTC) staff guidance from 2025
+  and 2026 accepts tokenised forms of eligible collateral, including
+  Treasuries and money market fund shares, where the token gives the
+  holder the same legal and economic rights (reported; **verify
+  current**).
+- **Custody consequence.** The collateral taker, a clearing house or a
+  swap dealer, must then hold the token: hold a key itself, or use a
+  custodian. The token’s transfer restrictions mean every receiving
+  address must be on the issuer’s allowlist before the margin call, not
+  during it.
+
+<a id="institutional-ledgers-canton-and-kinexys"></a>
+
+### Institutional ledgers: Canton and Kinexys
+
+- **Canton Network.** A network of ledgers running Digital Asset’s Daml
+  smart-contract language, connected through a shared ordering service,
+  the Global Synchronizer. Its privacy model gives each party only the
+  parts of a transaction it is entitled to see (reported). The largest
+  application is Broadridge’s Distributed Ledger Repo, reported at about
+  USD 280 billion of Treasury repo a day (reported; **verify current**).
+  In December 2025 DTCC and Digital Asset announced a plan to tokenise
+  DTC-custodied US Treasuries on Canton, targeting 2026 (reported;
+  **verify current**).
+- **Kinexys.** J.P. Morgan’s blockchain business, renamed from Onyx in
+  November 2024 (reported). Kinexys Digital Payments moves deposits
+  between the bank’s institutional clients on a permissioned ledger,
+  reported at several billion US dollars a day (**verify current**). JPM
+  Coin (JPMD), a USD deposit token, is available to institutional
+  clients on Base, a public Ethereum layer 2 (reported). One bank thus
+  issues deposit money on a permissioned ledger and on a public one.
+
+<a id="wholesale-central-bank-money-agorá-and-mbridge"></a>
+
+### Wholesale central bank money: Agorá and mBridge
+
+- **Project Agorá.** The Bank for International Settlements (BIS), eight
+  central banks and more than 40 financial institutions. The central
+  banks are the Bank of England, the Federal Reserve Bank of New York,
+  the Bank of France for the Eurosystem, the Bank of Japan, the Bank of
+  Korea, the Bank of Mexico, the Swiss National Bank and, since the
+  project began with seven, the Bank of Canada. Tokenised central bank
+  reserves and tokenised commercial bank deposits share one programmable
+  platform, with each central bank’s money under its own control. The
+  report of 27 May 2026 describes a prototype that settles cross-border,
+  multi-currency payments atomically. The next phase tests real-value
+  transactions; there is no production timeline (observed, BIS press
+  release; **verify current**).
+- **mBridge.** A shared ledger on which participating central banks
+  issue wholesale CBDC for cross-border payments. It reached minimum
+  viable product in 2024, and the BIS Innovation Hub left in
+  October 2024. The remaining members are the central banks of China,
+  Hong Kong, Thailand and the UAE. The Saudi central bank, which joined
+  in 2024, has withdrawn after completing its proof of concept, and the
+  Monetary Authority of Macao joined in 2026 (reported; **verify
+  current**).
+- **Custody angle.** Wholesale CBDC is held by banks. Tokenised
+  securities settled against it are the asset leg of DvP, and their
+  custody is the key-holding problem of chapters [2](02-mpc-custody.md)
+  and [3](03-key-storage.md).
+
+<a id="regulation-in-the-eu-mica"></a>
+
+### Regulation in the EU: MiCA
+
+The Markets in Crypto-Assets Regulation, **MiCA** (Regulation (EU)
+2023/1114), licenses **crypto-asset service providers** (**CASPs**). Its
+stablecoin titles applied from 30 June 2024 and the rest from 30
+December 2024. Existing providers could continue under national regimes
+for a transition that ended at the latest on 1 July 2026 (Article 143;
+**verify current** for enforcement). Custody and administration for
+clients is a licensed service under Article 75:
+
+| Article 75 | Requirement |
+|----|----|
+| ¶1 | A client agreement, including the custody policy and the security systems used |
+| ¶2 | A register of positions per client; every movement recorded and evidenced |
+| ¶3 | A custody policy minimising the risk of loss from fraud, cyber threats or negligence |
+| ¶5 | A statement of positions at least every three months |
+| ¶6 | Procedures to return crypto-assets, or the means of access to them, promptly |
+| ¶7 | Client holdings segregated from the provider’s own, legally and operationally, and beyond the reach of the provider’s creditors in insolvency |
+| ¶8 | Liability for loss attributable to the provider, capped at the market value at the time of loss |
+| ¶9 | Sub-custody only with other authorised CASPs |
+
+The Digital Operational Resilience Act (Regulation (EU) 2022/2554),
+which applies from 17 January 2025, adds ICT risk management and
+incident reporting. An incident under ¶8 is typically an ICT incident
+under it.
+
+<a id="regulation-in-the-us"></a>
+
+### Regulation in the US
+
+- **Qualified custodian.** Under the Investment Advisers Act custody
+  rule (Rule 206(4)-2), an adviser with custody of client funds or
+  securities must keep them with a **qualified custodian**: a bank or
+  savings association, a registered broker-dealer, a futures commission
+  merchant, or certain foreign financial institutions.
+- **Recent changes** (reported; **verify current**):
+  - the SEC withdrew its 2023 “safeguarding” proposal, which would have
+    extended the rule to all client assets, crypto included, in June
+    2025;
+  - Staff Accounting Bulletin 122 rescinded SAB 121 in January 2025, so
+    custodians no longer book clients’ crypto as their own liability;
+  - on 30 September 2025 SEC staff said it would not recommend
+    enforcement against advisers that treat certain state-chartered
+    trust companies as banks for crypto custody. The conditions include
+    reviewing the trust company’s audited financial statements and its
+    SOC 1 or SOC 2 report.
+- **Stablecoins.** The GENIUS Act (July 2025) regulates payment
+  stablecoin issuers. It takes effect on the earlier of 18 January 2027
+  or 120 days after final rules; the OCC, FDIC and Treasury issued
+  proposed rules during 2026 (reported; **verify current**).
+- **Market structure.** The CLARITY Act, which would divide crypto
+  oversight between the SEC and the CFTC, passed the House in July 2025.
+  A Senate cloture vote on 15 September 2026 failed (reported; **verify
+  current**).
+
+<a id="assurance-soc-reports"></a>
+
+### Assurance: SOC reports
+
+A **SOC report** is an auditor’s report on a service organisation’s
+controls, issued under AICPA standards.
+
+- **SOC 1** covers controls relevant to clients’ financial reporting;
+  its international counterpart is ISAE 3402. Clients’ auditors rely on
+  it.
+- **SOC 2** covers the AICPA **Trust Services Criteria**. Security is
+  required; availability, processing integrity, confidentiality and
+  privacy are optional.
+- **Type I** reports on control design at one date. **Type II** also
+  tests operating effectiveness over a period, typically six to twelve
+  months.
+
+A SOC report shows that controls exist and, for Type II, that they
+operated. It does not show that client assets exist. That needs a
+financial audit or a proof of reserves ([chapter 6](06-reserves.md)).
+
+<a id="israel"></a>
+
+### Israel
+
+**Central bank and regulators.**
+
+- **Bank of Israel.** It published a preliminary design for a retail
+  digital shekel in March 2025. A launch decision is expected after the
+  plan is completed at the end of 2026 (reported; **verify current**).
+  With the BIS Innovation Hub it ran two retail CBDC experiments, both
+  concluded in 2023 (reported):
+  - **Project Sela**, with the Hong Kong Monetary Authority: the central
+    bank runs the ledger, and intermediaries called access enablers
+    connect users;
+  - **Project Icebreaker**, with Norges Bank and Sveriges Riksbank:
+    cross-border retail CBDC through a hub that splits each payment into
+    two domestic ones.
+- **Capital Market, Insurance and Savings Authority.** Licenses
+  financial asset service providers, including crypto businesses. It has
+  issued binding guidelines tightening the protection of customer funds,
+  and has approved BILS, a shekel stablecoin issued by Bits of Gold
+  (reported; **verify current**).
+- **Israel Securities Authority.** Decides whether a token is a security
+  and regulates public offerings.
+- **Project Eden** (Ministry of Finance and the Tel Aviv Stock Exchange,
+  October 2022 to May 2023). A proof of concept with VMware and
+  Fireblocks as technology providers. On 31 May 2023 twelve primary
+  dealers took part in issuing a dummy digital government bond as an
+  ERC-1155 token, settled against an ERC-20 token representing shekels
+  (reported, TASE press release). It is the DvP cell above with real
+  participants.
+
+**Companies.** Israel produced many of the MPC custody companies, and
+larger platforms bought most of them (reported; **verify current**):
+
+| Company | Work | Status |
+|----|----|----|
+| Fireblocks | MPC-CMP custody platform, shares in SGX enclaves ([chapter 3](03-key-storage.md)); technology provider to Project Eden | Independent |
+| Curv | MPC wallet infrastructure | Acquired by PayPal, 2021 |
+| Unbound Security | MPC key management; co-founded by Yehuda Lindell | Acquired by Coinbase, January 2022 |
+| GK8 | Air-gapped cold storage and MPC | Acquired by Celsius, 2021; by Galaxy Digital, 2022 |
+| Fordefi | Institutional MPC wallet | Acquired by Paxos, November 2025 |
+| Sodot | Self-hosted MPC infrastructure | Acquired by MoonPay, April 2026 |
+| StarkWare | STARK proofs; the Starknet network | Independent |
+| Bits of Gold | Licensed crypto broker; issuer of BILS | Independent |
+
+**Researchers** whose work this manual uses (affiliations **verify
+current**):
+
+| Researcher | Affiliation | Work, and where it appears |
+|----|----|----|
+| Adi Shamir | Weizmann Institute of Science | Secret sharing, 1979 ([chapter 1](01-foundations.md)) |
+| Yehuda Lindell | Bar-Ilan University; head of cryptography, Coinbase | Two-party ECDSA, 2017 ([chapter 2](02-mpc-custody.md)) |
+| Carmit Hazay | Bar-Ilan University | Efficient MPC; the Hazay–Lindell textbook on two-party protocols |
+| Nikolaos Makriyannis, Udi Peled | Fireblocks | CGGMP threshold ECDSA, with Canetti, Gennaro and Goldfeder ([chapter 2](02-mpc-custody.md)) |
+| Benny Pinkas | Bar-Ilan University | MPC and private set intersection; Aptos Labs, 2022 to 2024 |
+| Yuval Ishai | Technion | MPC-in-the-head: zero-knowledge proofs built from MPC |
+| Eli Ben-Sasson | StarkWare | STARKs and FRI; Zerocash ([chapter 6](06-reserves.md)’s zero-knowledge proofs) |
+| Yonatan Sompolinsky, Aviv Zohar | Hebrew University of Jerusalem | GHOST, the heaviest-subtree rule for proof-of-work chains ([chapter 5](05-settlement.md)’s confirmations) |
+
+<a id="worked-example"></a>
+
+## Worked example
+
+The demo against MiCA Article 75, paragraph by paragraph:
+
+| ¶ | Demo counterpart | Gap |
+|----|----|----|
+| 2 | `pipeline.LEDGER`; `events.jsonl` per run | The ledger is in memory and records balances, not every movement |
+| 3 | Default-deny policy, two quorums, threshold signing (chapters [2](02-mpc-custody.md), [4](04-policy.md)) | No written custody policy; keys in plain processes ([chapter 3](03-key-storage.md)) |
+| 5 | An inclusion proof per client ([chapter 6](06-reserves.md)) | Shows inclusion in a total, not a statement of movements |
+| 6 | The settlement path ([chapter 5](05-settlement.md)) | No client withdrawal flow |
+| 7 | One custody address holding client coins only; the network fee is charged to the client being settled | Clients share one omnibus address, so segregation between clients lives in the ledger, not on chain |
+| 8 | Hash-chained audit log ([chapter 4](04-policy.md)) | The log is the evidence for attributing an incident; it is not anchored outside the custodian |
+
+The code walkthrough shows how the demo keeps its own money out of the
+client address.
+
+<a id="code-walkthrough"></a>
+
+## Code walkthrough
+
+<a id="the-two-legs-of-the-demos-settlement"></a>
+
+### The two legs of the demo’s settlement
+
+The demo nets four fills into one obligation per asset. The bitcoin leg
+settles on regtest. The dollar leg never settles in the demo, so the
+custodian delivers 0.85 BTC with nothing on the other side of the
+ledger: settlement risk, measured.
+
+``` python
+from custody_lab.demo import pipeline
+from custody_lab.settlement.netting import net
+from custody_lab.trading.fix import trade
+
+fills, _ = trade(pipeline.ORDERS)
+position = net(fills)
+assert position.client_delivers_base and position.base == Decimal("-0.85")
+print(f"{position.base_asset} leg: {position.base} (on chain, chapter 5)")
+print(f"{position.quote_asset} leg: +{position.quote} (not settled in the demo)")
+```
+
+    BTC leg: -0.85 (on chain, chapter 5)
+    USD leg: +54415.925 (not settled in the demo)
+
+DvP would join the legs. Bitcoin has no dollar token, so the options
+are:
+
+- a cross-chain atomic swap, in which both chains release against the
+  same hash preimage;
+- a stablecoin or deposit token on a chain that can hold both legs;
+- an off-exchange settlement agent that releases both legs at the end of
+  the cycle (the ClearLoop-style model in [chapter
+  5](05-settlement.md)’s atlas entry).
+
+<a id="fees-without-house-coins"></a>
+
+### Fees without house coins
+
+A custodian that pays network fees from its own coins has to keep those
+coins somewhere. Keeping them at the client address is commingling,
+which ¶7 forbids. The demo instead charges each settlement’s fee to the
+client being settled. The custody address then holds exactly the
+clients’ coins, and assets equal liabilities after every batch.
+
+``` python
+from custody_lab.settlement import bitcoin, transfer
+
+fee = bitcoin.to_btc(transfer.estimated_vsize(1, 2) * 2)  # 310 sats, as in chapter 5
+funding = sum(pipeline.LEDGER.values(), Decimal(0))
+balances = dict(pipeline.LEDGER)
+balances[pipeline.TRADER] -= -position.base + fee
+assets = funding + position.base - fee
+assert funding == Decimal("5.00") and assets == sum(balances.values())
+print(f"custody address funded with {funding} BTC, all of it client coins")
+print(f"after settlement: assets {assets} BTC = liabilities {sum(balances.values())} BTC")
+```
+
+    custody address funded with 5.00 BTC, all of it client coins
+    after settlement: assets 4.1499969 BTC = liabilities 4.1499969 BTC
+
+[Chapter 6](06-reserves.md)’s full run reports the same figures from
+regtest, with a reserve ratio of 1.00000. A custodian that absorbs the
+fee itself needs a separate house address, spent as a second input of
+each settlement (Exercise 4).
+
+<a id="how-this-shows-up-in-production"></a>
+
+## How this shows up in production
+
+- **Consolidation.** Of the MPC custody companies founded in Israel,
+  Curv, Unbound, GK8, Fordefi and Sodot were bought by larger platforms
+  between 2021 and 2026 (reported). Custody technology is sold as a
+  component of exchanges, payment firms and stablecoin issuers.
+- **The EU licence is now required.** After 1 July 2026 a provider
+  serving EU clients without MiCA authorisation operates in breach
+  (reported; **verify current**).
+- **US rules are made case by case.** Custody guidance arrives as
+  no-action letters and staff statements while market-structure
+  legislation is stalled (reported; **verify current**).
+- **Wholesale projects stay experimental.** Agorá moves to real-value
+  testing without a production date, and mBridge’s membership is
+  changing (**verify current**).
+- **Tokenised collateral is where custody meets derivatives.** Clearing
+  houses and dealers that accept fund tokens need allowlisted addresses,
+  key custody, and valuation for margin (reported; **verify current**).
+
+<a id="exercises"></a>
+
+## Exercises
+
+1.  **Recall.** For JPMD, USDC, BUIDL and a tokenised reserve on Agorá,
+    name the issuer and what the holder owns.
+2.  **Compute.** After the DvP cell, the fund tries to buy 70 more bonds
+    for 70,700 ILS. What does `settle_dvp` return, and which leg fails?
+3.  **Explain.** Why does a tokenised fund usually refuse transfers to
+    addresses outside an allowlist, and which [chapter 4](04-policy.md)
+    control does that mirror?
+4.  **Apply.** Change the demo so that the custodian pays the network
+    fee from its own coins and still meets Article 75(7). Describe the
+    settlement transaction and the resulting reserve ratio.
+5.  **Design.** A bank asks the custodian to accept tokenised money
+    market fund shares, held on Ethereum, as collateral for a loan. What
+    must the custodian support that the demo does not?
+6.  **Classify.** For a SOC 2 Type I report, a SOC 2 Type II report, a
+    proof-of-reserves snapshot and a FIPS 140-3 certificate, say whether
+    each is evidence of control design, of controls operating, of assets
+    existing, or of a device meeting a standard.
+
+<a id="solutions"></a>
+
+## Solutions
+
+1.  JPMD: J.P. Morgan; a deposit claim on the bank. USDC: Circle; a
+    claim on the issuer, backed by reserves. BUIDL: BlackRock’s fund; a
+    fund share. Agorá reserve: a central bank; central bank money, held
+    only by banks.
+2.  It returns `False`, and nothing moves. The seller holds 60 bonds, so
+    the asset leg (70 bonds) fails; the fund holds 9,600 ILS, so the
+    cash leg fails as well.
+
+``` python
+snapshot = copy.deepcopy(ledger)
+assert not settle_dvp(ledger, "fund", "treasury", "BOND", Decimal(70), "ILS", Decimal(70_700))
+assert ledger == snapshot and ledger["BOND"]["treasury"] == 60
+assert ledger["ILS"]["fund"] == 9_600
+```
+
+3.  Fund shares may be held only by eligible investors, and the transfer
+    agent must know every holder. The allowlist enforces this in the
+    token itself. It mirrors the destination whitelist: the policy
+    engine refuses to send to unknown addresses, and the fund token
+    refuses to arrive at them.
+4.  The custodian’s coins sit at a separate house address. The
+    settlement transaction spends one input from each: 0.85 BTC to the
+    exchange, client change of 4.15 BTC back to the custody address, and
+    house change less the fee back to the house address. BIP 341’s
+    sighash commits to both inputs’ amounts, each input needs its own
+    signature, and the policy engine must authorise the house input as
+    well. The client address then holds 4.15 BTC against 4.15 BTC of
+    liabilities, a ratio of exactly 1 with round client balances; the
+    house’s solvency is a separate figure.
+5.  Among others:
+    - an Ethereum signing path: ECDSA under secp256k1 with Ethereum’s
+      transaction format, so threshold ECDSA (Lindell 2017 or CGGMP)
+      instead of FROST;
+    - allowlist status for the custody address with the fund’s transfer
+      agent before any transfer;
+    - the issuer’s powers to freeze or force-transfer tokens, recorded
+      in the custody policy;
+    - a valuation feed and haircuts for margin, and handling of the
+      fund’s yield.
+6.  SOC 2 Type I: control design. SOC 2 Type II: controls operating over
+    a period. Proof-of-reserves snapshot: assets existing and covering
+    liabilities, at one block. FIPS 140-3 certificate: a device model
+    and version meeting a standard; it says nothing about how the
+    custodian uses the device.
+
+<a id="further-reading"></a>
+
+## Further reading
+
+- Regulation (EU) 2023/1114 (MiCA): Article 75 on custody, Article 70 on
+  safekeeping, Article 143 on the transition. Regulation (EU) 2022/2554
+  (DORA).
+- SEC Rule 206(4)-2; SEC Division of Investment Management, no-action
+  letter on state trust companies as qualified custodians for crypto
+  assets (30 September 2025).
+- CPMI-IOSCO, *Principles for Financial Market Infrastructures* (2012):
+  Principle 8 (settlement finality) and Principle 12 (exchange-of-value
+  settlement systems). The standard definitions of finality and DvP.
+- BIS, *Project Agorá: A shared programmable platform for wholesale
+  cross-border payments* (May 2026); BIS Annual Economic Report 2025, on
+  the tokenised unified ledger.
+- BIS Innovation Hub, Project Sela and Project Icebreaker final reports
+  (2023), with the Bank of Israel.
+- Tel Aviv Stock Exchange and the Israeli Ministry of Finance,
+  announcement of the completed Project Eden proof of concept (June
+  2023).
+- AICPA, *2017 Trust Services Criteria for Security, Availability,
+  Processing Integrity, Confidentiality, and Privacy* (revised points of
+  focus, 2022).
+- R. Canetti, R. Gennaro, S. Goldfeder, N. Makriyannis, U. Peled, “UC
+  Non-Interactive, Proactive, Threshold ECDSA with Identifiable Aborts”,
+  ACM CCS 2020.
+- Y. Sompolinsky and A. Zohar, “Secure High-Rate Transaction Processing
+  in Bitcoin”, Financial Cryptography 2015.
+
+------------------------------------------------------------------------
+
+Previous: [Chapter 7, Post-Quantum Cryptography](07-post-quantum.md) \|
+[All chapters](../README.md) \| Next: [Chapter 9,
+Capstone](09-capstone.md)

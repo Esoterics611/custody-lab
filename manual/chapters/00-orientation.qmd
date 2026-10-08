@@ -22,7 +22,7 @@ they print are the numbers the demo uses. Later chapters return to each idea and
 mechanism.
 
 Each new term is printed in **bold** at the place where it is explained, and is also listed in
-`atlas/glossary.md` with the chapter that teaches it in full.
+[the glossary](../../atlas/glossary.md) with the chapter that teaches it in full.
 
 By the end of this chapter the following should be clear:
 
@@ -1069,5 +1069,5 @@ production system would keep it.
 9. **Chapter 9, Capstone** — the whole system as a design review: architecture, the reasoning
    behind each major choice, failure modes and trade-offs.
 
-`atlas/glossary.md` defines every term in the manual and names the section that teaches it.
-`atlas/index.md` lists one entry per concept, for lookup.
+[The glossary](../../atlas/glossary.md) defines every term in the manual and names the section that
+teaches it. [The atlas](../../atlas/index.md) has one entry per concept, for lookup.
