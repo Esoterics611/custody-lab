@@ -2,6 +2,66 @@
 
 Newest first.
 
+## 2026-10-08: Writing standard; chapter 0 rewritten as the pilot
+
+**Changed.**
+- The owner read the manual and could not follow it. Reading chapter 0, chapter 1 and the atlas
+  found five causes: terms used before they were explained (chapter 0's first table used DKG,
+  threshold signing, Merkle sum trees and sighash), one sentence where a paragraph was needed,
+  facts given without their reason, tables carrying the explanation, and glossary definitions
+  built from other undefined terms.
+- `CLAUDE.md`: a writing standard for the manual, atlas and glossary. Each concept is taught as
+  problem, plain idea with a trading-infrastructure counterpart, worked example, code, failure
+  and recap. One Accepted decision.
+- `manual/chapters/00-orientation.qmd` rewritten to the standard, from 1,861 to about 10,100 words
+  (prose, tables and code). New: Bitcoin in five ideas (ledger, keys, signatures, hash functions,
+  transactions and blocks); secret sharing as a line through points with a figure; threshold
+  signing worked by hand ($s = k + e d$ on shares 10, 13 and 16, combined to 39 by Lagrange
+  weights); nonce reuse solved as two equations; DKG as three lines summed; policy, approvals and
+  the authorisation; a compromise table for the two quorums; proof of reserves with the demo's
+  tree worked by hand; the nine steps in the pipeline's own order and names. Eleven code cells
+  compute the chapter's numbers from `custody_lab` and the `cryptography` library.
+- `manual/chapter-template.qmd`: opens with "What this chapter is for", gives the per-concept
+  order in First principles, and closes with a Recap.
+- `atlas/glossary.md`: ten terms chapter 0 now defines (Custodian, Digital signature, Ledger,
+  Node, Partial signature, Policy engine, Quorum, Secret sharing, Threshold signing, Transaction);
+  182 in total.
+
+**Verified.**
+- Chapter 0 renders to 31 pages (exit 0); no page ends on a heading (`pypdf`). Every cell's
+  printed output was read in the PDF: the threshold pairs all combine to 39, the nonce-reuse cell
+  recovers 7, netting gives 0.85 BTC and 54,415.925 USD, the fee is 155 vB x 2 = 310 satoshis, and
+  liabilities and assets after settlement are both 4.1499969 BTC. The figure and three table
+  pages were rasterised (`pymupdf`) and inspected.
+- Every bold term in chapter 0 is in the glossary, apart from paragraph labels.
+- The template renders (exit 0).
+- Facts re-derived from the code, not carried over: policy tiers and checks
+  (`policy/engine.py`), the 60-second authorisation lifetime, the four signer checks and nonce
+  burning (`mpc/cluster.py`), the leaf layout and alphabetical leaf order (`reserves/merkle_sum.py`),
+  the three-way address check (`demo/pipeline.py`, `settlement/chain.py`), and that each run
+  starts its own regtest node.
+
+**Found (observed).** Quarto (`project: type: default`) leaves links to other `.qmd` files
+unchanged in both PDF and GitHub Markdown output. A standard-library Python JSON filter, tested in
+a scratch project, rewrites them to `.pdf` and `.md`; Quarto passes it `latex` and `commonmark`
+as the format. Section links still fail in Markdown output, which drops heading ids.
+
+**Open.**
+- The owner reads chapter 0 before chapters 1 to 9, the atlas and the glossary are rewritten.
+- Links between chapters and a full README, both requested; plan pending.
+- The dashboard in a browser; ML-KEM decapsulation vectors; three Proposed decisions.
+
+### Deliverables
+
+- The manual has a written standard for explanation: every concept starts from the problem it
+  solves, is explained in plain words, and is worked through by hand before any code.
+- The orientation chapter is rewritten to that standard and now teaches Bitcoin, keys,
+  signatures, key splitting, threshold signing, approvals and proof of reserves from nothing,
+  with every number computed by code at build time.
+- The chapter shows by hand, with numbers under 100, how two of three machines produce the
+  signature of a key that none of them holds.
+- The glossary gains ten basic terms the manual previously used without defining.
+
 ## 2026-10-08: Build plan brought current; figures are matplotlib, Mermaid dropped
 
 **Changed.**

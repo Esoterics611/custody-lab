@@ -11,22 +11,31 @@ The from-scratch code in this chapter is written to be read, not deployed. The p
 counterpart is named in the code walkthrough. Delete this callout in chapters with no code.
 :::
 
-## Learning objectives
+## What this chapter is for
 
-<!-- 3 to 5 outcomes, each checked by at least one exercise. Start with a verb. -->
+<!-- Plain words, no symbols, no term the reader has not met. Open with the problem as a concrete
+case: what goes wrong for a custodian without this chapter's ideas, and which demo step depends
+on them. Close with "By the end of this chapter the following should be clear:" and 3 to 6
+outcomes, each checked by an exercise. Follow the writing standard in CLAUDE.md; chapter 0 is
+the reference example. -->
 
-- Explain ...
-- Compute ...
-- Identify ...
+By the end of this chapter the following should be clear:
 
-## Intuition
+- ...
 
-<!-- The idea in plain words and one diagram, before any notation. Where a
-trading-infrastructure analogue exists (FIX sequence numbers vs nonces, four-eyes
-approval vs quorum, clearing vs netting), state it and state where it breaks. -->
+## First principles
+
+<!-- One subsection per idea, each in this order: the problem; the idea in plain words, with a
+counterpart from trading infrastructure (FIX sequence numbers vs nonces, four-eyes approval vs
+quorum, clearing vs netting) and where it stops holding; a worked example with small numbers and
+every step written out; a cell that computes it, followed by a sentence on each printed line;
+what breaks when it is done wrong; a one-paragraph recap. Put each term in bold where it is first
+explained and add it to atlas/glossary.md. Chapter 1 assumes school algebra only. -->
+
+### The first idea
 
 ```{python}
-#| label: fig-intuition
+#| label: fig-idea
 #| echo: false
 #| fig-cap: "One sentence stating what the figure shows."
 #| fig-width: 6.5
@@ -45,13 +54,6 @@ ax.set_ylim(-0.5, 0.5)
 ax.axis("off")
 plt.show()
 ```
-
-## First principles
-
-<!-- Build every term the chapter uses from what earlier chapters taught. Chapter 1 assumes school
-algebra only. Put each term in bold where it is first defined, give each idea one toy example,
-and assert its numbers in a cell. Add every new term to atlas/glossary.md. Delete this section
-in a chapter that introduces no cryptography or chain mechanics. -->
 
 ## Formal treatment
 
@@ -92,6 +94,13 @@ version, then the real library on the same inputs, and check both with one verif
 
 <!-- Who ships this, what goes wrong in practice, operational cost. Mark every
 time-sensitive fact (company status, regulation, audit, version) with **verify current**. -->
+
+## Recap
+
+<!-- A numbered list: one or two sentences per idea, in the order taught, then one sentence naming
+the chapter that uses them next. -->
+
+1. ...
 
 ## Exercises
 

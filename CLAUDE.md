@@ -22,6 +22,39 @@ pulling toward research depth, stop and cut it to a chapter paragraph.
 First principles section before the formal treatment, with one toy example per idea asserted
 in a cell.
 
+## Writing standard for the manual and atlas
+
+The manual, the atlas and the glossary are teaching material, and they explain at length. The
+owner read the earlier, compressed versions and could not follow them (2026-10-08). The general
+rule that every line must be short governs chat replies, not these documents. Length comes from
+explanation, never from filler: no adjective in place of a fact, no hype word, no sentence that
+only introduces the next one. Mathematical depth does not grow: the depth target above still
+holds.
+
+Each concept is taught in this order:
+
+1. **The problem**: what goes wrong for a custodian without it, as a concrete case.
+2. **The idea in plain words**, without symbols. Where the reader's own work has a counterpart
+   (signed exchange API requests, FIX sessions, maker-checker, clearing and netting, a central
+   bank ledger), state it and state where it stops holding.
+3. **A worked example** with small numbers and every step written out. No "it follows",
+   "clearly" or "it can be shown".
+4. **The code**: a cell that computes the example, then a sentence on what each printed line shows.
+5. **What breaks when it is done wrong**, demonstrated in a cell where possible.
+6. **A recap**: what is now known, and which later section uses it.
+
+Rules for every chapter and entry:
+
+- No term is used before it is explained. A forward reference names the chapter and says in one
+  clause what the term is.
+- No fact without its reason. A fact the text cannot explain is cut or moved to the chapter that
+  can.
+- Tables summarise what the prose has already explained; a table never carries an explanation
+  alone.
+- A chapter opens with "What this chapter is for", in plain words, and closes with a Recap.
+
+`manual/chapters/00-orientation.qmd` is the reference example.
+
 ## Conventions (non-negotiable)
 
 - **Languages: Python, TypeScript, Rust only.** No C++, Go or other toolchains. A library in another
@@ -151,6 +184,7 @@ Newest first. **Proposed** entries await review; they become **Accepted** or are
 
 | Date | Decision | Status |
 |------|----------|--------|
+| 2026-10-08 | The manual, atlas and glossary follow the writing standard above: each concept explained at length, problem first, with a worked example; chapter 0 is the pilot | Accepted (owner) |
 | 2026-10-08 | Chapter figures are matplotlib cells, including the template's; Mermaid is not used, so headless Chrome is not a dependency | Proposed |
 | 2026-09-27 | The demo charges each settlement's network fee to the client being settled, so the custody address holds client coins only (MiCA Article 75(7)); a house address spent as a second input is the alternative, left as chapter 8's Exercise 4 | Proposed |
 | 2026-09-27 | The server streams a run's events as NDJSON in the `POST /api/runs` response, not server-sent events: `EventSource` sends only GET and reconnects on its own, so a reconnect would start another run | Accepted (owner) |
