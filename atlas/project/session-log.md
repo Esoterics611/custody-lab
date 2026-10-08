@@ -2,6 +2,83 @@
 
 Newest first.
 
+## 2026-10-09: Dashboard checked in a browser; operator walkthrough
+
+The owner asked to see the dashboard in a browser for the first time, check its nine steps and
+key-shares panel against chapter 0, fix what was wrong, and write a step-by-step walkthrough of a
+complete run for an operator.
+
+**Browser.**
+- The owner's `sudo apt install -y libnspr4 libnss3 libasound2t64` had not taken effect: `dpkg -l`
+  listed none of the three packages and `/var/log/apt/history.log` had no entry for them. sudo
+  cannot read a password from the `!` prompt, so the install was not repeated.
+- Playwright's cached headless shell (`chromium_headless_shell-1243`) ran on the three Ubuntu
+  packages unpacked with `apt-get download` and `dpkg -x` into the session's scratchpad, through
+  `LD_LIBRARY_PATH`. The driver was Playwright for Python 1.63.0 from the uv cache (its
+  `browsers.json` names headless-shell revision 1243), run with
+  `uv run --no-project --with playwright==1.63.0`; nothing was added to the project.
+
+**Checked against chapter 0.** Every number matched: height 101, 5.00 BTC funded, 4 fills and 12
+FIX messages, 0.85 BTC and 54,415.925 USD, "1 of 2 required approvals", signers 1 and 3, one
+confirmation, a 310-satoshi fee, liabilities and assets 4.1499969 BTC, reserve ratio 1. The three
+signer process ids differed from the server's. Four mismatches were found and fixed:
+- Step 6 listed "fee cap" as a policy check and left out "not authorised before". The fee cap is
+  `check_matches` in the settlement code. The step now shows the transaction check (matches
+  instruction, fee, fee cap) apart from the engine's seven checks in the engine's order, and is
+  titled as chapter 0 titles it, "Build the transaction and apply the policy". Chapter 6 prints
+  the step titles and was re-rendered; its Markdown changed in that one line.
+- Step 5 showed `base -0.85` and `quote 54415.925`; it now shows "client delivers 0.85 BTC" and
+  "client receives 54,415.925 USD". Every BTC, USD and satoshi amount in the step details carries
+  its unit.
+- The key-shares panel read "Key generation has not run" while step 2 was running; it now names
+  the step's state.
+- The snapshot path was shown under the home directory; it is now relative to the working
+  directory.
+
+**Found while writing the troubleshooting rows.** Without `bitcoind` on `PATH`, `RegtestNode` raised
+before the `try` that reports failures: the run emitted no event, the dashboard kept nine pending
+steps with no error, and no `events.jsonl` was written. The node is now created and started inside
+the `try`, so step 1 fails with the error shown. A new test reproduces the missing `bitcoind`; it
+failed on the old code and passes on the new.
+
+**Walkthrough.** `manual/demo-walkthrough.md`: starting the server, each step's problem, what
+happens, what is on the screen and where its trading-infrastructure counterpart stops holding;
+checks on the run's files afterwards; troubleshooting; a summary table; a recap. Linked from the
+README, the manual's contents page and CLAUDE.md.
+
+**Verified.**
+- `uv run pytest tests/demo`: 8 passed. `ruff check` and `mypy` (strict) clean; `oxlint` clean;
+  `npm --prefix web run build` succeeded.
+- The rebuilt dashboard was driven headless through a full run: nine steps done in 6.8 s, no
+  console messages, no horizontal page scroll at 390 px wide. Screenshots of every step, the
+  expanded FIX transcript and the failure without `bitcoind` were inspected.
+- Every command in the walkthrough's after-the-run section was run as written against a real run
+  and printed its Expect block, including the altered snapshot failing both checks. The busy-port
+  error, `{"detail":"Not Found"}` from a server started outside the repository root, and the
+  missing-`bitcoind` failure were each reproduced. `tests/test_docs_links.py` passes.
+
+**Open.**
+- The three libraries are still not installed system-wide; the scratchpad copy lasts one session.
+- At 390 px the step 4 fills table breaks words inside its cells ("se ll", "0. 4").
+- The key-shares panel does not mark the second signature, over the snapshot, in step 9.
+- The missing-`bitcoind` error points at "CLAUDE.md, Toolchain"; the README's prerequisites table
+  is the page a reader installing Bitcoin Core would use.
+- `ruff format --check` reports `src/custody_lab/mpc/cluster.py`, which this session did not touch.
+- Not checked: the Windows browser reaching the server inside WSL2.
+
+### Deliverables
+
+- The dashboard was viewed in a browser for the first time, and a full run was checked against the
+  manual's walkthrough of the demo: every figure matched.
+- The dashboard now labels every amount with its unit and lists the policy engine's checks exactly
+  as the engine runs them, with the transaction's own check shown separately.
+- A missing Bitcoin Core installation now shows as a clear failure on the first step instead of a
+  run that silently does nothing.
+- A new operator's walkthrough takes a reader through one complete run, explaining what each value
+  on the screen means and why a custodian needs it, without the mathematics.
+- The walkthrough shows how to check a run independently from its files, including a
+  proof-of-reserves snapshot whose signature stops verifying when one figure in it is changed.
+
 ## 2026-10-08: Chapters, atlas and glossary rewritten to the writing standard
 
 The owner asked for the rest of the rewrite after chapter 0 (2026-10-08). Each chapter keeps its
