@@ -14,8 +14,8 @@ chapters teach in order; the atlas is where a concept is looked up later. An ent
 
 Status: `planned` → `draft` → `reviewed`.
 
-[Glossary](glossary.md): every term the manual defines, one sentence each, with the section that
-teaches it.
+[Glossary](glossary.md): every term the manual defines, explained in two to four sentences, with
+links to the sections that teach it.
 
 ## Project
 

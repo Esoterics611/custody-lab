@@ -2,7 +2,7 @@
 
 Newest first.
 
-## 2026-10-08: Chapters rewritten to the writing standard
+## 2026-10-08: Chapters, atlas and glossary rewritten to the writing standard
 
 The owner asked for the rest of the rewrite after chapter 0 (2026-10-08). Each chapter keeps its
 verified facts, cells and citations; what changes is the explanation around them. Headings that the
@@ -150,6 +150,19 @@ glossary and atlas link to are kept where the content stays.
 
 All ten chapters now follow the writing standard. Every rewrite was rendered to both formats, and
 `tests/test_docs_links.py` passes after each.
+
+**Atlas and glossary.**
+- Changed: all 43 concept entries rewritten to one seven-part format (in one sentence, the problem,
+  the idea with the manual's worked numbers, why custody cares, in the demo, in the manual,
+  sources), replacing the bullet summaries; every file and function reference and every source is
+  kept. The regulatory statements in the MiCA, qualified-custodian and SOC entries are kept as
+  written. The FIX entry's pointer to a rules-of-engagement file in another, private repository is
+  replaced by the dialect itself. The glossary is rebuilt from a one-sentence table into an
+  alphabetical list: 216 terms, each defined in two to four sentences, with its existing links. The
+  atlas index describes the new entry format.
+- Verified: `tests/test_docs_links.py` passes after each area; the glossary generator stopped on any
+  term without a new definition and on any definition without a term (none either way); `ruff`
+  clean.
 
 ## 2026-10-08: Open-source licence, links between chapters, the manual on GitHub, README
 
