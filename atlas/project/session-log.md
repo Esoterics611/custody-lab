@@ -46,6 +46,23 @@ glossary and atlas link to are kept where the content stays.
   channel, Publicly verifiable encryption); Signing quorum and one atlas link re-pointed from the
   removed "Intuition" section.
 
+**Chapter 3, Key storage.**
+- Changed: "What this chapter is for" names the three attackers that motivate the chapter (an
+  administrator on a signing host, a backup thief, people with physical access). A new section,
+  "Symmetric encryption in brief", explains AES, authenticated encryption and its tag, key
+  derivation and key encapsulation, which the draft used without explanation; the draft also
+  assumed chapter 7 for ML-KEM. Each first-principles section opens with its problem. Hypervisor,
+  microcode, memory encryption and Nitro's PCRs are explained where they appear. The production
+  placement of each demo part is argued in prose before its table, and the release pattern's third
+  check (report data) is explained as a relay attack. A Recap closes the chapter.
+- Verified: renders to 20 pages (from 16), exit 0; no page ends on a heading; no printed line over
+  80 characters; the new section's page was rasterised and inspected. A suspected missing chapter
+  link turned out to be present (checked in the Markdown and with `pymupdf`).
+- Glossary: six rows added (Symmetric encryption, Authenticated encryption, Key derivation
+  function, Hypervisor, Microcode, Memory encryption); Enclave, HSM and TEE re-pointed from the
+  removed "Intuition" section. The bold-term check now skips code, where `2**128` had been read
+  as bold markers.
+
 ## 2026-10-08: Open-source licence, links between chapters, the manual on GitHub, README
 
 **Changed.**

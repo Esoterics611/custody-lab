@@ -1,6 +1,6 @@
 # Module 3: Key Storage
 
-2026-09-27
+2026-10-08
 
 Previous: [Chapter 2, MPC Custody](02-mpc-custody.md) \| [All
 chapters](../README.md) \| Next: [Chapter 4, Policy and
@@ -16,79 +16,93 @@ Authorisation](04-policy.md)
 > Ed25519 key. The key-wrapping cell uses `cryptography`’s AES key wrap
 > and checks it against the RFC 3394 test vector.
 
-<a id="learning-objectives"></a>
+<a id="what-this-chapter-is-for"></a>
 
-## Learning objectives
+## What this chapter is for
 
-- State, for an HSM, a TEE and an MPC cluster, where the key exists in
-  plaintext, who can make it sign, and what an outside party can verify
-  about either.
-- Wrap a key under a key-encryption key, and explain why an HSM exports
-  keys only in that form.
-- Explain remote attestation: what a measurement is, what the signed
-  report binds, and why a key release must check the report data as well
-  as the signature and the measurement.
-- Name the attacks each option does not defend against, including the
-  memory-bus interposer attacks published since 2025.
-- Place each part of the demo on the storage a production deployment
-  would use, and justify the placement.
+[Chapter 2](02-mpc-custody.md) split the custody key so that no single
+machine holds it. Each machine still holds a share, and a share is a
+secret number in some process’s memory. [Chapter 0](00-orientation.md)
+warned that in the demo all three signer processes run on one computer,
+where an administrator can read the memory of all three. This chapter
+asks the question [chapter 2](02-mpc-custody.md) left open: where should
+each share, and every other key in the system, physically live?
 
-<a id="intuition"></a>
+Three kinds of attacker motivate the question. An administrator, or
+malware with administrator rights, on a signing server can read any
+ordinary process’s memory. A thief who takes a backup tape gets whatever
+is on it. And the people who run the data centre, or the cloud provider,
+have physical access to the hardware. Different storage defends against
+different ones.
 
-## Intuition
+Three answers are in production use:
 
-Every signature in chapters [1](01-foundations.md) to
-[7](07-post-quantum.md) comes from a secret number in some process’s
-memory. [Chapter 2](02-mpc-custody.md) split that number so that no
-process holds all of it. This chapter asks where each piece lives. Three
-answers are in production use.
-
-- A **hardware security module** (**HSM**) is a separate device that
-  generates keys, keeps them and signs with them. Keys enter and leave
-  it only encrypted. Software outside asks it to sign; it never hands
-  the key over.
+- A **hardware security module** (**HSM**) is a separate,
+  tamper-resistant device that generates keys, keeps them and signs with
+  them. Keys enter and leave it only encrypted. Software outside asks it
+  to sign; it never hands the key over.
 - A **trusted execution environment** (**TEE**) is a region of an
   ordinary server’s processor and memory that the server’s own operating
-  system cannot read. The key sits in normal RAM, encrypted by the
-  processor. The protected region is an **enclave**.
+  system cannot read. The key sits in normal memory, encrypted by the
+  processor. The protected region is called an **enclave**.
 - **MPC** ([chapter 2](02-mpc-custody.md)) keeps the key in no single
   place: each machine holds a share, and a threshold of them sign
   together.
 
 Each answers a different question. An HSM answers “can this key be
-copied?” A TEE answers “can the operator of this machine read its
-memory?” MPC answers “is there one machine whose compromise is enough?”
-None answers “should this signature be made?” That is [chapter
-4](04-policy.md)’s policy engine, and each option here signs whatever an
-authenticated caller asks unless the policy check runs inside the
-protected boundary.
+copied?”. A TEE answers “can the operator of this machine read its
+memory?”. MPC answers “is there one machine whose compromise is
+enough?”. None of them answers “should this signature be made?”. That is
+[chapter 4](04-policy.md)’s policy engine, and each option here signs
+whatever an authenticated caller asks, unless the policy check runs
+inside the protected boundary.
 
 Payments engineers know the HSM as the payment HSM: PIN blocks are
 translated inside the device, and the host never sees a clear PIN. The
-analogy breaks at finality. A misused card key leads to fraud that a
-dispute process can often reverse, and the key is rotated by reissuing
-cards. A Bitcoin settlement signed by a misused key is final, and the
-custody key cannot be rotated without moving every coin it controls.
+comparison stops holding at finality. A misused card key leads to fraud
+that a dispute process can often reverse, and the key is replaced by
+reissuing cards. A Bitcoin settlement signed by a misused key is final,
+and the custody key cannot be replaced without moving every coin it
+controls to a new address.
+
+By the end of this chapter the following should be clear:
+
+- for an HSM, a TEE and an MPC cluster, where the key exists
+  unencrypted, who can make it sign, and what an outside party can
+  verify about either;
+- how a key is wrapped under another key, and why an HSM exports keys
+  only in that form;
+- how remote attestation works, and why releasing a secret to an enclave
+  must check three things in the attestation report, not two;
+- which attacks each option does not defend against, including the
+  memory-bus attacks published since 2025;
+- where each part of the demo would live in a production deployment, and
+  why.
 
 <a id="first-principles"></a>
 
 ## First principles
 
-This section assumes [chapter 1](01-foundations.md) (hashes and
-signatures) and [chapter 7](07-post-quantum.md) (ML-KEM).
+This section assumes [chapter 1](01-foundations.md)’s hashes and
+signatures. It also uses ordinary symmetric encryption, which the manual
+has not covered so far, so it starts there.
 
 <a id="three-questions-for-any-key-store"></a>
 
 ### Three questions for any key store
 
-1.  **Where does the key exist in plaintext?** In an HSM, only inside
-    the device. In a TEE, only inside the processor package; RAM holds
-    it encrypted. With MPC, nowhere: each share exists in plaintext on
-    one machine, and the key on none.
+**The idea.** Three questions separate the options, and they are worth
+asking of any key-storage product:
+
+1.  **Where does the key exist unencrypted?** In an HSM, only inside the
+    device. In a TEE, only inside the processor chip; the memory chips
+    hold it encrypted. With MPC, nowhere: each share exists unencrypted
+    on one machine, and the key on none.
 2.  **Who can make it sign?** Whoever can authenticate to the HSM’s
     interface, send requests to the enclave’s code, or reach $t$
     signers. Protecting the key’s bytes is not the same as protecting
-    its use.
+    its use: a key nobody can copy is still dangerous if anybody can ask
+    it to sign.
 3.  **What can an outsider verify?** For an HSM, a certificate that the
     device model passed a laboratory evaluation. For a TEE, a signed
     report naming the exact code that runs. For MPC, the public key and
@@ -97,18 +111,93 @@ signatures) and [chapter 7](07-post-quantum.md) (ML-KEM).
 The **trusted computing base** (**TCB**) of a key is everything that
 must behave correctly for the key to stay secret: hardware, firmware,
 operating system, application code, and the people with administrative
-access. Each option shrinks the TCB in a different direction.
+access. A smaller TCB means fewer things that can go wrong. Each option
+shrinks the TCB in a different direction: the HSM by moving the key into
+a small dedicated device, the TEE by excluding the operating system, and
+MPC by requiring several independent TCBs to fail at once.
+
+<a id="symmetric-encryption-in-brief"></a>
+
+### Symmetric encryption in brief
+
+**The problem.** Several mechanisms in this chapter (wrapping a key for
+backup, sealing a secret in an enclave, sending a share to a new signer)
+encrypt one secret under another. They all use the same three building
+blocks, none of which earlier chapters needed.
+
+**Symmetric encryption.** Chapters [1](01-foundations.md) and
+[2](02-mpc-custody.md) used key pairs, with a private and a public half.
+Symmetric encryption uses one secret key for both directions: the same
+key encrypts and decrypts. AES, the Advanced Encryption Standard, is the
+one in universal use. It is much faster than any public-key scheme,
+which is why public-key methods are normally used only to agree on or
+deliver a symmetric key, and AES then does the bulk work.
+
+**Authenticated encryption.** Plain encryption hides data but does not
+detect tampering: flip a bit of the ciphertext and decryption silently
+produces different data. Authenticated encryption adds a short check
+value, the **tag**, computed from the key and the whole ciphertext.
+Decryption recomputes it and refuses to return anything if it does not
+match. AES-GCM is the common form. It also needs a fresh 12-byte nonce
+for every encryption under one key; as with signatures, reusing it
+breaks the scheme, although the reasons differ.
+
+**Key derivation.** A **key derivation function** turns one secret into
+many independent keys, each labelled for its purpose: derive(secret,
+“backup”) and derive(secret, “seal/v1.4”) give unrelated keys, and
+neither reveals the secret or the other. HKDF (RFC 5869) is the standard
+construction, built from a hash function.
+
+**Key encapsulation.** A **key encapsulation mechanism** (**KEM**) is
+the public-key way to deliver a symmetric key. Anyone holding a public
+key can create a fresh random secret together with an encapsulation of
+it; only the holder of the matching private key can recover the secret
+from the encapsulation. Both sides then use the secret as an AES key.
+The code walkthrough uses ML-KEM, a KEM designed to resist quantum
+computers; [chapter 7](07-post-quantum.md) explains its construction.
+
+``` python
+import os
+
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+aes_key, nonce = AESGCM.generate_key(bit_length=256), os.urandom(12)
+ciphertext = AESGCM(aes_key).encrypt(nonce, b"key share 2", None)
+assert AESGCM(aes_key).decrypt(nonce, ciphertext, None) == b"key share 2"
+try:
+    tampered = bytes([ciphertext[0] ^ 1]) + ciphertext[1:]
+    AESGCM(aes_key).decrypt(nonce, tampered, None)
+    raise AssertionError("a modified ciphertext decrypted")
+except InvalidTag:
+    print(f"{len(ciphertext)} bytes: 11 of data + 16 of tag; one flipped bit is refused")
+```
+
+    27 bytes: 11 of data + 16 of tag; one flipped bit is refused
+
+The printed line shows the cost of authentication, a 16-byte tag on
+every ciphertext, and its benefit: a single flipped bit makes decryption
+fail instead of returning altered data.
+
+**Recap.** AES encrypts with one shared key; GCM adds a tag that detects
+tampering; HKDF derives labelled keys from one secret; a KEM delivers a
+fresh AES key to the holder of a private key.
 
 <a id="key-wrapping"></a>
 
 ### Key wrapping
 
-A key that must leave its device, for a backup or to move between the
-HSMs of one cluster, leaves **wrapped**: encrypted under a
-**key-encryption key** (**KEK**) that itself never leaves. AES key wrap
-(RFC 3394; NIST SP 800-38F) is the standard construction. It is
-deterministic and carries an integrity check, so a modified wrapped key
-fails to unwrap instead of unwrapping to a wrong key.
+**The problem.** A key sometimes has to leave its device: for a backup,
+or to copy it between the HSMs of one cluster so either can sign. It
+must not leave readable.
+
+**The idea.** It leaves **wrapped**: encrypted under a **key-encryption
+key** (**KEK**) that itself never leaves the device. AES key wrap (RFC
+3394; NIST SP 800-38F) is the standard construction for this. Unlike
+AES-GCM it needs no nonce, because the data it encrypts is itself a
+random key, and it carries an integrity check, so a modified wrapped key
+fails to unwrap instead of unwrapping to a wrong key. RFC 3394 publishes
+a test vector, and the cell checks the library against it:
 
 ``` python
 from cryptography.hazmat.primitives.keywrap import InvalidUnwrap, aes_key_unwrap, aes_key_wrap
@@ -129,29 +218,40 @@ except InvalidUnwrap:
 
     16-byte key wrapped into 24 bytes; a flipped bit is refused
 
-An HSM labels each key with attributes. In the PKCS#11 interface
-described below, a **sensitive** key never leaves in plaintext, and an
-**extractable** key may leave wrapped. A key generated as
-non-extractable cannot leave at all through the standard interface. Its
-backups use the vendor’s own cloning or encrypted key-blob mechanism,
-which ties the custodian to that vendor.
+The wrapped key is 8 bytes longer than the key: those 8 bytes are the
+integrity check.
+
+**Key attributes.** An HSM labels each key with attributes that control
+what may happen to it. In the PKCS#11 interface (formal treatment), a
+**sensitive** key never leaves in plaintext, and an **extractable** key
+may leave wrapped. A key generated as non-extractable cannot leave at
+all through the standard interface. Its backups then use the vendor’s
+own cloning or encrypted key-blob mechanism, which ties the custodian to
+that vendor: the backup opens only in another of that vendor’s devices.
+
+**Recap.** Keys travel only wrapped under a key that stays inside the
+device; attributes fix, at creation, whether a key may travel at all.
 
 <a id="tamper-response-and-certification-levels"></a>
 
 ### Tamper response and certification levels
 
-An HSM defends its keys physically in three ways:
+**The problem.** An HSM’s promise that keys never leave is worth
+something only if opening the device does not reveal them.
+
+**The idea.** An HSM defends its keys physically in three ways:
 
 - **tamper evidence**: seals and coatings that show the device was
   opened;
 - **tamper resistance**: an enclosure that is hard to open;
-- **tamper response**: sensors (a wire mesh, light, temperature,
-  voltage) that trigger **zeroisation**, overwriting the keys before an
-  attacker reaches them.
+- **tamper response**: sensors (a wire mesh around the electronics,
+  light, temperature, voltage) that trigger **zeroisation**, overwriting
+  the keys before an attacker reaches them.
 
-**FIPS 140-3**, the US and Canadian standard for cryptographic modules
-(aligned with ISO/IEC 19790), certifies a module at one of four
-**security levels**:
+**Certification.** A buyer cannot test these claims, so an accredited
+laboratory does, against **FIPS 140-3**, the US and Canadian standard
+for cryptographic modules (aligned with ISO/IEC 19790). It certifies a
+module at one of four **security levels**:
 
 | Level | Physical security | Operator authentication |
 |----|----|----|
@@ -162,35 +262,52 @@ An HSM defends its keys physically in three ways:
 
 A certificate covers one module version. A firmware update that adds an
 algorithm, such as BIP340 or ML-DSA, is outside the certificate until
-the new version is validated. NIST’s curve recommendations (SP 800-186)
-allow secp256k1 for blockchain-related applications only.
+the new version is validated, which can take many months. NIST’s curve
+recommendations (SP 800-186) allow secp256k1, Bitcoin’s curve, for
+blockchain-related applications only, so a custodian’s auditors may ask
+why a non-standard curve is in use; that clause is the answer.
+
+**Recap.** Physical tamper response erases keys when the device is
+opened; a FIPS 140-3 level states, for one firmware version, how much of
+that a laboratory confirmed.
 
 <a id="remote-attestation"></a>
 
 ### Remote attestation
 
-A TEE has no sealed box. Instead, the processor proves what code it
-runs.
+**The problem.** A TEE has no sealed box to certify. Its protection
+depends on the exact code running inside the enclave: a signer that
+checks the policy authorisation before signing is safe, and a patched
+signer that skips the check is not, although both run in a genuine
+enclave. Anyone about to trust an enclave, for example by sending it a
+key share, needs to know which code it runs.
+
+**The idea.** The processor proves what code it runs. The proof works
+like a signed build manifest, with the processor itself as the signer:
 
 - A **measurement** is a hash of the code and initial data loaded into
   the enclave, computed by the processor as it loads them. One changed
   byte gives a different measurement.
 - An **attestation report** is the measurement plus up to 64 bytes of
-  **report data** chosen by the code inside. It is signed by a key that
-  the processor maker certified and built into the chip: the **root of
-  trust**.
-- A **verifier** checks the signature up to the maker’s root
-  certificate, compares the measurement with the value it expects for
-  reviewed code, and reads the report data.
+  **report data** chosen by the code inside the enclave. The report is
+  signed by a key that the processor maker built into the chip and
+  certified: the **root of trust**.
+- A verifier checks the signature up to the maker’s root certificate,
+  compares the measurement with the value it expects for code it has
+  reviewed, and reads the report data.
 
 This is **remote attestation**. It differs from [chapter
 6](06-reserves.md)’s attestation, which is the custodian’s signed
-statement about reserves. Remote attestation is the hardware’s signed
-statement about software.
+statement about its reserves. Remote attestation is the hardware’s
+signed statement about software.
+
+The cell models it. An Ed25519 key stands in for the key inside the
+chip. The reviewed signer build produces a report with the expected
+measurement. A patched build that skips the authorisation check produces
+a report that is just as genuinely signed, with a different measurement.
 
 ``` python
 import hashlib
-import os
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -220,29 +337,40 @@ print(f"patched build: measurement {body[:4].hex()}..., expected {expected[:4].h
 
     patched build: measurement 254a8d67..., expected 0c083143...
 
-The signature proves genuine hardware. Only the comparison with the
-expected measurement proves the right code. A verifier that checks the
-signature alone accepts the patched signer.
+The printed line shows the patched build’s measurement next to the
+expected one. Both reports pass the signature check. So the signature
+proves genuine hardware, and only the comparison with the expected
+measurement proves the right code. A verifier that checks the signature
+alone accepts the patched signer.
+
+**Recap.** An attestation report is the chip’s signature over a hash of
+the code it loaded, plus data the code chose. Trust it only after
+checking the signature and the measurement, and, as the code walkthrough
+shows, the report data.
 
 <a id="sealing"></a>
 
 ### Sealing
 
-An enclave has no storage that the host cannot read. To keep a secret
-across restarts, it **seals** it: it encrypts the secret under a key
-that the processor derives from a device secret and the enclave’s
-identity. There are two choices of identity:
+**The problem.** An enclave has no storage of its own that the host
+cannot read: anything it writes to disk passes through the host’s
+operating system. Yet a signer must keep its share across restarts.
+
+**The idea.** The enclave **seals** the secret: it encrypts it under a
+key that the processor derives, with a key derivation function, from a
+secret built into the chip and from the enclave’s identity. Only the
+same chip, running an enclave with the same identity, can derive that
+key again. There are two choices of identity:
 
 - **seal to the measurement**: only identical code can unseal, so an
-  upgrade loses access unless the old version hands the secret over;
+  upgrade loses access unless the old version hands the secret over
+  first;
 - **seal to the signer**: any build signed by the same developer key can
   unseal, so upgrades work, and a stolen developer key unseals every
   secret.
 
 ``` python
-from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 device_secret = os.urandom(32)  # built into the chip; only the processor can read it
@@ -265,22 +393,37 @@ except InvalidTag:
 
     v1.5 cannot unseal what v1.4 sealed to its own measurement
 
-AWS Nitro Enclaves have no persistent storage and no sealing primitive.
-An enclave there fetches its secrets after every start from a key
-service that checks its attestation first. The code walkthrough builds
-that pattern.
+Version 1.5 derives a different sealing key, so authenticated decryption
+refuses the sealed share. Exercise 4 asks how to carry a share across
+such an upgrade.
+
+AWS Nitro Enclaves have no persistent storage and no sealing at all. An
+enclave there fetches its secrets after every start from a key service
+that checks its attestation first. The code walkthrough builds that
+pattern.
+
+**Recap.** Sealing encrypts a secret under a key only the same chip and
+the same enclave identity can derive; sealing to the measurement
+survives no upgrade, and sealing to the signer trusts the developer’s
+key.
 
 <a id="side-channels"></a>
 
 ### Side channels
 
-Hardware isolation stops other programs from reading protected memory.
-It does not stop an attacker from observing what the protected code
-does: how long it takes, how much power it draws, which cache lines it
-touches. A **side channel** is any such observable effect that depends
-on a secret. In the cell below, a comparison that stops at the first
-differing byte reveals how many leading bytes matched. The cell counts
-loop steps in place of timing, so the result is repeatable.
+**The problem.** Hardware isolation stops other programs from reading
+protected memory. It does not stop an attacker from observing what the
+protected code does: how long it takes, how much power it draws, which
+parts of the processor’s cache it touches.
+
+**The idea.** A **side channel** is any such observable effect that
+depends on a secret. The classic example is a comparison that stops at
+the first differing byte: the longer it runs, the more leading bytes of
+the guess were right. An attacker can then find a secret one byte at a
+time, at most 256 guesses per byte, instead of guessing the whole secret
+at once. The cell does this against a 3-byte secret. It counts loop
+steps in place of measuring time, so the result is the same on every
+run.
 
 ``` python
 secret = bytes.fromhex("5ec2e7")
@@ -307,11 +450,20 @@ print(f"recovered {found.hex()} in {tries} tries; blind search needs up to {256*
 
     recovered 5ec2e7 in 522 tries; blind search needs up to 16,777,216
 
-The defence is **constant-time** code, whose running time and memory
-accesses do not depend on secrets (`hmac.compare_digest` for
-comparisons). A Level 4 HSM must also resist physical side channels.
-Several published attacks on SGX, Foreshadow and SGAxe among them, are
-side channels in the processor itself.
+The printed line compares the attack’s cost with blind search: a few
+hundred tries against 16.7 million. For a 32-byte key the gap is 8,192
+tries against $2^{256}$.
+
+**The defence** is **constant-time** code, whose running time and memory
+accesses do not depend on secret values; Python’s `hmac.compare_digest`
+compares bytes that way. A Level 4 HSM must also resist physical side
+channels such as power measurement. Several published attacks on Intel
+SGX, Foreshadow and SGAxe among them, were side channels in the
+processor itself, which no application code could have avoided.
+
+**Recap.** Isolation hides memory, not behaviour; secret-dependent
+timing, power or cache use leak the secret piece by piece, and
+constant-time code is the defence.
 
 <a id="formal-treatment"></a>
 
@@ -321,13 +473,14 @@ side channels in the processor itself.
 
 ### Hardware security modules
 
-- **Form factors.** Network appliances, PCIe cards, and smart cards or
-  USB tokens for individual people. Cloud providers also rent
-  single-tenant HSMs as a service.
-- **Interface.** **PKCS#11** (OASIS) is the C interface most HSMs
-  expose. It covers sessions, logins by role, handles to key objects,
-  attributes such as sensitive and extractable, and named mechanisms
-  (`CKM_ECDSA`, `CKM_AES_KEY_WRAP`). Version 3.2, approved as an OASIS
+- **Form factors.** Network appliances, PCIe cards that plug into a
+  server, and smart cards or USB tokens for individual people. Cloud
+  providers also rent single-tenant HSMs as a service.
+- **Interface.** **PKCS#11** (OASIS) is the C programming interface most
+  HSMs expose. It covers sessions, logins by role, handles that refer to
+  key objects without revealing them, attributes such as sensitive and
+  extractable, and named mechanisms such as `CKM_ECDSA` for signing and
+  `CKM_AES_KEY_WRAP` for wrapping. Version 3.2, approved as an OASIS
   Standard in 2026, adds ML-KEM, ML-DSA and SLH-DSA (**verify
   current**).
 - **Key ceremony.** The HSM’s master key and the custody keys are
@@ -349,36 +502,47 @@ side channels in the processor itself.
 
 ### Trusted execution environments
 
+Three terms recur. The **hypervisor** is the software layer that runs
+virtual machines on a physical server; in a public cloud the provider
+runs it. **Microcode** is the processor’s own updatable internal
+program; security fixes to a processor usually ship as microcode
+updates. **Memory encryption** means the processor encrypts data on its
+way out to the memory chips and decrypts it on the way back, so the
+memory chips only ever hold ciphertext.
+
 - **Process enclaves: Intel SGX.** An enclave is a region of one
-  application’s address space. The processor encrypts its pages in RAM
-  and refuses access to them from any other code, including the
+  application’s address space. The processor encrypts its pages in
+  memory and refuses access to them from any other code, including the
   operating system and the hypervisor. Intel deprecated SGX on client
   processors from the 11th generation Core and continues it on Xeon
   server processors (**verify current**). Its small TCB is the appeal.
   Its record of side-channel and fault attacks is the cost: Foreshadow
   (2018), Plundervolt (2019), SGAxe (2020) and ÆPIC Leak (2022). Each
   was fixed by a microcode update, after which attestation reports the
-  old microcode as out of date.
+  old microcode as out of date, so a verifier can refuse unpatched
+  machines.
 - **Confidential virtual machines: AMD SEV-SNP, Intel TDX.** A whole
   virtual machine’s memory is encrypted and protected against the
   hypervisor. The TCB is larger, since it includes a full guest
   operating system, but ordinary software runs unmodified.
-- **AWS Nitro Enclaves.** Not a processor feature: the Nitro hypervisor
-  carves an isolated virtual machine out of an EC2 instance. The enclave
-  has no persistent storage, no interactive access and no external
-  network; it talks only to its parent instance over a local socket
-  (vsock). Its attestation document is signed through AWS’s Nitro PKI
-  and carries PCR measurements: PCR0 for the image, PCR8 for the
-  certificate that signed the image. An AWS KMS key policy can require a
-  given PCR value before it decrypts for an enclave. The root of trust
-  is AWS, not a processor maker.
+- **AWS Nitro Enclaves.** Not a processor feature: AWS’s Nitro
+  hypervisor carves an isolated virtual machine out of an EC2 instance.
+  The enclave has no persistent storage, no interactive access and no
+  external network; it talks only to its parent instance over a local
+  socket (vsock). Its attestation document is signed through AWS’s Nitro
+  certificate chain and carries measurements in numbered registers
+  called PCRs: PCR0 holds the hash of the enclave image, PCR8 that of
+  the certificate that signed the image. An AWS KMS key policy can
+  require a given PCR value before it decrypts anything for an enclave.
+  The root of trust is AWS, not a processor maker.
 - **Physical attacks on memory.** Server memory encryption leaves a gap
-  that a small circuit board between processor and memory module, an
-  **interposer**, can use. Four such attacks were published between late
-  2025 and September 2026:
-  - WireTap: server SGX on DDR4, passive;
+  that a small circuit board placed between the processor and a memory
+  module, an **interposer**, can exploit by watching or altering the
+  encrypted traffic. Four such attacks were published between late 2025
+  and September 2026:
+  - WireTap: server SGX on DDR4 memory, passive;
   - Battering RAM: SGX and SEV-SNP, active, under USD 50 in parts;
-  - TEE.fail: TDX and SEV-SNP on DDR5;
+  - TEE.fail: TDX and SEV-SNP on DDR5 memory;
   - DDRop (September 2026): TDX, SGX and SEV-SNP, about USD 159 in
     parts.
 
@@ -398,16 +562,17 @@ decision:
 - **What it protects.** Compromising fewer than $t$ machines, their
   administrators included, reveals nothing. That holds only if the
   machines are independent: different operators, clouds, operating
-  system images and software supply chains.
+  system images and software supply chains. Three signers that share an
+  administrator are one signer.
 - **What it does not protect.** $t$ compromised machines; a flaw in the
   protocol implementation ([chapter 2](02-mpc-custody.md)’s BitForge and
-  TSSHOCK); and anyone able to make $t$ machines sign, which is again
+  TSShock); and anyone able to make $t$ machines sign, which is again
   policy.
 - **Each share is itself a key to store.** A share can sit in plain
   memory, in a TEE or behind an HSM. MPC multiplies the storage problem
   by $n$ and lowers what each copy must guarantee.
 - **Agility and evidence.** A new protocol or curve is a software
-  release, with no firmware certification. There is also no
+  release, with no firmware certification to wait for. There is also no
   certification scheme for threshold protocols comparable to FIPS 140-3.
   NIST’s first call for multi-party threshold schemes (NIST IR 8214C) is
   taking submissions, with no standard yet (**verify current**).
@@ -421,8 +586,8 @@ decision:
   across several public clouds (reported; **verify current**).
   Attestation lets each signer check that its peers run reviewed code.
 - **MPC with a client-held or offline share.** One share stays with the
-  client or on an air-gapped device, so the service operator cannot sign
-  alone.
+  client or on a device that is never connected to a network, so the
+  service operator cannot sign alone.
 - **HSM with policy inside.** A programmable HSM runs the approval check
   inside its boundary, so a compromised host cannot obtain an unapproved
   signature.
@@ -433,6 +598,8 @@ decision:
 <a id="comparison"></a>
 
 ### Comparison
+
+The table gathers the chapter’s answers in one place.
 
 |  | HSM | TEE | MPC across plain servers |
 |----|----|----|----|
@@ -450,7 +617,30 @@ decision:
 
 ## Worked example
 
-Where each part of the demo would live in production:
+Where each part of the demo would live in production. Each placement
+follows from the three questions: what the part holds, who could misuse
+it, and what would detect that.
+
+- **The signers** hold shares, and the whole point of the threshold is
+  that compromising one host is not enough. They therefore go to
+  independent sites, each share protected by a TEE or an HSM so that the
+  site’s own administrators cannot read it.
+- **The coordinator** holds no secret. Compromising it can stop signing
+  but cannot produce an unapproved signature, so a plain server
+  suffices.
+- **The policy authority key** is the most powerful key in the system
+  after the shares: whoever holds it can authorise any transaction the
+  signers’ checks allow. It belongs inside an HSM or inside the signers’
+  enclaves, next to the policy code that uses it.
+- **The approver keys** belong to people, so they go on devices bound to
+  one person: smart cards, FIDO security keys or a phone’s secure
+  element.
+- **Share backups** are used only to recover from disaster, so their
+  recovery key stays offline in an HSM that only an M-of-N quorum of
+  officers can operate.
+- **The audit log** is not secret, but it must not be rewritten, so it
+  goes to append-only storage with its latest hash published elsewhere
+  ([chapter 4](04-policy.md)).
 
 | Demo part | In the demo | In production | Why |
 |----|----|----|----|
@@ -458,12 +648,12 @@ Where each part of the demo would live in production:
 | Coordinator | The pipeline’s own process | A plain server | It holds no secret; it can only deny service |
 | Policy authority key (Ed25519 and ML-DSA-65) | In memory | Inside an HSM or the signers’ enclaves, next to the policy code | Whoever holds it can authorise any transaction the signers’ checks allow |
 | Approver keys (bob, carol) | In memory | Smart cards, FIDO security keys or phone secure elements | One key per person, bound to the person |
-| Share backups ([chapter 7](07-post-quantum.md)) | Recovery key in memory | An offline HSM under an M-of-N card quorum | Used only in a recovery ceremony |
+| Share backups | Recovery key in memory | An offline HSM under an M-of-N card quorum | Used only in a recovery ceremony |
 | Audit log | Memory and a file | Append-only storage with its head anchored | Integrity matters, not secrecy |
 
 An operating-system process boundary, the demo’s stand-in for every row,
-protects nothing against root on the same host. The demo shows the shape
-of the system, not its storage.
+protects nothing against an administrator of the same host. The demo
+shows the shape of the system, not its storage.
 
 <a id="code-walkthrough"></a>
 
@@ -474,19 +664,25 @@ of the system, not its storage.
 ### Releasing a share to an attested signer
 
 This is the pattern that Nitro Enclaves and AWS KMS implement, built
-from the model above. A new signer instance starts empty.
+from the models above. A new signer instance starts with no share. It
+has to convince a key-release service that it is the reviewed signer
+build running in a genuine enclave, and the share must reach it
+encrypted so that nothing in between, including the host, can read it.
 
 1.  Inside the enclave, the signer generates an ML-KEM key pair. It puts
-    the hash of the public key in the report data and sends the report
-    and the public key to the key-release service.
-2.  The service checks the report’s signature against the maker’s root,
-    and the measurement against the reviewed build. It also checks that
+    the hash of the public key in the report data, and sends the
+    attestation report and the public key to the key-release service.
+2.  The service checks three things: the report’s signature against the
+    maker’s root, the measurement against the reviewed build, and that
     the report data is the hash of the public key it was sent.
-3.  Only then does it encapsulate to that public key and send the share,
-    encrypted.
+3.  Only then does it encapsulate a fresh AES key to that public key and
+    send the share encrypted under it.
 
-The third check in step 2 stops a relay. An attacker who obtains a
-genuine report cannot attach its own public key to it.
+The third check in step 2 stops a relay attack. An attacker who obtains
+a genuine report from a genuine enclave could otherwise send it together
+with the attacker’s own public key and receive the share. Because the
+report data commits to one public key, the report only vouches for that
+key.
 
 ``` python
 from cryptography.hazmat.primitives.asymmetric import mlkem
@@ -532,38 +728,76 @@ for case, request in {"patched build": (*patched_report, public_key),
     patched build: not the reviewed signer build
     substituted key: report does not bind this public key
 
+The genuine request receives the share; the two printed lines are the
+two refusals. The patched build fails on its measurement, and the
+relayed report with a substituted key fails on its report data.
+
 The service never sees the enclave’s private key, and the share crosses
 the network only encrypted to a key generated inside the attested
-enclave. The model leaves two things out. A real verifier also checks
-the report’s freshness (a nonce or timestamp it chose) and the
-processor’s security version, so that it refuses reports from machines
-with out-of-date microcode.
+enclave. The model leaves two checks out that a real verifier makes. It
+checks the report’s freshness, by requiring a value it chose (a nonce or
+timestamp) in the report data, so an old report cannot be replayed. And
+it checks the processor’s security version, so that it refuses reports
+from machines with out-of-date microcode.
 
 <a id="how-this-shows-up-in-production"></a>
 
 ## How this shows up in production
 
-- **FIPS 140-2 retired.** NIST moved every FIPS 140-2 certificate to the
-  historical list on 21 September 2026 (reported; **verify current**).
-  Such devices keep working, but no longer meet a procurement
-  requirement for an active validation. FIPS 140-3 is the only standard
-  in force.
-- **Cloud HSMs.** AWS CloudHSM (`hsm2m.medium`) and Azure Managed HSM
-  are validated at FIPS 140-3 Level 3, both on Marvell LiquidSecurity
-  hardware (reported; **verify current**).
-- **Custody platforms.** Fireblocks runs MPC shares in SGX enclaves
-  across clouds (reported). Its Key Link product lets a client keep its
-  keys in its own HSM or key management service instead of MPC (reported
-  by Securosys; **verify current**).
-- **TEE research pace.** The four interposer attacks listed above
-  appeared within about a year, and the vendors place physical attacks
-  of this kind outside their threat models. A design that relies on a
-  TEE against the hosting provider needs a second control: a threshold
-  across providers, or a share outside the cloud.
-- **Post-quantum in HSMs.** PKCS#11 3.2 defines ML-KEM, ML-DSA and
-  SLH-DSA mechanisms, and at least one vendor documents ML-DSA for its
-  HSMs (**verify current**). Validated firmware sets the pace for
-  [chapter 7](07-post-quantum.md)’s hybrid approvals.
+**FIPS 140-2 retired.** NIST moved every FIPS 140-2 certificate to the
+historical list on 21 September 2026 (reported; **verify current**).
+Such devices keep working, but no longer meet a procurement requirement
+for an active validation. FIPS 140-3 is the only standard in force.
+
+**Cloud HSMs.** AWS CloudHSM (`hsm2m.medium`) and Azure Managed HSM are
+validated at FIPS 140-3 Level 3, both on Marvell LiquidSecurity hardware
+(reported; **verify current**).
+
+**Custody platforms.** Fireblocks runs MPC shares in SGX enclaves across
+clouds (reported). Its Key Link product lets a client keep its keys in
+its own HSM or key management service instead of MPC (reported by
+Securosys; **verify current**).
+
+**TEE research pace.** The four interposer attacks listed above appeared
+within about a year, and the vendors place physical attacks of this kind
+outside their threat models. A design that relies on a TEE against the
+hosting provider needs a second control: a threshold across providers,
+or a share outside the cloud.
+
+**Post-quantum in HSMs.** PKCS#11 3.2 defines ML-KEM, ML-DSA and SLH-DSA
+mechanisms, and at least one vendor documents ML-DSA for its HSMs
+(**verify current**). Validated firmware sets the pace for [chapter
+7](07-post-quantum.md)’s hybrid approvals.
+
+<a id="recap"></a>
+
+## Recap
+
+1.  A share is still a key, and it lives somewhere. Three options exist:
+    an HSM keeps it inside a tamper-resistant device, a TEE keeps it
+    inside the processor away from the operating system, and MPC keeps
+    the whole key nowhere.
+2.  Ask any key store three questions: where the key exists unencrypted,
+    who can make it sign, and what an outsider can verify. Protecting
+    the key’s bytes does not protect its use.
+3.  Keys leave an HSM only wrapped under a key that never leaves;
+    sealing does the same job for an enclave, tied to the enclave’s
+    identity.
+4.  FIPS 140-3 certifies one firmware version of a module at one of four
+    levels; a new algorithm waits for revalidation.
+5.  Remote attestation is the chip’s signature over the hash of the code
+    it runs. Before trusting an enclave, check the signature, the
+    measurement and the report data.
+6.  Side channels leak secrets through timing, power or cache use, and
+    isolation does not stop them. Interposer attacks put physical
+    attackers outside the TEE vendors’ threat models.
+7.  In production, each signer goes to an independent site with its
+    share in a TEE or behind an HSM, and the policy authority key goes
+    next to the policy code.
+
+[Chapter 4](04-policy.md) builds the policy engine whose authorisation
+every signer checks, the control that answers “should this be signed?”,
+which no storage option answers.
 
 <a id="exercises"></a>
 
@@ -593,7 +827,7 @@ with out-of-date microcode.
 
 ## Solutions
 
-1.  Inside the HSM; inside the processor package, with RAM holding it
+1.  Inside the HSM; inside the processor package, with memory holding it
     encrypted; nowhere, since each share is on one machine and the key
     is never assembled.
 2.  At most 256 tries per byte, so $16 \cdot 256 = 4096$, against up to
@@ -642,6 +876,8 @@ assert 16 * 256 == 4096 and 2**128 > 10**38
   Module Validation Program search for current certificates.
 - RFC 3394, “Advanced Encryption Standard (AES) Key Wrap Algorithm”
   (2002); NIST SP 800-38F (2012). The key-wrapping cell’s source.
+- RFC 5869, “HMAC-based Extract-and-Expand Key Derivation Function
+  (HKDF)” (2010). The key derivation the sealing cell uses.
 - OASIS, “PKCS \#11 Specification Version 3.2” (2026). The HSM
   interface, including post-quantum mechanisms.
 - NIST SP 800-186 (2023). Which curves NIST recommends, and the
