@@ -1,6 +1,6 @@
 # Module 2: MPC Custody
 
-2026-10-08
+2026-10-09
 
 Previous: [Chapter 1, Foundations](01-foundations.md) \| [All
 chapters](../README.md) \| Next: [Chapter 3, Key
@@ -980,8 +980,17 @@ signature does not verify.
 `SigningCluster` starts one operating-system process per share and runs
 the crate’s DKG and two-round signing across them. The coordinator, here
 the process building this chapter, relays packages and never holds a
-share. The signature is checked with [chapter 1](01-foundations.md)’s
-educational BIP340 verifier, an implementation independent of the crate.
+share. The DKG sub-shares, which only their recipient may see, travel
+over private channels: each signer seals them to the recipient with a
+key agreed by X25519 and ChaCha20-Poly1305 encryption
+(`custody_lab.mpc.channel`), so the coordinator relays ciphertext it
+cannot open. The signers’ channel public keys pass through the
+coordinator when the processes start; a coordinator that substituted its
+own at that moment could read every sub-share, which is why production
+systems provision these keys out of band ([chapter
+3](03-key-storage.md)). The signature is checked with [chapter
+1](01-foundations.md)’s educational BIP340 verifier, an implementation
+independent of the crate.
 
 Each signer releases a signature share only against an authorisation
 signed by the policy authority, covering exactly the message in the
@@ -1013,11 +1022,11 @@ assert schnorr.verify(sighash, x_only_key, signature)
 print("BIP340 signature from shares 1 and 3 verifies; key", x_only_key.hex()[:16], "...")
 ```
 
-    coordinator pid: 724396
-      share 1 held by pid 724441
-      share 2 held by pid 724442
-      share 3 held by pid 724443
-    BIP340 signature from shares 1 and 3 verifies; key 9e0d8f52c384b072 ...
+    coordinator pid: 836843
+      share 1 held by pid 836889
+      share 2 held by pid 836890
+      share 3 held by pid 836891
+    BIP340 signature from shares 1 and 3 verifies; key 0a70300549fb0d1a ...
 
 The printed process identifiers show four different processes: the
 coordinator and one per share. The last line shows that signers 1 and 3

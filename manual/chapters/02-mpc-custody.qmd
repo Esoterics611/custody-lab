@@ -782,7 +782,12 @@ print("old + new share signs:", frost.verify(group_key, b"m", mixed))
 
 `SigningCluster` starts one operating-system process per share and runs the crate's DKG and
 two-round signing across them. The coordinator, here the process building this chapter, relays
-packages and never holds a share. The signature is checked with chapter 1's educational BIP340
+packages and never holds a share. The DKG sub-shares, which only their recipient may see, travel
+over private channels: each signer seals them to the recipient with a key agreed by X25519 and
+ChaCha20-Poly1305 encryption (`custody_lab.mpc.channel`), so the coordinator relays ciphertext it
+cannot open. The signers' channel public keys pass through the coordinator when the processes
+start; a coordinator that substituted its own at that moment could read every sub-share, which is
+why production systems provision these keys out of band (chapter 3). The signature is checked with chapter 1's educational BIP340
 verifier, an implementation independent of the crate.
 
 Each signer releases a signature share only against an authorisation signed by the policy
