@@ -241,12 +241,21 @@ contained: a payment under the one-approval tier (0.1 BTC) needs only one key.
 **5.5 Approving what one cannot see.** *Attack:* approvers sign an instruction built by a system
 they trust; compromise that system, and they approve the attacker's payment. This is blind
 signing, and it is how the Bybit and Bitget losses passed genuine approvals (chapter 10).
-*Stopped by:* in the design, each approver's own device decoding the destination and amount and
-checking the destination against registered addresses. *Status:* open: the demo's approvers sign
-the instruction's digest as built.
+*Stopped by:* each approver's own device decoding the destination and checking it against its
+own copy of the client's registered addresses. *Status:* refused, demonstrated (Red team, step 5:
+devices that check refuse); open in the settlement run and the day, whose devices sign blind.
 
 **5.6 Approvers colluding.** *Stopped by:* the whitelist and the velocity limit: two dishonest
 approvers can only pay registered addresses, within the day's limit. *Status:* contained.
+
+**5.7 A destination that belongs to another client.** *Attack:* the whitelist holds every
+client's registered address in one set, so an instruction that sends gamma-treasury's withdrawal
+to alpha-capital's registered address passes it. Found while building the red team. *Stopped by:*
+binding each destination to its client: the checking approver devices refuse "the destination is
+alpha-capital's registered address, not gamma-treasury's". *Status:* refused, demonstrated (Red
+team, steps 4 and 5). Reconciliation does not catch it: the books and the chain both fall by the
+same amount, so they still agree, and only the destination check sees that the coins went to the
+wrong client.
 
 ### 6. The transaction
 
@@ -277,8 +286,10 @@ refused, demonstrated (the day: delta-trading's deposit is replaced and credited
 
 **7.2 A deposit taken back after it confirms.** *Attack:* on the public network, a block can be
 replaced by a longer competing branch, a chain reorganisation, and a confirmed deposit with it.
-*Stopped by:* waiting for more confirmations, more for larger amounts. *Status:* open in the demo,
-which credits at one confirmation on a chain it controls.
+*Stopped by:* waiting for more confirmations, more for larger amounts. *Status:* refused,
+demonstrated (Red team, steps 2 and 3: credited at one confirmation, the deposit is reorganised away
+and the books owe 0.50 BTC they do not hold; at three, nothing is credited). The day still credits
+at one confirmation on a chain it controls.
 
 **7.3 A look-alike address.** *Attack:* plant an address that starts and ends like a client's in
 its history, so that someone copies it (address poisoning). *Stopped by:* withdrawals go only to
@@ -380,11 +391,11 @@ This table summarises the statuses above.
 
 | Status | Vectors |
 |--------|---------|
-| Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 5.1, 5.2, 5.3, 6.2, 7.1, 9.1, 9.2, 9.3, 9.7, 10.1 |
+| Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 5.1, 5.2, 5.3, 5.5, 5.7, 6.2, 7.1, 7.2, 9.1, 9.2, 9.3, 9.7, 10.1 |
 | Refused, tested or by construction | 1.2, 1.3, 2.2, 2.3, 3.4, 6.1, 6.3, 7.3, 9.4, 12.2 |
 | Contained | 1.8, 2.5, 2.6, 3.3, 4.7, 5.4, 5.6, 10.2, 11.1 |
-| Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.4 (signer clock), 4.5, 4.9, 7.2, 7.4, 8.1, 12.1, 13.1 |
-| Open | 4.8, 5.5, 8.2, 9.5, 9.6, 10.3, 14.1 |
+| Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.4 (signer clock), 4.5, 4.9, 7.4, 8.1, 12.1, 13.1 |
+| Open | 4.8, 8.2, 9.5, 9.6, 10.3, 14.1 |
 
 ## Future demos
 
@@ -400,17 +411,13 @@ Each open vector can be shown as an attack that succeeds, then a defence that st
    record refuses it.
 5. **Register an attacker's address** (4.8): an unprotected whitelist change, then registration as
    an approved instruction with a delay.
-6. **Spoof the instruction** (5.5): a compromised instruction builder fools approvers who sign
-   blind; an approver device that decodes against registered addresses refuses.
-7. **Reorganise the chain** (7.2): on regtest, invalidate the block holding a credited deposit and
-   double-spend it; a confirmation threshold refuses to credit too early.
-8. **Inject a fill** (8.1): a false execution report in an unauthenticated session changes the
+6. **Inject a fill** (8.1): a false execution report in an unauthenticated session changes the
    settlement; reconciliation against the exchange's statement catches it.
-9. **Borrow for the snapshot** (9.6): a custodian borrows coins for one snapshot; an unannounced
-    second snapshot shows the gap.
-10. **Leave a client out** (9.5): the omitted client asks for its proof and finds none.
-11. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
-    until the next snapshot.
+7. **Borrow for the snapshot** (9.6): a custodian borrows coins for one snapshot; an unannounced
+   second snapshot shows the gap.
+8. **Leave a client out** (9.5): the omitted client asks for its proof and finds none.
+9. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
+   until the next snapshot.
 
 ## Recap
 

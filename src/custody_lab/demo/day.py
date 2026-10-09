@@ -169,6 +169,29 @@ def _replace_with_payment_to_self(rpc: BitcoinRPC, wallet: BitcoinRPC, txid: str
     return replacement
 
 
+def books(
+    rpc: BitcoinRPC, output_key: bytes, ledger: dict[str, Decimal], origins: dict[str, str]
+) -> dict[str, Any]:
+    """The ledger, the coins at the custody address, and whether their totals agree."""
+    coins = chain.custody_utxos(rpc, output_key)
+    held = sum(c.amount for c in coins)
+    owed = sum(bitcoin.to_sats(b) for b in ledger.values())
+    return {
+        "ledger": {c: show_btc(bitcoin.to_sats(b)) for c, b in ledger.items()},
+        "coins": [
+            {
+                "coin": f"{c.txid}:{c.vout}",
+                "amount": show_btc(c.amount),
+                "origin": origins.get(f"{c.txid}:{c.vout}", "unknown"),
+            }
+            for c in sorted(coins, key=lambda c: -c.amount)
+        ],
+        "owed": show_btc(owed),
+        "held": show_btc(held),
+        "reconciled": owed == held,
+    }
+
+
 def run(emit: Emit, workdir: Path) -> dict[str, Any]:
     """Run the day in ``workdir``; return the end-of-day summary."""
     events: list[Event] = []
@@ -238,26 +261,6 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
             if chain.script_pubkey(rpc, address) != custody_script:
                 raise RuntimeError("Python and Bitcoin Core disagree on the custody address")
 
-            def books() -> dict[str, Any]:
-                """The ledger, the coins at the custody address, and whether they agree."""
-                coins = chain.custody_utxos(rpc, output_key)
-                held = sum(c.amount for c in coins)
-                owed = sum(bitcoin.to_sats(b) for b in ledger.values())
-                return {
-                    "ledger": {c: show_btc(bitcoin.to_sats(b)) for c, b in ledger.items()},
-                    "coins": [
-                        {
-                            "coin": f"{c.txid}:{c.vout}",
-                            "amount": show_btc(c.amount),
-                            "origin": origins.get(f"{c.txid}:{c.vout}", "unknown"),
-                        }
-                        for c in sorted(coins, key=lambda c: -c.amount)
-                    ],
-                    "owed": show_btc(owed),
-                    "held": show_btc(held),
-                    "reconciled": owed == held,
-                }
-
             report(
                 "keys",
                 "done",
@@ -265,7 +268,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 threshold="2 of 3",
                 group_key=internal.hex(),
                 address=address,
-                books=books(),
+                books=books(rpc, output_key, ledger, origins),
             )
 
             report("deposits", "running")
@@ -301,7 +304,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 deposits=deposits,
                 replacement=f"{DOUBLE_SPENDER} paid the same coins back to itself in {replacement}",
                 credit_rule="credit a deposit only once it has a confirmation",
-                books=books(),
+                books=books(rpc, output_key, ledger, origins),
             )
 
             report("trade", "running")
@@ -392,7 +395,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 "done",
                 **paid,
                 fee_charged_to="alpha-capital, the delivering client",
-                books=books(),
+                books=books(rpc, output_key, ledger, origins),
             )
 
             report("outage", "running")
@@ -424,7 +427,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                     to=f"{request.client}'s registered address",
                     tier=TIERS[len(request.approvers)],
                     **paid,
-                    books=books(),
+                    books=books(rpc, output_key, ledger, origins),
                 )
 
             report("refused", "running")
@@ -465,7 +468,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 "done",
                 requests=refusals,
                 nothing_signed="no transaction was built or signed for any of them",
-                books=books(),
+                books=books(rpc, output_key, ledger, origins),
             )
 
             report("reserves", "running", signers=AFTERNOON_SIGNERS)
@@ -507,7 +510,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 snapshot=os.path.relpath(path),
                 snapshot_document=json.loads(path.read_text()),  # as a client downloads it
                 inclusion_proofs=[published_proof(tree.proof(c)) for c in ledger],
-                books=books(),
+                books=books(rpc, output_key, ledger, origins),
             )
     except Exception as exc:
         report(current, "failed", error=f"{type(exc).__name__}: {exc}")

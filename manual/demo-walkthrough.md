@@ -13,11 +13,12 @@ The reader is assumed to know trading infrastructure: FIX sessions, signed excha
 maker-checker approval, clearing and netting. Where one of those has a counterpart in the demo,
 the walkthrough names it and says where the comparison stops holding.
 
-The dashboard has four more tabs, explained after the run. [A day at the
+The dashboard has five more tabs, explained after the run. [A day at the
 custodian](#a-day-at-the-custodian) runs a busier day: deposits, a double spend, two clients
 trading, netting across them, withdrawals and three refusals, with the books compared to the chain
 after every step. [Key ceremonies](#key-ceremonies) shows a share stolen before a refresh failing to
-combine with one stolen after it, and a lost share rebuilt. [Attacking the
+combine with one stolen after it, and a lost share rebuilt. [Red team](#red-team) runs a reorganised
+deposit and a misdirected withdrawal, each against a weak rule and then the defence. [Attacking the
 design](#attacking-the-design) tries sixteen attacks against the demo's own code and shows which
 component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each client
 recompute its own place in the published snapshot. [Taking a signer
@@ -931,6 +932,71 @@ custodian one step closer to frozen coins, and the only cure is a full move to a
 ceremonies need the signers to be online together, refresh all three of them, which is why a
 custodian schedules them like any other change, with the same approvals.
 
+## Red team
+
+**The problem.** Some weaknesses only show under attack. A rule that looks prudent, such as
+crediting a deposit once it is in a block, or keeping one list of every registered withdrawal
+address, works every day until someone exploits it. The **Red team** tab runs two such attacks on
+a private chain, each first against the weak rule, where it succeeds, and then against the
+defence, where it fails. The [attack-vector analysis](attack-vectors.md) lists them as vectors 7.2
+and 5.7. `uv run custody-lab redteam` runs the same in the terminal.
+
+Step 1 sets the scene: a chain, the 2-of-3 custody key, the policy engine and four approver
+devices, each in a process of its own (two that sign blind, two that check), and gamma-treasury's
+1.00 BTC deposit, credited at three confirmations. The **Books and chain** panel, as in the day,
+compares the ledger with the coins after every step.
+
+### A reorganised deposit
+
+**The idea in plain words.** A payment in a block is not final: a competing branch of blocks that
+grows longer than the one holding it replaces it, and the payment is undone unless the new branch
+contains it too. This is a **chain reorganisation**. Each further block on top of a payment makes
+building such a branch more expensive, which is why custodians wait for several confirmations
+before crediting a deposit, more for larger amounts. On regtest the demo builds the competing
+branch with the node's `invalidateblock` command, which stands in for a miner with enough hash
+power to do it on a public network.
+
+The counterpart is a trade-correction window: a trade can be busted within it, so cash is not
+released against it until the window has passed. The comparison stops at who sets the window: no
+one declares a Bitcoin payment final, and each custodian chooses how many blocks it waits.
+
+**Worked example.** Step 2, credited at one confirmation: mallory deposits 0.50 BTC, the block
+holding it is mined, and the custodian credits mallory 0.50 BTC. Then the block is replaced by a
+longer branch in which the same coins pay mallory back. The deposit now has 0 confirmations, and the
+books owe 1.50 BTC (gamma-treasury 1.00, mallory 0.50) against 1.00 BTC held: the panel turns red.
+Had mallory withdrawn its credit before the reorganisation, the 0.50 BTC would have been paid from
+gamma-treasury's coins. Step 3 repeats the attack against a custodian that credits at three
+confirmations: when the branch is replaced the deposit has one confirmation, nothing has been
+credited, and the books still agree.
+
+### A misdirected withdrawal
+
+**The idea in plain words.** The policy's whitelist is one list of every client's registered
+address. It answers "is this a known address?", not "is this address the client's own?". A
+compromised instruction builder can therefore send gamma-treasury's withdrawal to alpha-capital's
+registered address, and the whitelist passes it. The defence belongs to the approvers: each
+approver's device keeps its own copy of which address belongs to which client, decodes the
+destination, and refuses a payment whose destination is not the client's own.
+
+The counterpart is a payment to a beneficiary that is on the bank's approved list but belongs to a
+different customer; the defence is matching the beneficiary to the account being debited. The
+comparison stops at recall: a bank can sometimes reverse such a transfer, and a confirmed payment
+stays where it went.
+
+**Worked example.** Step 4: "gamma-treasury withdraws 0.40 BTC", with alpha-capital's registered
+address put in by the builder. The whitelist passes it, bob's and carol's blind devices approve it,
+signers 1 and 3 sign it, and 0.40 BTC of gamma-treasury's goes to alpha-capital's address.
+gamma-treasury's balance falls by 0.40 BTC and the fee, and the books still agree with the chain:
+both fell by the same amount. Reconciliation cannot see a payment that went to the wrong place.
+Step 5 sends the same request to the checking devices. Each refuses: "the destination is
+alpha-capital's registered address, not gamma-treasury's". No approval exists, so the policy
+engine has nothing to authorise and nothing is signed.
+
+**What the red team shows.** A deposit counts when it can no longer be undone at a cost an
+attacker would pay, not when it first appears in a block. And the books agreeing with the chain is
+necessary but not enough: a payment to the wrong client leaves them in agreement, and only a check
+of the destination against the client catches it.
+
 ## Taking a signer offline
 
 **The problem.** A 2-of-3 key exists so that the coins can still move when one signer cannot take
@@ -1249,6 +1315,9 @@ This table summarises what each step has already explained, as a list of what to
 11. A refresh renews every share without changing the key, so a thief must collect two shares
     within one period; it does not undo a theft of two. A lost share is rebuilt by two others
     without either revealing its own (Key ceremonies).
+12. A deposit counts once it can no longer be cheaply undone, and books that agree with the chain
+    can still hide a payment to the wrong client: only a check of the destination against the
+    client catches it (Red team).
 
 [Chapter 0](chapters/00-orientation.md) follows the same run with the arithmetic of each step,
 and the [contents page](README.md) lists the chapters that explain each mechanism in full.

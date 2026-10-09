@@ -17,6 +17,10 @@ steps.
 refresh, a share lost and repaired) the same way, with no chain; ``GET /api/ceremonies/steps``
 lists their steps.
 
+``POST /api/redteam`` plays the red team on regtest (``redteam.run``: a reorganised deposit and a
+misdirected withdrawal, each against a weak rule and then the defence) in a fresh directory under
+``var/redteam``; ``GET /api/redteam/steps`` lists its steps.
+
 ``POST /api/attacks`` runs ``attacks.run`` the same way and streams one attempt per line: each
 attack, the component that refused it and that component's reason. It needs no regtest node.
 
@@ -43,7 +47,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from custody_lab.demo import attacks, ceremonies, day, pipeline
+from custody_lab.demo import attacks, ceremonies, day, pipeline, redteam
 
 DASHBOARD = Path("web/dist")
 RECENT = 20  # recorded runs listed
@@ -154,6 +158,19 @@ def create_app(
     @app.post("/api/ceremonies")
     def ceremony() -> StreamingResponse:
         return _stream("key ceremonies", ceremonies.run)
+
+    @app.get("/api/redteam/steps")
+    def redteam_steps() -> dict[str, str]:
+        return redteam.STEPS
+
+    @app.post("/api/redteam")
+    def red_team() -> StreamingResponse:
+        workdir = pipeline.new_workdir(redteam.RUNS)
+
+        def work(emit: pipeline.Emit) -> None:
+            redteam.run(emit, workdir)
+
+        return _stream(f"red team in {workdir}", work)
 
     @app.post("/api/attacks")
     def attack() -> StreamingResponse:

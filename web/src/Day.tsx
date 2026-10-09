@@ -1,16 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Text } from './fields'
+import { BooksPanel } from './Books'
 import { Step } from './steps'
-import { PENDING, merge, post, type DemoEvent, type StepState } from './stream'
-
-// The custodian's books after a step: see books() in src/custody_lab/demo/day.py.
-interface Books {
-  ledger: Record<string, string>
-  coins: { coin: string; amount: string; origin: string }[]
-  owed: string
-  held: string
-  reconciled: boolean
-}
+import { PENDING, lastTwoBooks, merge, post, type DemoEvent, type StepState } from './stream'
 
 // One row of the day's transaction log, gathered from the steps' details.
 interface Entry {
@@ -22,15 +13,6 @@ interface Entry {
 }
 
 type Row = Record<string, string>
-
-/** The books after the latest step that reported them, and after the one before, to mark changes. */
-function lastTwoBooks(
-  steps: [string, string][],
-  state: Record<string, StepState>,
-): [Books | null, Books | null] {
-  const all = steps.flatMap(([id]) => (state[id]?.detail.books as Books | undefined) ?? [])
-  return [all.at(-1) ?? null, all.at(-2) ?? null]
-}
 
 function entries(state: Record<string, StepState>): Entry[] {
   const log: Entry[] = []
@@ -77,59 +59,6 @@ function entries(state: Record<string, StepState>): Entry[] {
     })
   }
   return log
-}
-
-function BooksPanel({ books, before }: { books: Books | null; before: Books | null }) {
-  if (!books) {
-    return (
-      <section className="card books">
-        <h2>Books and chain</h2>
-        <p className="muted">
-          The custodian's ledger and the coins at the custody address appear here once the
-          custody key exists, and are compared after every step.
-        </p>
-      </section>
-    )
-  }
-  return (
-    <section className="card books">
-      <h2>Books and chain</h2>
-      <p className={`reconcile ${books.reconciled ? 'ok' : 'bad'}`}>
-        Ledger {books.owed} {books.reconciled ? '=' : '≠'} coins {books.held}
-      </p>
-      <h3>Ledger: what the custodian owes</h3>
-      <table className="ledger">
-        <tbody>
-          {Object.entries(books.ledger).map(([client, balance]) => (
-            <tr key={client} className={before?.ledger[client] !== balance ? 'changed' : ''}>
-              <td>{client}</td>
-              <td>{balance}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <h3>Chain: coins at the custody address</h3>
-      {books.coins.length === 0 ? (
-        <p className="muted">none yet</p>
-      ) : (
-        <ul className="coins">
-          {books.coins.map((c) => {
-            const [txid, vout] = c.coin.split(':')
-            const seen = before?.coins.some((b) => b.coin === c.coin)
-            return (
-              <li key={c.coin} className={seen ? '' : 'new'}>
-                <strong>{c.amount}</strong>
-                <span className="muted">{c.origin}</span>
-                <span className="muted">
-                  output {vout} of <Text text={txid} />
-                </span>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-    </section>
-  )
 }
 
 function Log({ log }: { log: Entry[] }) {

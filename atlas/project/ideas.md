@@ -29,6 +29,10 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
 - **Private channels and a split server** (2026-10-09), both from the attack-vector analysis.
   Key-generation sub-shares are sealed signer to signer; the policy engine and each approver run in
   processes of their own, so the coordinator holds none of their keys.
+- **Red team** (2026-10-09). A deposit reorganised away after one confirmation leaves the books 0.50
+  BTC short, and nothing is credited under a three-confirmation rule; a withdrawal sent to another
+  client's registered address passes blind approver devices and is refused by checking ones (a new
+  vector, 5.7: the global whitelist does not bind a destination to its client).
 
 ## Next
 
@@ -53,11 +57,6 @@ in `manual/attack-vectors.md`.
   60 seconds; a persisted record refuses it.
 - **Register an attacker's address** (4.8). An unprotected whitelist change, then registration as
   an approved instruction with a delay before first payment.
-- **Spoof the instruction** (5.5; chapter 10's Bitget case). A compromised instruction builder fools
-  approvers who sign blind; an approver device that decodes the destination against registered
-  addresses refuses.
-- **Reorganise the chain** (7.2). On regtest, invalidate the block holding a credited deposit and
-  double-spend it; a confirmation threshold by amount refuses to credit too early.
 - **Inject a fill** (8.1). A false execution report in the unauthenticated FIX session changes the
   settlement; reconciliation against the exchange's statement catches it.
 - **Borrow for the snapshot** (9.6). Coins borrowed for one snapshot; an unannounced second snapshot
