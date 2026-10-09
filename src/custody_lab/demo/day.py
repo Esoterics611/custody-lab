@@ -429,7 +429,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
 
             report("refused", "running")
             fee_estimate = bitcoin.to_btc(bitcoin.estimated_vsize(1, 2) * 2)
-            refusals = []
+            refusals: dict[str, dict[str, str]] = {}  # request -> its refusal
             for request in REFUSED:
                 owed = ledger[request.client]
                 destination = (
@@ -453,16 +453,13 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                         raise RuntimeError(f"{request.instruction_id} was authorised")
                     except PolicyDenied as denied:
                         by, reason = "the policy engine", str(denied)
-                refusals.append(
-                    {
-                        "client": request.client,
-                        "amount": show_btc(bitcoin.to_sats(request.amount)),
-                        "refused_by": by,
-                        "reason": reason,
-                        "to": f"{request.to} address",
-                        "request": request.instruction_id,
-                    }
-                )
+                refusals[request.instruction_id] = {
+                    "client": request.client,
+                    "amount": show_btc(bitcoin.to_sats(request.amount)),
+                    "to": f"{request.to} address",
+                    "refused_by": by,
+                    "reason": reason,
+                }
             report(
                 "refused",
                 "done",

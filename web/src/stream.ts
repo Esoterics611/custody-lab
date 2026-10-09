@@ -20,6 +20,25 @@ export interface StepState {
   ended?: number // at_ms of the done or failed event
 }
 
+export const PENDING: StepState = { status: 'pending', detail: {} }
+
+/** Fold one streamed event into the steps' state: details merge, durations come from at_ms. */
+export function merge(
+  previous: Record<string, StepState>,
+  event: DemoEvent,
+): Record<string, StepState> {
+  const before = previous[event.step]
+  return {
+    ...previous,
+    [event.step]: {
+      status: event.status,
+      detail: { ...before?.detail, ...event.detail },
+      started: before?.started ?? event.at_ms,
+      ended: event.status === 'running' ? undefined : event.at_ms,
+    },
+  }
+}
+
 async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
   const reader = body.getReader()
   const decoder = new TextDecoder()

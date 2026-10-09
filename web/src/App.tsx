@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import { Attacks } from './Attacks'
 import { BalanceCheck } from './BalanceCheck'
-import { Fields, Text } from './fields'
+import { Day } from './Day'
+import { Text } from './fields'
 import { Flow } from './Flow'
 import { Signers } from './Signers'
-import { post, type DemoEvent, type StepState } from './stream'
+import { Step } from './steps'
+import { PENDING, merge, post, type DemoEvent, type StepState } from './stream'
 
-const PENDING: StepState = { status: 'pending', detail: {} }
 const LONGEST_PAUSE_MS = 700 // a replay shortens longer gaps, such as bitcoind starting
 
 // One entry of GET /api/runs.
@@ -18,33 +19,24 @@ interface Recorded {
 }
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-const TABS = { run: 'Settlement run', attacks: 'Attack the design', check: "Check a client's balance" }
+const TABS = {
+  run: 'Settlement run',
+  day: 'A day at the custodian',
+  attacks: 'Attack the design',
+  check: "Check a client's balance",
+}
 type Tab = keyof typeof TABS
 
-function duration(state: StepState): string | null {
-  if (state.started === undefined || state.ended === undefined) return null
-  const ms = state.ended - state.started
-  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`
-}
-
-function Step(props: { n: number; title: string; state: StepState; onCheck: () => void }) {
-  const { n, title, state, onCheck } = props
-  const { inclusion_proofs: proofs, ...detail } = state.detail
+function RunStep(props: { n: number; title: string; state: StepState; onCheck: () => void }) {
+  const { inclusion_proofs: proofs } = props.state.detail
   return (
-    <li className={`step ${state.status}`}>
-      <div className="step-head">
-        <span className="n">{n}</span>
-        <h2>{title}</h2>
-        {duration(state) && <span className="time">{duration(state)}</span>}
-        <span className="status">{state.status}</span>
-      </div>
-      {Object.keys(detail).length > 0 && <Fields detail={detail} />}
+    <Step {...props} hidden={['inclusion_proofs']}>
       {Array.isArray(proofs) && (
-        <button type="button" className="link" onClick={onCheck}>
+        <button type="button" className="link" onClick={props.onCheck}>
           {proofs.length} inclusion proofs published: check one in this browser
         </button>
       )}
-    </li>
+    </Step>
   )
 }
 
@@ -101,18 +93,7 @@ export default function App() {
   }
 
   function apply(event: DemoEvent) {
-    setState((previous) => {
-      const before = previous[event.step]
-      return {
-        ...previous,
-        [event.step]: {
-          status: event.status,
-          detail: { ...before?.detail, ...event.detail },
-          started: before?.started ?? event.at_ms,
-          ended: event.status === 'running' ? undefined : event.at_ms,
-        },
-      }
-    })
+    setState((previous) => merge(previous, event))
   }
 
   async function start() {
@@ -172,7 +153,7 @@ export default function App() {
         <span className="banner">EDUCATIONAL, NOT PRODUCTION</span>
       </header>
 
-      <Flow state={state} />
+      {tab === 'run' && <Flow state={state} />}
 
       <nav className="tabs" role="tablist">
         {(Object.keys(TABS) as Tab[]).map((id) => (
@@ -191,7 +172,7 @@ export default function App() {
 
       {problem && <p className="problem">{problem}</p>}
 
-      {tab === 'run' && (
+      <div hidden={tab !== 'run'}>
         <main>
           <div>
             <div className="toolbar card">
@@ -240,7 +221,7 @@ export default function App() {
             <Summary state={state} onCheck={check} />
             <ol className="steps">
               {steps.map(([id, title], i) => (
-                <Step
+                <RunStep
                   key={id}
                   n={i + 1}
                   title={title}
@@ -261,9 +242,17 @@ export default function App() {
             />
           </aside>
         </main>
-      )}
-      {tab === 'attacks' && <Attacks />}
-      {tab === 'check' && <BalanceCheck reserves={state.reserves} />}
+      </div>
+      {/* every tab stays mounted, so a tab's results survive switching away from it */}
+      <div hidden={tab !== 'day'}>
+        <Day />
+      </div>
+      <div hidden={tab !== 'attacks'}>
+        <Attacks />
+      </div>
+      <div hidden={tab !== 'check'}>
+        <BalanceCheck reserves={state.reserves} />
+      </div>
     </div>
   )
 }

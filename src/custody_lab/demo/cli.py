@@ -51,8 +51,14 @@ def _print(event: pipeline.Event, steps: dict[str, str] = pipeline.STEPS) -> Non
                 "        - " + ", ".join(f"{k}: {_show(v)}" for k, v in row.items())
                 for row in value
             ]
+        elif isinstance(value, dict) and value and all(isinstance(v, dict) for v in value.values()):
+            lines = [f"      {key}:"] + [
+                f"        - {name}: " + ", ".join(f"{k}: {_show(v)}" for k, v in row.items())
+                for name, row in value.items()
+            ]
         for line in lines:
-            if len(line) > width and key != "error":  # an error is printed whole
+            whole = key == "error" or line.startswith("        - ")  # errors and records wrap
+            if len(line) > width and not whole:
                 line = line[: width - 3] + "..."
             typer.echo(line)
 
