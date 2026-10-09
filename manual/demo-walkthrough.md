@@ -18,8 +18,8 @@ custodian](#a-day-at-the-custodian) runs a busier day: deposits, a double spend,
 trading, netting across them, withdrawals and three refusals, with the books compared to the chain
 after every step. [Key ceremonies](#key-ceremonies) shows a share stolen before a refresh failing to
 combine with one stolen after it, and a lost share rebuilt. [Red team](#red-team) runs a reorganised
-deposit, coins borrowed for a snapshot and a misdirected withdrawal, each against a weak rule and then
-the defence. [Attacking the
+deposit, coins borrowed for a snapshot, a misdirected withdrawal and a forged fill, each against a
+weak rule and then the defence. [Attacking the
 design](#attacking-the-design) tries seventeen attacks against the demo's own code and shows which
 component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each client
 recompute its own place in the published snapshot. [Taking a signer
@@ -940,7 +940,7 @@ crediting a deposit once it is in a block, or keeping one list of every register
 address, works every day until someone exploits it. The **Red team** tab runs two such attacks on
 a private chain, each first against the weak rule, where it succeeds, and then against the
 defence, where it fails. The [attack-vector analysis](attack-vectors.md) lists them as vectors 7.2,
-9.6 and 5.7. `uv run custody-lab redteam` runs the same in the terminal.
+9.6, 5.7 and 8.1. `uv run custody-lab redteam` runs the same in the terminal.
 
 Step 1 sets the scene: a chain, the 2-of-3 custody key, the policy engine and four approver
 devices, each in a process of its own (two that sign blind, two that check), and gamma-treasury's
@@ -1014,12 +1014,35 @@ Step 7 sends the same request to the checking devices. Each refuses: "the destin
 alpha-capital's registered address, not gamma-treasury's". No approval exists, so the policy
 engine has nothing to authorise and nothing is signed.
 
+### A forged fill
+
+**The idea in plain words.** The custodian settles what alpha-capital traded, and it learns what
+alpha-capital traded from the execution reports in alpha-capital's FIX session. Whoever can alter
+that session can change the obligation. A FIX session checks sequence numbers, body length and
+checksum; none of these says who wrote the message, so a man in the middle who rewrites a report
+and recomputes BodyLength(9) and CheckSum(10) passes them all. The defence is a second, independent
+record: the exchange's own statement of what it executed, received over a separate channel, matched
+against the session's fills by ExecID before anything is netted.
+
+The counterpart is exact: a drop copy or end-of-day trade file reconciled against the order
+session before clearing. The comparison stops at the consequence: a mis-booked trade can be
+corrected between firms; bitcoin delivered on a forged fill stays delivered.
+
+**Worked example.** Step 8: alpha-capital sells 0.40 BTC at 64,000 USD. On the way back, the man in
+the middle changes the ExecutionReport's LastQty(32), CumQty(14) and OrderQty(38) to 1.4; the
+session accepts it, and the step shows the forged message as the client received it. Netting the
+session's fills alone, the custodian would deliver 1.4 BTC: 1.00 BTC too much. Step 9 reconciles
+the session with the exchange's statement first and finds "E0001: qty 1.4 in the session, 0.4 in
+the exchange's statement"; settlement is withheld until the two agree. The demo's sessions carry
+no Logon credentials and no TLS, which production sessions would; reconciliation still matters
+with them, because it also catches errors and a compromised endpoint.
+
 **What the red team shows.** A deposit counts when it can no longer be undone at a cost an
 attacker would pay, not when it first appears in a block. A snapshot shows one moment, so its timing
 must not be the custodian's to choose. And the books agreeing with the chain is necessary but not
 enough: borrowed coins make them agree for a moment, a payment to the wrong client leaves them in
 agreement, and only unannounced snapshots and a check of the destination against the client catch
-these.
+these. And a trade is settled from two records, never from the session alone.
 
 ## Taking a signer offline
 

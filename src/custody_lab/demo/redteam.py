@@ -1,7 +1,7 @@
-"""Red team: three attacks that succeed against a weak rule, then fail against the defence.
+"""Red team: four attacks that succeed against a weak rule, then fail against the defence.
 
 EDUCATIONAL, NOT PRODUCTION. ``run`` sets up a private chain, a 2-of-3 custody key, the policy
-engine and two approvers' devices, each in its own process, and plays three attacks from
+engine and two approvers' devices, each in its own process, and plays four attacks from
 ``manual/attack-vectors.md``, reporting each step as an ``Event`` and the custodian's books
 against the chain after each.
 
@@ -17,6 +17,12 @@ left by borrowing 0.50 BTC from the exchange just before a scheduled snapshot, w
 reserve ratio of 1 and is signed. It repays the loan, and an unannounced snapshot taken afterwards
 shows the ratio the books really have. Both snapshots are signed by the same key; only their
 timing differs.
+
+**A forged fill** (vector 8.1). A man in the middle on alpha-capital's FIX session rewrites
+LastQty(32) in one ExecutionReport from 0.40 to 1.40; simplefix recomputes BodyLength and CheckSum,
+so the session accepts it. A custodian that settles from the session would deliver 1.00 BTC too
+much. One that reconciles the session's fills with the exchange's own statement of what it
+executed, received separately, finds the difference and withholds settlement.
 
 **A misdirected withdrawal** (vector 5.7). A compromised instruction builder sends gamma-treasury's
 0.40 BTC withdrawal to alpha-capital's registered address. The policy's whitelist is global, so it
@@ -37,6 +43,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+import simplefix
+
 from custody_lab.demo.day import _confirmations, _custody_vout, _replace_with_payment_to_self, books
 from custody_lab.demo.parties import ApproverDevice, DeviceRefused, PolicyService, PolicySpec
 from custody_lab.demo.pipeline import FEE_CAP_SATS, Event
@@ -47,7 +55,9 @@ from custody_lab.policy.model import SettlementInstruction
 from custody_lab.reserves.merkle_sum import MerkleSumTree
 from custody_lab.reserves.snapshot import Snapshot, publish
 from custody_lab.settlement import bitcoin, chain, transfer
+from custody_lab.settlement.netting import net
 from custody_lab.settlement.regtest import RegtestNode
+from custody_lab.trading.fix import Order, reconcile, trade_session
 
 STEPS = {
     "setup": "Start the chain, the custody key, the policy engine and the approvers' devices",
@@ -57,9 +67,22 @@ STEPS = {
     "reorg_strong": "Credit at three confirmations: the same attack credits nothing",
     "blind": "A misdirected withdrawal, approved on devices that sign blind",
     "checked": "The same withdrawal, refused by devices that check the destination",
+    "fill_weak": "A forged fill: settling from the FIX session alone",
+    "fill_strong": "Fills reconciled with the exchange's statement: the forgery is refused",
 }
 RUNS = Path("var/redteam")
 SIGNERS = [1, 3]
+SALE = Order("A1", "BTC-USD", "sell", Decimal("0.40"), Decimal("64000"))  # alpha-capital's
+
+
+def _inflate_the_sale(msg: simplefix.FixMessage) -> simplefix.FixMessage | None:
+    """The man in the middle: alpha-capital's ExecutionReport says 1.40 BTC, not 0.40."""
+    if msg.get(35) != b"8" or msg.get(11) != SALE.cl_ord_id.encode():
+        return None
+    for tag in (32, 14, 38):  # LastQty, CumQty, OrderQty
+        msg.remove(tag)
+        msg.append_pair(tag, "1.4")
+    return msg
 
 
 def _now() -> datetime:
@@ -317,6 +340,30 @@ def run(emit: Callable[[Event], None], workdir: Path) -> dict[str, Any]:
             refusals=refusals,
             nothing_signed="no approval exists, so the policy engine has nothing to authorise",
             books=books(rpc, output_key, ledger, origins),
+        )
+        report("fill_weak", "running")
+        session = trade_session([SALE], "ALPHA-CAPITAL", _inflate_the_sale)
+        position = net(session.fills)
+        report(
+            "fill_weak",
+            "done",
+            ordered="sell 0.40 BTC at 64,000 USD",
+            session_says=f"{session.fills[0].qty} BTC filled",
+            exchange_statement_says=f"{session.statement[0].qty} BTC filled",
+            forged_message=session.rewritten[0],
+            would_deliver=f"{-position.base} BTC to the exchange",
+            result="settling from the session alone would deliver 1.00 BTC too much",
+        )
+
+        report("fill_strong", "running")
+        problems = reconcile(session.fills, session.statement)
+        if not problems:
+            raise RuntimeError("reconciliation did not find the forged fill")
+        report(
+            "fill_strong",
+            "done",
+            reconciliation=problems,
+            settlement="withheld until the session and the exchange's statement agree",
         )
         final = books(rpc, output_key, ledger, origins)
     except Exception as exc:

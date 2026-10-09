@@ -1,7 +1,9 @@
 import asyncio
 from decimal import Decimal
 
-from custody_lab.trading.fix import Order, trade
+import simplefix
+
+from custody_lab.trading.fix import Order, reconcile, trade, trade_session
 
 ORDERS = [
     Order("C1", "BTC-USD", "sell", Decimal("0.4"), Decimal("64000")),
@@ -35,3 +37,30 @@ def test_trade_works_from_inside_an_event_loop() -> None:
         return len(fills)
 
     assert asyncio.run(caller()) == 1
+
+
+def _inflate_first_fill(msg: simplefix.FixMessage) -> simplefix.FixMessage | None:
+    """A man in the middle: the first ExecutionReport's LastQty and CumQty become 1.4."""
+    if msg.get(35) != b"8" or msg.get(17) != b"E0001":
+        return None
+    for tag in (32, 14):
+        msg.remove(tag)
+        msg.append_pair(tag, "1.4")
+    return msg
+
+
+def test_an_honest_session_reconciles_with_the_exchange_statement() -> None:
+    result = trade_session(ORDERS)
+
+    assert result.rewritten == []
+    assert reconcile(result.fills, result.statement) == []
+
+
+def test_a_rewritten_fill_passes_the_session_and_fails_reconciliation() -> None:
+    result = trade_session(ORDERS, rewrite=_inflate_first_fill)
+
+    # the session accepted it: sequence numbers, BodyLength and CheckSum all hold
+    assert result.fills[0].qty == Decimal("1.4") and len(result.rewritten) == 1
+    assert reconcile(result.fills, result.statement) == [
+        "E0001: qty 1.4 in the session, 0.4 in the exchange's statement"
+    ]
