@@ -1,7 +1,8 @@
 """HTTP front end for the demo: each POST starts a run and streams its events back.
 
 ``POST /api/runs`` runs ``pipeline.run`` on a worker thread in a fresh directory under the runs
-directory. The response carries the run's events as they happen, one JSON object per line
+directory. An optional JSON body, ``{"signers": [2, 3]}``, names the signers online at step 7.
+The response carries the run's events as they happen, one JSON object per line
 (``application/x-ndjson``), and ends when the run ends; a run that fails ends with its ``failed``
 event. The dashboard reads the response body as a stream. It does not use ``EventSource``, which
 issues only GET and reconnects on its own, so a reconnect after a run finished would start
@@ -20,14 +21,19 @@ import threading
 from collections.abc import Iterator
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from custody_lab.demo import pipeline
 
 DASHBOARD = Path("web/dist")
 log = logging.getLogger(__name__)
+
+
+class RunRequest(BaseModel):
+    signers: list[int] = pipeline.SIGNERS
 
 
 def create_app(runs: Path = pipeline.RUNS, dashboard: Path = DASHBOARD) -> FastAPI:
@@ -38,13 +44,16 @@ def create_app(runs: Path = pipeline.RUNS, dashboard: Path = DASHBOARD) -> FastA
         return pipeline.STEPS
 
     @app.post("/api/runs")
-    def start_run() -> StreamingResponse:
+    def start_run(request: RunRequest | None = None) -> StreamingResponse:
+        signers = (request or RunRequest()).signers
+        if not set(signers) <= set(pipeline.SHARES):
+            raise HTTPException(422, f"signers must be among {list(pipeline.SHARES)}")
         workdir = pipeline.new_workdir(runs)
         events: queue.Queue[pipeline.Event | None] = queue.Queue()
 
         def work() -> None:
             try:
-                pipeline.run(events.put, workdir)
+                pipeline.run(events.put, workdir, signers)
             except Exception:  # already on the stream as a failed event
                 log.exception("demo run in %s failed", workdir)
             finally:

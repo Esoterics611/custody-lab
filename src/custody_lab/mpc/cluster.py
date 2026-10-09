@@ -99,9 +99,7 @@ class SigningCluster:
         self._procs: dict[int, mp.process.BaseProcess] = {}
         for i in range(1, count + 1):
             parent, child = ctx.Pipe()
-            proc = ctx.Process(
-                target=_signer_main, args=(i, authority, child), name=f"signer-{i}"
-            )
+            proc = ctx.Process(target=_signer_main, args=(i, authority, child), name=f"signer-{i}")
             proc.start()
             self._conns[i], self._procs[i] = parent, proc
 
@@ -123,9 +121,7 @@ class SigningCluster:
         """Run distributed key generation; return the 32-byte x-only group public key."""
         ids = list(self._conns)
         round1 = self._request({i: ("dkg1", (self.count, self.threshold)) for i in ids})
-        round2 = self._request(
-            {i: ("dkg2", ({j: round1[j] for j in ids if j != i},)) for i in ids}
-        )
+        round2 = self._request({i: ("dkg2", ({j: round1[j] for j in ids if j != i},)) for i in ids})
         publics = self._request(
             {i: ("dkg3", ({j: round2[j][i] for j in ids if j != i},)) for i in ids}
         )
@@ -155,6 +151,15 @@ class SigningCluster:
     def holders(self) -> dict[int, int | None]:
         """Participant identifier -> operating-system process id holding that share."""
         return {i: proc.pid for i, proc in self._procs.items()}
+
+    def stop(self, identifier: int) -> None:
+        """End one signer's process, as an outage would; its share goes with it.
+
+        The remaining signers can still sign while at least ``threshold`` of them are running.
+        A request to a stopped signer raises ``KeyError``.
+        """
+        self._conns.pop(identifier).send(None)
+        self._procs[identifier].join()
 
     def close(self) -> None:
         for i, conn in self._conns.items():

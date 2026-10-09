@@ -64,3 +64,19 @@ def test_signers_refuse_forged_expired_and_replayed_tokens(
     c.sign(MSG, [2, 3], once)
     with pytest.raises(RuntimeError, match="already used"):
         c.sign(MSG, [2, 3], once)
+
+
+def test_two_signers_still_sign_after_the_third_process_stops() -> None:
+    with SigningCluster(2, 3, AUTHORITY_KEY.public_bytes()) as c:
+        group_key = c.dkg()
+        stopped = c.holders()[1]
+        c.stop(1)
+
+        signature = c.sign(MSG, [2, 3], token())
+
+        assert schnorr.verify(MSG, group_key, signature)
+        assert stopped is not None
+        with pytest.raises(ProcessLookupError):
+            os.kill(stopped, 0)  # the share's process is gone, not idle
+        with pytest.raises(KeyError):
+            c.sign(MSG, [1, 2], token())
