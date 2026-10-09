@@ -2,6 +2,70 @@
 
 Newest first.
 
+## 2026-10-09: A day at the custodian, the client's signature check, chapter 10, key ceremonies
+
+The owner asked for work to continue autonomously, keeping a running list of ideas
+(`atlas/project/ideas.md`), adding transactions and complexity with first-principles explanations,
+and covering what leading custodians and current research do.
+
+**A day at the custodian** (`custody_lab.demo.day`, dashboard tab, `custody-lab day`). Four clients
+deposit from wallets of their own; delta-trading replaces its deposit before it confirms (a full
+replace-by-fee double spend, observed on regtest to evict the deposit) and is credited nothing;
+alpha-capital and beta-fund trade in their own FIX sessions (`trade()` now takes the client's
+SenderCompID); netting across clients sends 0.75 BTC on chain and settles beta-fund's 0.45 BTC in the
+books; the settlement spends gamma-treasury's deposit coin; signer 3 goes down at noon; withdrawals
+at both tiers; three refusals by the ledger, the whitelist and the velocity limit. The books equal the
+chain after every step (3.0999907 BTC at the end). The velocity refusal now reads "1.50 BTC per 24
+hours".
+
+**The client checks the custodian's signature in the browser.** `web/src/snapshot.ts` rebuilds the
+snapshot's signed message and verifies the BIP340 signature with `@noble/curves` 2.4.0 (audits
+reported by its README); `web/src/address.ts` decodes the custody address with `@scure/base` 2.4.0
+and compares its key with the signing key. Oracles: all 19 BIP340 vectors, Python-signed snapshots
+(altered copies fail), and Bitcoin Core's `rawtr()` addresses.
+
+**Chapter 10, custody in practice.** A research agent produced notes with 122 sources
+(`atlas/project/research/custody-landscape-2026.md`). Every fact the chapter states was re-read at its
+source in this session: Anchorage, Fireblocks and Coinbase's 10-K on key arrangements; the FBI notice
+and reports on Bybit, Drift, Bitget and Liquid; BitForge and TSSHOCK; BIP 445, 360 and 361; NIST IR
+8214C; TEE.fail; Circle's USDC terms; CoinGecko's ranking (observed 09:27 UTC). Bybit's reported
+`delegatecall` mechanism was not confirmed at the source read and is not stated. The research agent
+reported that one of its requests sent the owner's email address in a User-Agent header; the notes
+contain no personal data (checked).
+
+**Key ceremonies.** `custody-frost` binds `frost-core` 3.0.0's refresh (`refresh_dkg_*`) and
+repairable threshold scheme (`repair_share_part1` to `part3`). `SigningCluster` gains `refresh`,
+`wipe`, `repair` and an educational `export_share`. `custody_lab.demo.ceremonies` shows one stolen
+share failing alone, two shares of one period signing (a refresh does not undo that), shares from
+before and after a refresh refused by FROST, and a lost share rebuilt by two helpers.
+
+**Dashboard.** Two new tabs (the day, key ceremonies); every tab stays mounted; the replay picker no
+longer widens a phone-width page; the CLI prints a failed run's error whole without a traceback.
+
+**Verified.** Full suite before the ceremonies: 234 passed; added since: browser snapshot and address
+oracles, four cluster tests, three ceremony tests, front-end tests, all passing. `ruff check`, `ruff
+format --check src tests`, `mypy` strict and `oxlint` clean. Every new tab driven headless at 1280
+and 390 px with no console messages and no horizontal scroll. Chapter 10 renders (14 pages); chapter
+9 re-rendered for its next link (only that line changed).
+
+**Open.** See `atlas/project/ideas.md`. The three browser libraries are still not installed
+system-wide. `npm audit` reports one finding in build tooling (`source-map-js` under vite), none in
+what ships.
+
+### Deliverables
+
+- A second demo scenario plays a custodian's whole day, with deposits, a double-spend attempt,
+  two clients trading, withdrawals and three refusals, and checks after every step that the books
+  match the coins on the chain.
+- Each client can now check in the browser that the custodian signed the published proof of
+  reserves, with the key that holds the coins, using audited code independent of the custodian's.
+- A new chapter on custody in practice compares the demo with how leading custodians protect keys,
+  explains what each large asset needs, and shows that the largest recent losses passed through
+  genuine approvals, each fact re-read at its source.
+- The demo now refreshes and repairs key shares live: a share stolen before a refresh is shown to be
+  useless with one stolen after it, and a lost share is rebuilt without anyone revealing their own.
+- The dashboard gained two tabs and works on a phone in every state tested.
+
 ## 2026-10-09: Operator QA pass over the rebuilt dashboard
 
 The owner asked for work to continue until the demo is very good. Another session had already

@@ -13,12 +13,14 @@ The reader is assumed to know trading infrastructure: FIX sessions, signed excha
 maker-checker approval, clearing and netting. Where one of those has a counterpart in the demo,
 the walkthrough names it and says where the comparison stops holding.
 
-The dashboard has three more tabs, explained after the run. [A day at the
+The dashboard has four more tabs, explained after the run. [A day at the
 custodian](#a-day-at-the-custodian) runs a busier day: deposits, a double spend, two clients
 trading, netting across them, withdrawals and three refusals, with the books compared to the chain
-after every step. [Attacking the design](#attacking-the-design) tries sixteen attacks against the
-demo's own code and shows which component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each
-client recompute its own place in the published snapshot. [Taking a signer
+after every step. [Key ceremonies](#key-ceremonies) shows a share stolen before a refresh failing to
+combine with one stolen after it, and a lost share rebuilt. [Attacking the
+design](#attacking-the-design) tries sixteen attacks against the demo's own code and shows which
+component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each client
+recompute its own place in the published snapshot. [Taking a signer
 offline](#taking-a-signer-offline) runs the demo with signers missing, and [Replaying a recorded
 run](#replaying-a-recorded-run) shows a past run again without a Bitcoin node.
 
@@ -857,6 +859,75 @@ record of it. Coins at one address are interchangeable, so the ledger, not the c
 they are. And each refusal comes from the layer that owns the rule: the books for balances, the
 policy for destinations and limits.
 
+## Key ceremonies
+
+**The problem.** A 2-of-3 key protects the coins as long as nobody holds two shares. Over the
+years a custody key is in use, shares are exposed: a server is breached, a backup tape goes
+missing, an administrator leaves. A thief who takes one share in January and another in June
+holds two shares, and two shares are the key. Shares are also lost: a disk fails, a site burns
+down. Two such losses and the coins are frozen for good. Replacing the key each time means moving
+every coin to a new address, with fees, new deposit instructions for every client, and a window in
+which both keys matter. Custodians need a way to renew shares, and to rebuild one, without
+changing the key.
+
+**The idea in plain words.** Two ceremonies do it.
+
+A **refresh** gives every signer a new share of the same key. The signers run a key generation
+whose secret is zero and add the result to their shares. Adding zero leaves the key, and so the
+custody address, unchanged; but every share moves to a new line, and a share from before the
+refresh no longer combines with one from after it. Time is cut into periods, and a thief must now
+collect two shares within one period. Chapter 2 works this by hand: on its toy curve the shares
+14, 19 and 24 become 25, 10 and 26, new shares 1 and 3 still give the key 9, and old share 1 with
+new share 3 gives 8 ([chapter 2, Proactive refresh on the toy
+curve](chapters/02-mpc-custody.md#proactive-refresh-on-the-toy-curve)).
+
+A **share repair** rebuilds a lost share from two of the others. Each helper splits a value derived
+from its own share into random-looking pieces, one per helper, and sends them out; each helper adds
+up the pieces it receives and passes only that sum to the signer being repaired, who adds the sums
+into its share. No helper's share, and no single piece or sum, reveals a share.
+
+The counterpart is a bank changing the combination of a vault held under dual control: the vault
+and its contents stay where they are, each officer gets a new half, and an old half written down
+somewhere becomes useless. The comparison stops at what an old half was worth: an old combination
+never opens the new lock, but two shares stolen within the same period are the key itself, before
+and after any refresh. A refresh limits how long a thief has to collect shares; it does not undo a
+theft of two. After that, the coins must move to a new key.
+
+**Worked example.** Press **Run the ceremonies** on the **Key ceremonies** tab. The nine steps run
+on the same signing processes as the settlement run, with no chain, in under a second;
+`uv run custody-lab ceremonies` runs them in the terminal.
+
+1. *Generate the key.* As step 2 of the settlement run: three processes, one share each.
+2. *A thief copies signer 1's share.* The demo copies the share out of signer 1's process, as a
+   thief who copied its storage would hold it. Alone it cannot sign: FROST refuses with
+   `IncorrectNumberOfCommitments`.
+3. *A second share from the same period.* Had the thief also copied signer 3's share now, the two
+   would sign: `signature valid yes`. This is the case a refresh cannot help.
+4. *Refresh.* All three signers run the refresh. `group key unchanged yes` and `output key
+   unchanged yes`: the custody address is the same. The public key package, which records each
+   signer's public share, changes; its fingerprint is shown before and after.
+5. *Old and new do not combine.* The thief now copies signer 3's new share and tries to sign with
+   it and signer 1's old one. FROST checks each partial signature against the signer's public
+   share and refuses: "the share from participant 1 does not fit". Checked against the old public
+   key package instead, it is participant 3's share that does not fit: the two shares belong to
+   different periods either way.
+6. *The new shares sign* under the same output key.
+7. *Signer 2 loses its share.* Asked to sign, signer 2 answers "no key share: it was lost and has
+   not been repaired".
+8. *Signers 1 and 3 rebuild it.* Each sends signer 2 one sum and nothing else. The public key
+   package is unchanged: the rebuilt share is the same share signer 2 had.
+9. *Signer 2 signs again*, with signer 3, under the same output key.
+
+The **Who holds what** panel beside the steps shows each signer's share by period, 1 before the
+refresh and 2 after, signer 2's share lost and then rebuilt, and what the thief holds: signer 1's
+period-1 share and signer 3's period-2 share, with the verdict that it cannot sign.
+
+**What breaks without it.** Without refresh, every share ever exposed stays dangerous for the life
+of the key, and a patient thief needs only to wait. Without repair, each lost share brings the
+custodian one step closer to frozen coins, and the only cure is a full move to a new key. Both
+ceremonies need the signers to be online together, refresh all three of them, which is why a
+custodian schedules them like any other change, with the same approvals.
+
 ## Taking a signer offline
 
 **The problem.** A 2-of-3 key exists so that the coins can still move when one signer cannot take
@@ -1169,6 +1240,9 @@ This table summarises what each step has already explained, as a list of what to
     confirms; netting across clients keeps part of the settlement off the chain; coins at one
     address are interchangeable and the ledger says whose they are; and each refusal comes from
     the layer that owns the rule (A day at the custodian).
+11. A refresh renews every share without changing the key, so a thief must collect two shares
+    within one period; it does not undo a theft of two. A lost share is rebuilt by two others
+    without either revealing its own (Key ceremonies).
 
 [Chapter 0](chapters/00-orientation.md) follows the same run with the arithmetic of each step,
 and the [contents page](README.md) lists the chapters that explain each mechanism in full.

@@ -22,23 +22,28 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   asset asks of a custodian, the large 2025 and 2026 losses that passed through genuine approvals,
   broken threshold ECDSA implementations, and what is being standardised. Every fact re-read at
   its source; the research notes, with 122 sources, are in `atlas/project/research/`.
+- **Key ceremonies** (2026-10-09). Share refresh and share repair bound from `frost-core` 3.0.0;
+  a share stolen before a refresh fails to combine with one stolen after it, two shares of one
+  period still sign, and a lost share is rebuilt by two helpers. The dashboard tab,
+  `custody-lab ceremonies`, the walkthrough section.
 
 ## Next
 
-- **Share refresh and repair in the demo.** `frost-core` 3.0.0 has `refresh_dkg_*` and
-  `repair_share_part1..3` (observed in its source); bind them in `rust/custody-frost`.
+- **Watch the signing protocol.** An animated sequence of the actual messages between the
+  coordinator and the signers during key generation, refresh, repair and signing: who sends what to
+  whom in each round, with sizes. Needs the cluster to report its messages as events.
 
 ## Open
 
-- **Watch the signing protocol.** An animated sequence of the actual messages between the
-  coordinator and the signers during key generation and signing: round-one commitments, round-two
-  partial signatures, aggregation, each with its size. Needs the cluster to report its messages as
-  events.
-- **A stolen share becomes worthless.** Refresh the shares (same key, same address) and show that
-  an old share combined with a new one cannot sign. Depends on what the ZF FROST crate exposes for
-  refresh; verify before designing.
-- **Repair a lost share.** Wipe one signer's share and rebuild it with the help of two others,
-  without either revealing its own. Depends on the crate's repairable-share support; verify first.
+- **What the approver's own device shows.** Chapter 10's Bitget case: approvers sign an
+  instruction built by a system they trust. Simulate a compromised instruction builder, and an
+  approver device that decodes the destination against the registered-address book on its own, so
+  the spoofed instruction is refused before any approval.
+- **A second chain.** The teaching two-party ECDSA (`mpc/lindell17`) signing an account-model
+  transfer, to show chapter 10's point that each chain's signature rule needs its own threshold
+  protocol.
+- **An authorisation countdown.** Show each authorisation's 60-second life on the dashboard, and a
+  signing that starts too late being refused (chapter 10, Drift).
 - **A client portal.** One client's view: its balance, its inclusion proof and the custodian's
   signature, all checked in the browser.
 - **A live audit-log timeline**, with a switch that edits one entry and shows where the hash chain
