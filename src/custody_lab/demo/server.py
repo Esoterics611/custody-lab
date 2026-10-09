@@ -13,6 +13,10 @@ its directory.
 same way, in a fresh directory under the day's runs directory; ``GET /api/day/steps`` lists its
 steps.
 
+``POST /api/ceremonies`` plays the key ceremonies (``ceremonies.run``: a share stolen before a
+refresh, a share lost and repaired) the same way, with no chain; ``GET /api/ceremonies/steps``
+lists their steps.
+
 ``POST /api/attacks`` runs ``attacks.run`` the same way and streams one attempt per line: each
 attack, the component that refused it and that component's reason. It needs no regtest node.
 
@@ -39,7 +43,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from custody_lab.demo import attacks, day, pipeline
+from custody_lab.demo import attacks, ceremonies, day, pipeline
 
 DASHBOARD = Path("web/dist")
 RECENT = 20  # recorded runs listed
@@ -142,6 +146,14 @@ def create_app(
             day.run(emit, workdir)
 
         return _stream(f"day in {workdir}", work)
+
+    @app.get("/api/ceremonies/steps")
+    def ceremony_steps() -> dict[str, str]:
+        return ceremonies.STEPS
+
+    @app.post("/api/ceremonies")
+    def ceremony() -> StreamingResponse:
+        return _stream("key ceremonies", ceremonies.run)
 
     @app.post("/api/attacks")
     def attack() -> StreamingResponse:

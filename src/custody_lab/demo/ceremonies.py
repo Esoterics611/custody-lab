@@ -92,7 +92,7 @@ def _refused(attempt: Callable[[], object]) -> str:
         if culprits:
             who = " and ".join(str(c) for c in culprits)
             return f"the share from participant {who} does not fit (InvalidSignatureShare)"
-        return reason
+        return re.sub(r"(signer \d+): \w+\('(.*?)'\)", r"\1: \2", reason)
     raise RuntimeError("the attempt produced a signature")
 
 
