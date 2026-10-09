@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Hex } from './fields'
 import { toBtc, toSats, walk, type InclusionProof, type Level } from './reserves'
+import { SignatureCheck } from './Signature'
+import type { SnapshotDocument } from './snapshot'
 import type { StepState } from './stream'
 
 interface Props {
@@ -52,6 +54,7 @@ export function BalanceCheck({ reserves }: Props) {
   }
 
   const root = String(reserves.detail.root)
+  const snapshot = reserves.detail.snapshot_document as SnapshotDocument | undefined
   const liabilities = String(reserves.detail.liabilities)
   const reached = levels?.[levels.length - 1]
   const included = reached?.hash === root
@@ -138,6 +141,7 @@ export function BalanceCheck({ reserves }: Props) {
           </p>
         </>
       )}
+      {snapshot && <SignatureCheck snapshot={snapshot} />}
     </section>
   )
 }

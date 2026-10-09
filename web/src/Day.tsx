@@ -213,7 +213,7 @@ export function Day() {
               n={i + 1}
               title={title}
               state={state[id] ?? PENDING}
-              hidden={['books', 'inclusion_proofs']}
+              hidden={['books', 'inclusion_proofs', 'snapshot_document']}
             />
           ))}
         </ol>

@@ -30,7 +30,7 @@ type Tab = keyof typeof TABS
 function RunStep(props: { n: number; title: string; state: StepState; onCheck: () => void }) {
   const { inclusion_proofs: proofs } = props.state.detail
   return (
-    <Step {...props} hidden={['inclusion_proofs']}>
+    <Step {...props} hidden={['inclusion_proofs', 'snapshot_document']}>
       {Array.isArray(proofs) && (
         <button type="button" className="link" onClick={props.onCheck}>
           {proofs.length} inclusion proofs published: check one in this browser

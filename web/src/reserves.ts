@@ -30,11 +30,11 @@ export interface Level {
 
 const encoder = new TextEncoder()
 
-function hex(bytes: Uint8Array): string {
+export function hex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-function unhex(text: string): Uint8Array {
+export function unhex(text: string): Uint8Array {
   if (!/^([0-9a-f]{2})*$/.test(text)) throw new Error(`not hex: ${text}`)
   return Uint8Array.from(text.match(/../g) ?? [], (pair) => parseInt(pair, 16))
 }
@@ -53,7 +53,7 @@ async function sha256(data: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', data))
 }
 
-async function taggedHash(tag: string, data: Uint8Array): Promise<Uint8Array> {
+export async function taggedHash(tag: string, data: Uint8Array): Promise<Uint8Array> {
   const t = await sha256(encoder.encode(tag))
   return sha256(concat(t, t, data))
 }
