@@ -240,6 +240,34 @@ main {
   transition: width 0.3s;
 }
 
+.replay {
+  display: flex;
+  flex: 1 1 100%;
+  gap: 8px;
+}
+
+.replay select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: var(--card);
+}
+
+.replayed {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--accent);
+  background: var(--accent-bg);
+  overflow-wrap: anywhere;
+}
+
 .summary {
   display: flex;
   flex-wrap: wrap;
