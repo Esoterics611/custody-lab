@@ -29,7 +29,11 @@ export function BalanceCheck({ reserves }: Props) {
     let current = true
     walk(proof, balance)
       .then((computed) => current && (setLevels(computed), setProblem(null)))
-      .catch((error: unknown) => current && (setLevels(null), setProblem(String(error))))
+      .catch((error: unknown) => {
+        if (!current) return
+        setLevels(null)
+        setProblem(error instanceof Error ? error.message : String(error)) // "not an amount: …"
+      })
     return () => {
       current = false
     }

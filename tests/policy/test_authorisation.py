@@ -31,8 +31,12 @@ def test_token_from_another_authority_is_rejected() -> None:
 def test_both_signatures_are_required() -> None:
     """A forger who breaks only one scheme (Ed25519 by a quantum computer, or ML-DSA by a flaw)
     still cannot produce a token."""
-    genuine, forged = _token(), authorisation.issue(AuthorityKey.generate(), b"\x00" * 32, MSG,
-                                                     NOW + timedelta(seconds=60))
+    genuine, forged = (
+        _token(),
+        authorisation.issue(
+            AuthorityKey.generate(), b"\x00" * 32, MSG, NOW + timedelta(seconds=60)
+        ),
+    )
     only_classical = replace(genuine, pq_signature=forged.pq_signature)
     only_post_quantum = replace(genuine, signature=forged.signature)
     with pytest.raises(AuthorisationRejected, match="ML-DSA-65"):
