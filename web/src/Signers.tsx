@@ -81,7 +81,8 @@ export function Signers(props: Props) {
       </p>
       <p className="muted">
         The coordinator, which is the server's own process, relays protocol messages and holds no
-        share, so it cannot sign alone.
+        share, so it cannot sign alone. Key-generation sub-shares pass through it sealed to their
+        recipient, so it cannot read them.
       </p>
     </section>
   )

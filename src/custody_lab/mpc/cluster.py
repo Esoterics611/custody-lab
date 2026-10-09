@@ -4,9 +4,13 @@ This is the demo's signing path, not teaching code. It uses the Zcash Foundation
 ``frost-secp256k1-tr`` through ``custody_frost``, and produces BIP340 signatures.
 
 Each signer process holds its own key package and round-1 nonces and never sends them anywhere.
-This process is the coordinator. It relays public DKG packages, collects commitments and
-signature shares, and aggregates. It never holds a share, so it cannot sign alone. In the paper's
-terms it is semi-trusted: it can deny service, but it learns nothing secret.
+This process is the coordinator. It relays the DKG broadcast packages in clear and each signer's
+sub-shares sealed to their recipient (``custody_lab.mpc.channel``), and does the same for refresh
+and repair; it collects commitments and signature shares, and aggregates. It never holds a share
+and cannot open the sealed messages, so it cannot sign alone. In the paper's terms it is
+semi-trusted: it can deny service, and a passive coordinator learns nothing secret. One trust
+remains: the signers' channel public keys pass through it at start-up, and a coordinator that
+substituted its own could read the sub-shares. In production they are provisioned out of band.
 
 Transport is a ``multiprocessing`` pipe per signer. The ``spawn`` start method gives every signer
 a fresh interpreter with no memory inherited from the coordinator.
@@ -33,6 +37,7 @@ from typing import Any
 
 import custody_frost as cf
 
+from custody_lab.mpc import channel
 from custody_lab.policy import authorisation
 
 
@@ -47,6 +52,22 @@ class _Signer:
         self._round1: dict[int, bytes] = {}
         self._key_package = b""
         self._nonces: bytes | None = None
+        self._channel = channel.new_key()  # never leaves this process
+        self._peers: dict[int, bytes] = {}  # the other signers' channel public keys
+
+    def channel_key(self) -> bytes:
+        return channel.public_bytes(self._channel)
+
+    def set_peers(self, peers: dict[int, bytes]) -> None:
+        self._peers = {i: key for i, key in peers.items() if i != self.identifier}
+
+    def _seal(self, recipient: int, step: str, data: bytes) -> bytes:
+        peer = self._peers.get(recipient) or channel.public_bytes(self._channel)
+        return channel.seal(self._channel, peer, self.identifier, recipient, step, data)
+
+    def _open(self, sender: int, step: str, sealed: bytes) -> bytes:
+        peer = self._peers.get(sender) or channel.public_bytes(self._channel)
+        return channel.open_(self._channel, peer, sender, self.identifier, step, sealed)
 
     def dkg1(self, max_signers: int, min_signers: int) -> bytes:
         self._secret, package = cf.dkg_part1(self.identifier, max_signers, min_signers)
@@ -55,10 +76,11 @@ class _Signer:
     def dkg2(self, round1_from_others: dict[int, bytes]) -> dict[int, bytes]:
         self._round1 = round1_from_others
         self._secret, outgoing = cf.dkg_part2(self._secret, round1_from_others)
-        return outgoing
+        return {j: self._seal(j, "dkg", sub_share) for j, sub_share in outgoing.items()}
 
     def dkg3(self, round2_to_me: dict[int, bytes]) -> bytes:
-        self._key_package, public = cf.dkg_part3(self._secret, self._round1, round2_to_me)
+        opened = {j: self._open(j, "dkg", sealed) for j, sealed in round2_to_me.items()}
+        self._key_package, public = cf.dkg_part3(self._secret, self._round1, opened)
         self._secret = b""
         return public
 
@@ -75,11 +97,12 @@ class _Signer:
     def refresh2(self, round1_from_others: dict[int, bytes]) -> dict[int, bytes]:
         self._round1 = round1_from_others
         self._secret, outgoing = cf.refresh_part2(self._secret, round1_from_others)
-        return outgoing
+        return {j: self._seal(j, "refresh", package) for j, package in outgoing.items()}
 
     def refresh3(self, round2_to_me: dict[int, bytes], public_key_package: bytes) -> bytes:
+        opened = {j: self._open(j, "refresh", sealed) for j, sealed in round2_to_me.items()}
         self._key_package, public = cf.refresh_part3(
-            self._secret, self._round1, round2_to_me, public_key_package, self._key_package
+            self._secret, self._round1, opened, public_key_package, self._key_package
         )
         self._secret = b""
         return public
@@ -92,13 +115,16 @@ class _Signer:
         self._key_package = b""
 
     def repair1(self, helpers: list[int], participant: int) -> dict[int, bytes]:
-        return cf.repair_part1(helpers, self._key_package, participant)
+        deltas = cf.repair_part1(helpers, self._key_package, participant)
+        return {k: self._seal(k, "repair-delta", delta) for k, delta in deltas.items()}
 
-    def repair2(self, deltas: list[bytes]) -> bytes:
-        return cf.repair_part2(deltas)
+    def repair2(self, deltas: dict[int, bytes], participant: int) -> bytes:
+        opened = [self._open(h, "repair-delta", sealed) for h, sealed in deltas.items()]
+        return self._seal(participant, "repair-sigma", cf.repair_part2(opened))
 
-    def repair3(self, sigmas: list[bytes], public_key_package: bytes) -> None:
-        self._key_package = cf.repair_part3(sigmas, self.identifier, public_key_package)
+    def repair3(self, sigmas: dict[int, bytes], public_key_package: bytes) -> None:
+        opened = [self._open(k, "repair-sigma", sealed) for k, sealed in sigmas.items()]
+        self._key_package = cf.repair_part3(opened, self.identifier, public_key_package)
 
     def sign(self, signing_package: bytes, token: bytes, taproot: bool) -> bytes:
         if self._nonces is None:
@@ -136,6 +162,10 @@ class SigningCluster:
             proc = ctx.Process(target=_signer_main, args=(i, authority, child), name=f"signer-{i}")
             proc.start()
             self._conns[i], self._procs[i] = parent, proc
+        # Private channels: each signer's channel public key, handed to the others. The keys pass
+        # through this process; in production they are provisioned out of band (channel.py).
+        self.channel_keys = self._request({i: ("channel_key", ()) for i in self._conns})
+        self._request({i: ("set_peers", (self.channel_keys,)) for i in self._conns})
 
     def _request(self, calls: dict[int, tuple[str, tuple[Any, ...]]]) -> dict[int, Any]:
         """Send every call first, then collect replies, so signers compute in parallel.
@@ -233,9 +263,9 @@ class SigningCluster:
         helpers = list(helpers)
         deltas = self._request({h: ("repair1", (helpers, identifier)) for h in helpers})
         sigmas = self._request(
-            {k: ("repair2", ([deltas[h][k] for h in helpers],)) for k in helpers}
+            {k: ("repair2", ({h: deltas[h][k] for h in helpers}, identifier)) for k in helpers}
         )
-        self._request({identifier: ("repair3", (list(sigmas.values()), self.public_key_package))})
+        self._request({identifier: ("repair3", (sigmas, self.public_key_package))})
 
     def holders(self) -> dict[int, int | None]:
         """Participant identifier -> operating-system process id holding that share."""
