@@ -1,4 +1,5 @@
-//! PyO3 binding to ZF FROST (`frost-secp256k1-tr`): DKG, two-round signing, aggregation.
+//! PyO3 binding to ZF FROST (`frost-secp256k1-tr`): DKG, two-round signing, aggregation, share
+//! refresh and share repair.
 //!
 //! Every value crosses the boundary as bytes in the crate's own serialization, and maps of
 //! per-participant values as `dict[int, bytes]` keyed by participant identifier (1..=n). The
@@ -9,7 +10,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use frost_secp256k1_tr::{
     self as frost,
-    keys::{dkg, Tweak},
+    keys::{dkg, refresh, repairable, Tweak},
     rand_core::OsRng,
     Ciphersuite, Identifier, Secp256K1Sha256TR,
 };
@@ -160,6 +161,102 @@ fn aggregate(
     signature.map_err(err)?.serialize().map_err(err)
 }
 
+/// Refresh part 1: DKG part 1 for a polynomial whose constant term is zero, so the shares change
+/// and the group key does not: (secret package, broadcast package).
+#[pyfunction]
+fn refresh_part1(identifier: u16, max_signers: u16, min_signers: u16) -> PyResult<(Bytes, Bytes)> {
+    let (secret, package) =
+        refresh::refresh_dkg_part1(id(identifier)?, max_signers, min_signers, OsRng).map_err(err)?;
+    Ok((secret.serialize().map_err(err)?, package.serialize().map_err(err)?))
+}
+
+/// Refresh part 2, given the other participants' round 1 packages: (secret package, private
+/// packages to send, keyed by recipient).
+#[pyfunction]
+fn refresh_part2(
+    secret1: Bytes,
+    round1_packages: HashMap<u16, Bytes>,
+) -> PyResult<(Bytes, HashMap<u16, Bytes>)> {
+    let recipients: Vec<u16> = round1_packages.keys().copied().collect();
+    let secret = dkg::round1::SecretPackage::deserialize(&secret1).map_err(err)?;
+    let round1 = decode_map(round1_packages, dkg::round1::Package::deserialize)?;
+    let (secret2, round2) = refresh::refresh_dkg_part2(secret, &round1).map_err(err)?;
+    let mut packages = HashMap::new();
+    for i in recipients {
+        packages.insert(i, round2[&id(i)?].serialize().map_err(err)?);
+    }
+    Ok((secret2.serialize().map_err(err)?, packages))
+}
+
+/// Refresh part 3: add the refreshing share to the current one: (this participant's new key
+/// package, the group's new public key package, whose group key is the old one).
+#[pyfunction]
+fn refresh_part3(
+    secret2: Bytes,
+    round1_packages: HashMap<u16, Bytes>,
+    round2_packages: HashMap<u16, Bytes>,
+    public_key_package: Bytes,
+    key_package: Bytes,
+) -> PyResult<(Bytes, Bytes)> {
+    let secret = dkg::round2::SecretPackage::deserialize(&secret2).map_err(err)?;
+    let round1 = decode_map(round1_packages, dkg::round1::Package::deserialize)?;
+    let round2 = decode_map(round2_packages, dkg::round2::Package::deserialize)?;
+    let public = frost::keys::PublicKeyPackage::deserialize(&public_key_package).map_err(err)?;
+    let current = frost::keys::KeyPackage::deserialize(&key_package).map_err(err)?;
+    let (key_package, public_key_package) =
+        refresh::refresh_dkg_shares(&secret, &round1, &round2, public, current).map_err(err)?;
+    Ok((key_package.serialize().map_err(err)?, public_key_package.serialize().map_err(err)?))
+}
+
+/// Repair part 1, run by each helper: the delta values to send to each helper (itself included)
+/// so that `participant` can rebuild its share. Keyed by recipient.
+#[pyfunction]
+fn repair_part1(
+    helpers: Vec<u16>,
+    key_package: Bytes,
+    participant: u16,
+) -> PyResult<HashMap<u16, Bytes>> {
+    let ids: Vec<Identifier> = helpers.iter().map(|&h| id(h)).collect::<PyResult<_>>()?;
+    let key_package = frost::keys::KeyPackage::deserialize(&key_package).map_err(err)?;
+    let deltas = repairable::repair_share_part1::<Secp256K1Sha256TR, _>(
+        &ids,
+        &key_package,
+        &mut OsRng,
+        id(participant)?,
+    )
+    .map_err(err)?;
+    let mut out = HashMap::new();
+    for (helper, ident) in helpers.iter().zip(&ids) {
+        out.insert(*helper, deltas[ident].serialize());
+    }
+    Ok(out)
+}
+
+/// Repair part 2, run by each helper: its sigma, the sum of the deltas it received, to send to
+/// the participant being repaired.
+#[pyfunction]
+fn repair_part2(deltas: Vec<Bytes>) -> PyResult<Bytes> {
+    let deltas: Vec<repairable::Delta> = deltas
+        .iter()
+        .map(|b| repairable::Delta::deserialize(b).map_err(err))
+        .collect::<PyResult<_>>()?;
+    Ok(repairable::repair_share_part2(&deltas).serialize())
+}
+
+/// Repair part 3, run by the participant being repaired: its key package, rebuilt from the
+/// helpers' sigmas and the group's public key package.
+#[pyfunction]
+fn repair_part3(sigmas: Vec<Bytes>, identifier: u16, public_key_package: Bytes) -> PyResult<Bytes> {
+    let sigmas: Vec<repairable::Sigma> = sigmas
+        .iter()
+        .map(|b| repairable::Sigma::deserialize(b).map_err(err))
+        .collect::<PyResult<_>>()?;
+    let public = frost::keys::PublicKeyPackage::deserialize(&public_key_package).map_err(err)?;
+    let key_package =
+        repairable::repair_share_part3(&sigmas, id(identifier)?, &public).map_err(err)?;
+    key_package.serialize().map_err(err)
+}
+
 #[pymodule]
 fn custody_frost(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ciphersuite_id, m)?)?;
@@ -173,5 +270,11 @@ fn custody_frost(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(signing_package_message, m)?)?;
     m.add_function(wrap_pyfunction!(sign, m)?)?;
     m.add_function(wrap_pyfunction!(aggregate, m)?)?;
+    m.add_function(wrap_pyfunction!(refresh_part1, m)?)?;
+    m.add_function(wrap_pyfunction!(refresh_part2, m)?)?;
+    m.add_function(wrap_pyfunction!(refresh_part3, m)?)?;
+    m.add_function(wrap_pyfunction!(repair_part1, m)?)?;
+    m.add_function(wrap_pyfunction!(repair_part2, m)?)?;
+    m.add_function(wrap_pyfunction!(repair_part3, m)?)?;
     Ok(())
 }
