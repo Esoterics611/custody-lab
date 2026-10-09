@@ -20,6 +20,17 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   browser with `@scure/base`, and its key compared with the key that signed; oracle: Bitcoin Core.
 
 ## Next
+
+- **Chapter 10 from the industry research** (draft in `atlas/project/research/10-practice-draft.qmd`;
+  notes and 122 sources in `research/custody-landscape-2026.md`). Before moving the draft to
+  `manual/chapters/10-practice.qmd` and rendering: drop the unverified Circle quote; Solana expiry
+  is about a minute and a half; say "the large losses examined here", not "the largest"; define
+  slashing, destination tag and durable nonce before the table, unbolded in it; remove `[:70]` in
+  the `approved-but-wrong` cell and describe its output by heading; add glossary entries (account
+  model, blind signing, destination tag, durable nonce, freeze function, MuSig2, ROAST, slashing);
+  re-render chapter 9 for its next link. Facts were re-read at source on 2026-10-09 except Circle.
+- **Share refresh and repair in the demo.** `frost-core` 3.0.0 has `refresh_dkg_*` and
+  `repair_share_part1..3` (observed in its source); bind them in `rust/custody-frost`.
 - **Course material from the industry research.** How leading custodians secure keys today, the
   top assets and the signature schemes they need, the research frontier, and recent incidents with
   their custody lessons. Sources and evidence classes from the research report; time-sensitive
