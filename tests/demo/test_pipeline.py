@@ -70,7 +70,7 @@ def test_a_missing_bitcoind_is_reported_as_the_first_step_failing(
 
 def test_signers_two_and_three_settle_with_signer_one_stopped(tmp_path: Path) -> None:
     events: list[pipeline.Event] = []
-    summary = pipeline.run(events.append, tmp_path, signers=[2, 3])
+    summary = pipeline.run(events.append, tmp_path, offline=[1])
 
     sign = next(e for e in events if e.step == "sign" and e.status == "done")
     assert sign.detail["signers"] == [2, 3] and sign.detail["offline"] == [1]
@@ -81,8 +81,18 @@ def test_one_signer_alone_fails_at_signing_and_broadcasts_nothing(tmp_path: Path
     events: list[pipeline.Event] = []
 
     with pytest.raises(RuntimeError, match="1 of 3 signers online and 2 are required"):
-        pipeline.run(events.append, tmp_path, signers=[2])
+        pipeline.run(events.append, tmp_path, offline=[1, 3])
 
     assert (events[-1].step, events[-1].status) == ("sign", "failed")
     assert "IncorrectNumberOfCommitments" in events[-1].detail["error"]
     assert not any(e.step == "broadcast" for e in events)
+
+
+@pytest.mark.parametrize(
+    ("offline", "asked"),
+    [((), [1, 3]), ((2,), [1, 3]), ((1,), [2, 3]), ((3,), [1, 2]), ((1, 3), [2]), ((1, 2, 3), [])],
+)
+def test_the_coordinator_asks_signers_one_and_three_while_they_are_online(
+    offline: tuple[int, ...], asked: list[int]
+) -> None:
+    assert pipeline._asked(offline, threshold=2) == asked

@@ -1,7 +1,7 @@
 """HTTP front end for the demo: each POST starts a run and streams its events back.
 
 ``POST /api/runs`` runs ``pipeline.run`` on a worker thread in a fresh directory under the runs
-directory. An optional JSON body, ``{"signers": [2, 3]}``, names the signers online at step 7.
+directory. An optional JSON body, ``{"offline": [1]}``, names signers to stop before step 7.
 The response carries the run's events as they happen, one JSON object per line
 (``application/x-ndjson``), and ends when the run ends; a run that fails ends with its ``failed``
 event. The dashboard reads the response body as a stream. It does not use ``EventSource``, which
@@ -37,7 +37,7 @@ log = logging.getLogger(__name__)
 
 
 class RunRequest(BaseModel):
-    signers: list[int] = pipeline.SIGNERS
+    offline: list[int] = []
 
 
 class _Line(Protocol):
@@ -75,13 +75,13 @@ def create_app(runs: Path = pipeline.RUNS, dashboard: Path = DASHBOARD) -> FastA
 
     @app.post("/api/runs")
     def start_run(request: RunRequest | None = None) -> StreamingResponse:
-        signers = (request or RunRequest()).signers
-        if not set(signers) <= set(pipeline.SHARES):
-            raise HTTPException(422, f"signers must be among {list(pipeline.SHARES)}")
+        offline = (request or RunRequest()).offline
+        if not set(offline) <= set(pipeline.SHARES):
+            raise HTTPException(422, f"offline signers must be among {list(pipeline.SHARES)}")
         workdir = pipeline.new_workdir(runs)
 
         def work(emit: pipeline.Emit) -> None:
-            pipeline.run(emit, workdir, signers)
+            pipeline.run(emit, workdir, offline)
 
         return _stream(f"demo run in {workdir}", work)
 

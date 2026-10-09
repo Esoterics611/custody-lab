@@ -44,13 +44,13 @@ def _print(event: pipeline.Event) -> None:
 @app.command()
 def run(
     runs: Runs = pipeline.RUNS,
-    signer: Annotated[
+    offline: Annotated[
         list[int] | None,
-        typer.Option(help="A signer online at step 7; repeat for each. Default: 1 and 3."),
+        typer.Option(help="A signer to stop before step 7; repeat for each."),
     ] = None,
 ) -> None:
     """Run the demo end to end and print each step."""
-    summary = pipeline.run(_print, pipeline.new_workdir(runs), signer or pipeline.SIGNERS)
+    summary = pipeline.run(_print, pipeline.new_workdir(runs), offline or [])
     typer.echo("")
     for key, value in summary.items():
         typer.echo(f"{key}: {_show(value)}")

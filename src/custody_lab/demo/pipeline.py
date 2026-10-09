@@ -12,9 +12,9 @@ Cast:
 - **alpha-capital** trades on the toy exchange.
 - **ops-desk** raises the settlement instruction.
 - **bob** and **carol** approve it.
-- Signers 1 and 3 of 3 sign it, unless the run is told which signers are online. The others'
-  processes are stopped before signing, as an outage would stop them; with fewer than two left,
-  step 7 fails and no coins move.
+- Signers 1 and 3 of 3 sign it. A run can take signers offline: their processes are stopped
+  before step 7, as an outage would stop them, and the coordinator asks the signers still running.
+  With fewer than two left, step 7 fails and no coins move.
 
 The network fee is charged to the client whose settlement it is, so the custody address holds
 client coins only and assets equal liabilities after every batch (MiCA Article 75(7), chapter 8).
@@ -41,7 +41,7 @@ from custody_lab.policy.audit import AuditLog, verify_chain
 from custody_lab.policy.authorisation import AuthorityKey
 from custody_lab.policy.engine import AssetPolicy, Policy, PolicyDenied, PolicyEngine, Tier
 from custody_lab.policy.model import Approval, SettlementInstruction
-from custody_lab.reserves.merkle_sum import MerkleSumTree
+from custody_lab.reserves.merkle_sum import InclusionProof, MerkleSumTree
 from custody_lab.reserves.merkle_sum import verify as verify_inclusion
 from custody_lab.reserves.snapshot import Snapshot, publish
 from custody_lab.settlement import bitcoin, chain, transfer
@@ -73,7 +73,7 @@ ORDERS = [
     Order("C3", "BTC-USD", "sell", Decimal("0.35"), Decimal("64010")),
     Order("C4", "BTC-USD", "sell", Decimal("0.25"), Decimal("64020")),
 ]
-SIGNERS = [1, 3]  # the signers online at step 7 unless the run names others
+SIGNERS = [1, 3]  # the signers the coordinator asks while both are online
 SHARES = (1, 2, 3)
 FEE_CAP_SATS = 10_000  # the most network fee a settlement may pay
 RUNS = Path("var/demo")
@@ -97,6 +97,22 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def _published(proof: InclusionProof) -> dict[str, Any]:
+    """The inclusion proof a client receives: its balance, its salt and the path to the root.
+
+    The dashboard checks it in the browser (``web/src/reserves.ts``) without the Python code.
+    """
+    return {
+        "client": proof.client_id,
+        "balance": format(proof.balance, "f"),  # never exponent notation (1E-8)
+        "salt": proof.salt.hex(),
+        "path": [
+            {"hash": s.sibling.hash.hex(), "sats": s.sibling.sats, "left": s.sibling_is_left}
+            for s in proof.path
+        ],
+    }
+
+
 def new_workdir(root: Path = RUNS) -> Path:
     """Create a fresh run directory under ``root``, named by its UTC start time."""
     root.mkdir(parents=True, exist_ok=True)
@@ -104,14 +120,22 @@ def new_workdir(root: Path = RUNS) -> Path:
     return Path(tempfile.mkdtemp(prefix=f"{stamp}-", dir=root))
 
 
-def run(emit: Emit, workdir: Path, signers: Sequence[int] = SIGNERS) -> dict[str, Any]:
+def _asked(offline: Sequence[int], threshold: int) -> list[int]:
+    """The signers the coordinator asks: ``SIGNERS`` where online, topped up from the others."""
+    online = [i for i in SHARES if i not in offline]
+    asked = [i for i in SIGNERS if i in online]
+    asked += [i for i in online if i not in asked][: max(0, threshold - len(asked))]
+    return sorted(asked)
+
+
+def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any]:
     """Run the demo end to end in ``workdir``; return the final summary.
 
-    ``signers`` are the share holders still online at step 7; the others' processes are stopped.
+    The signers in ``offline`` have their processes stopped before step 7.
     """
-    signers = sorted(set(signers))
-    if not set(signers) <= set(SHARES):
-        raise ValueError(f"signers must be among {SHARES}, not {signers}")
+    offline = sorted(set(offline))
+    if not set(offline) <= set(SHARES):
+        raise ValueError(f"offline signers must be among {SHARES}, not {offline}")
     events: list[Event] = []
     current = next(iter(STEPS))
 
@@ -220,9 +244,18 @@ def run(emit: Emit, workdir: Path, signers: Sequence[int] = SIGNERS) -> dict[str
                 pending = denied.decision
             both = first + [Approval.create(ins, "carol", approvers["carol"])]
             token = engine.authorise(ins, both, stx.sighash())
+            spent = stx.tx.inputs[0]
             report(
                 "policy",
                 "done",
+                spends=f"{bitcoin.to_btc(stx.spent.amount)} BTC, {spent.txid}:{spent.vout}",
+                pays=[
+                    {
+                        "to": "exchange" if o.script_pubkey == destination else "custody (change)",
+                        "amount": f"{bitcoin.to_btc(o.amount)} BTC",
+                    }
+                    for o in stx.tx.outputs
+                ],
                 matches_instruction=True,  # check_matches raises otherwise
                 fee=f"{stx.fee} sats",
                 fee_cap=f"{FEE_CAP_SATS:,} sats",
@@ -242,7 +275,7 @@ def run(emit: Emit, workdir: Path, signers: Sequence[int] = SIGNERS) -> dict[str
                 authorisation_id=token.authorisation_id,
             )
 
-            offline = [i for i in SHARES if i not in signers]
+            signers = _asked(offline, cluster.threshold)
             report("sign", "running", signers=signers, offline=offline)
             for i in offline:
                 cluster.stop(i)
@@ -251,8 +284,9 @@ def run(emit: Emit, workdir: Path, signers: Sequence[int] = SIGNERS) -> dict[str
             except (RuntimeError, ValueError) as refused:
                 if len(signers) >= cluster.threshold:
                     raise
+                online = cluster.count - len(offline)
                 raise RuntimeError(
-                    f"{len(signers)} of {cluster.count} signers online and {cluster.threshold} "
+                    f"{online} of {cluster.count} signers online and {cluster.threshold} "
                     f"are required; FROST refused: {refused}"
                 ) from refused
             if not schnorr.verify(stx.sighash(), output_key, signature):
@@ -314,6 +348,8 @@ def run(emit: Emit, workdir: Path, signers: Sequence[int] = SIGNERS) -> dict[str
                 proof_of_control=True,
                 audit_head=snapshot.audit_head,
                 snapshot=os.path.relpath(path),  # no home directory on screen
+                # each client receives only its own; the dashboard plays every client
+                inclusion_proofs=[_published(tree.proof(c)) for c in ledger],
             )
             del custodian_key  # reserved for signing published snapshots in a later module
     except Exception as exc:
