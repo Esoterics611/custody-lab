@@ -1158,6 +1158,9 @@ signer process checks the authorisation itself, and each refusal is shown on its
 - *Edit an amount in the audit log*: the edited entry's fingerprint no longer matches its
   contents: "entry 1: content does not match its hash".
 
+The [attack-vector analysis](attack-vectors.md) goes further: every vector it found, layer by
+layer, with what stops each in the demo, where that is shown or tested, and what remains open.
+
 **On the screen.** Press **Run the attacks**. The rows arrive one after another under the three
 headings, each marked REFUSED in green, and the summary above them reads "16 of 16 attacks
 refused."

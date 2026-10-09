@@ -1,6 +1,6 @@
 # Orientation: One Settlement, End to End
 
-2026-10-08
+2026-10-09
 
 [All chapters](../README.md) \| Next: [Chapter 1,
 Foundations](01-foundations.md)
@@ -185,7 +185,7 @@ assert not verifies(someone_else, signature, message)
 print("another person's key:      signature rejected")
 ```
 
-    signature: 64 bytes, beginning ced6b75a7ecbc3a4
+    signature: 64 bytes, beginning 896f5bf4d45df2d2
     original message:          signature accepted
     amount altered:            signature rejected
     another person's key:      signature rejected
@@ -734,7 +734,11 @@ coordinator is the program that passes messages between the signers and
 asks them to sign. If it were compromised, it could ask them to sign
 anything. Because each signer checks for itself, a compromised
 coordinator can only obtain signatures for transactions that people
-approved.
+approved. That holds when the coordinator, the policy engine and the
+approvers are separate parties, as [chapter 9](09-capstone.md) designs
+them. The demo runs all three in one process for convenience, so in the
+demo as packaged it does not; the [attack-vector
+analysis](../attack-vectors.md) lists this and every other gap.
 
 <a id="two-quorums"></a>
 
