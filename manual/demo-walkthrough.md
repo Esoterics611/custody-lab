@@ -20,7 +20,7 @@ after every step. [Key ceremonies](#key-ceremonies) shows a share stolen before 
 combine with one stolen after it, and a lost share rebuilt. [Red team](#red-team) runs a reorganised
 deposit, coins borrowed for a snapshot, a misdirected withdrawal and a forged fill, each against a
 weak rule and then the defence. [Attacking the
-design](#attacking-the-design) tries nineteen attacks against the demo's own code and shows which
+design](#attacking-the-design) tries twenty attacks against the demo's own code and shows which
 component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each client
 recompute its own place in the published snapshot. [Taking a signer
 offline](#taking-a-signer-offline) runs the demo with signers missing, and [Replaying a recorded
@@ -1201,7 +1201,7 @@ that settles shows that the approved path works. It does not show that a thief, 
 or a compromised server is stopped: each refusal has to be tried.
 
 **The idea.** The **Attack the design** tab sets up the demo's policy engine, approvers and a
-2-of-3 signing cluster, without a chain, and tries nineteen attacks against the real code. Each
+2-of-3 signing cluster, without a chain, and tries twenty attacks against the real code. Each
 row names the component that stopped the attack and quotes that component's own refusal. An
 attack that got through would be marked ACCEPTED in red and the summary would say a defence is
 broken; a test breaks the policy engine on purpose to prove the panel shows it. The attacks need
@@ -1282,6 +1282,10 @@ signer process checks the authorisation itself, and each refusal is shown on its
   for itself in the published tree, and its proof from the second tree reaches a root other than the
   published, signed one. Only delta-trading can notice: a client that never asks for its proof is
   never missed (the [attack-vector analysis](attack-vectors.md), 9.5).
+- *Delete a signed payment from the audit log and re-hash it*: a forger who removes an entry and
+  recomputes every later fingerprint leaves a chain that verifies. What it cannot rewrite is the
+  signers' own record of the authorisations they signed under: one of them is missing from the log.
+  This is the reconciliation chapter 9's failure table calls for.
 - *Edit an amount in the audit log*: the edited entry's fingerprint no longer matches its
   contents: "entry 1: content does not match its hash".
 
@@ -1289,7 +1293,7 @@ The [attack-vector analysis](attack-vectors.md) goes further: every vector it fo
 layer, with what stops each in the demo, where that is shown or tested, and what remains open.
 
 **On the screen.** Press **Run the attacks**. The rows arrive one after another under the three
-headings, each marked REFUSED in green, and the summary above them reads "19 of 19 attacks
+headings, each marked REFUSED in green, and the summary above them reads "20 of 20 attacks
 refused."
 
 ## Replaying a recorded run
@@ -1364,7 +1368,7 @@ This table summarises what each step has already explained, as a list of what to
 8. Each client recomputes its own place in the published snapshot from the balance it expects,
    with software independent of the custodian's, and a balance one satoshi off misses the root
    (Checking a client's balance).
-9. Nineteen attacks on the design's rules are each refused, by the component the design assigns
+9. Twenty attacks on the design's rules are each refused, by the component the design assigns
    to that rule and in that component's own words (Attacking the design).
 10. A custodian's books and the chain must agree after every movement. A deposit counts once it
     confirms; netting across clients keeps part of the settlement off the chain; coins at one

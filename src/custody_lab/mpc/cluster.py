@@ -107,6 +107,9 @@ class _Signer:
         self._secret = b""
         return public
 
+    def used(self) -> list[str]:
+        return sorted(self._used_authorisations)
+
     def copy_share(self) -> bytes:
         """EDUCATIONAL, NOT PRODUCTION: what a thief who copies this signer's storage holds."""
         return self._key_package
@@ -266,6 +269,12 @@ class SigningCluster:
             {k: ("repair2", ({h: deltas[h][k] for h in helpers}, identifier)) for k in helpers}
         )
         self._request({identifier: ("repair3", (sigmas, self.public_key_package))})
+
+    def used_authorisations(self) -> set[str]:
+        """Every authorisation identifier any running signer has signed under: the signers' own
+        record, to reconcile against the policy engine's audit log."""
+        used: dict[int, list[str]] = self._request({i: ("used", ()) for i in self._conns})
+        return {a for ids in used.values() for a in ids}
 
     def holders(self) -> dict[int, int | None]:
         """Participant identifier -> operating-system process id holding that share."""
