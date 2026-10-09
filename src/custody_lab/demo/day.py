@@ -504,6 +504,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 audit_entries=len(engine.audit.entries),
                 audit_head=snapshot.audit_head,
                 snapshot=os.path.relpath(path),
+                snapshot_document=json.loads(path.read_text()),  # as a client downloads it
                 inclusion_proofs=[published_proof(tree.proof(c)) for c in ledger],
                 books=books(),
             )

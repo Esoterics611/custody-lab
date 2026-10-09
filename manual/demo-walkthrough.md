@@ -969,6 +969,29 @@ With 1.50000001 BTC the path reaches a different root, so the published snapshot
 to that balance." Changing one satoshi in the leaf changed every fingerprint above it. **Reset**
 puts back the proof's own balance.
 
+**The second check: who signed the root.** A balance found inside a root proves nothing unless
+the custodian is bound to that root. A custodian could publish one root to a client who checks
+and another to everyone else, or change the figures after publishing them. The snapshot closes
+this: it names the root, the liabilities and assets, the block it was taken at and the latest
+audit-log fingerprint, and two of the three signers sign it with the custody key, the same key
+that holds the coins.
+
+The card **Check the custodian's signature**, under the balance check, rebuilds the signed
+message from the snapshot's own fields, in the same order and encoding as the server, and checks
+the signature with **BIP340**, Bitcoin's signature rule, using `@noble/curves`, an audited
+TypeScript library that shares no code with the server's verifier. With the published figures the
+verdict is green: the recomputed message equals the published one, and the signature verifies
+over it. **Lower the liabilities by 1 BTC** changes one figure on the page, as a custodian hiding
+a debt would: the recomputed message changes, the signature no longer verifies, and the verdict
+turns red. This is the after-the-run check on `var/altered.json`, done in the browser.
+
+The counterpart is an auditor's signed opinion on the reconciliation: it is worth something
+because the figures cannot be changed afterwards without the signature failing. The comparison
+stops at who can check it: anyone with the snapshot can verify this signature, with any BIP340
+implementation, without trusting the custodian's software. The browser library is checked against
+Bitcoin's 19 published BIP340 test vectors and against snapshots signed by the Python code
+(`tests/demo/test_browser_snapshot.py`).
+
 **What breaks without it.** The attack "Publish a liabilities tree with a client's balance cut by
 0.5 BTC", in the next section, is this check catching a custodian: the published tree counts
 alpha-capital for 0.5 BTC less, and alpha-capital's recomputation from its true balance misses the

@@ -359,6 +359,7 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
                 proof_of_control=True,
                 audit_head=snapshot.audit_head,
                 snapshot=os.path.relpath(path),  # no home directory on screen
+                snapshot_document=json.loads(path.read_text()),  # as a client downloads it
                 # each client receives only its own; the dashboard plays every client
                 inclusion_proofs=[published_proof(tree.proof(c)) for c in ledger],
             )
