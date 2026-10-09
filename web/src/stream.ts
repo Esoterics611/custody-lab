@@ -64,3 +64,22 @@ export async function post<T>(url: string, body: unknown, each: (item: T) => voi
   if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
   for await (const line of lines(response.body)) each(JSON.parse(line) as T)
 }
+
+// The custodian's books after a step: see books() in src/custody_lab/demo/day.py.
+export interface Books {
+  ledger: Record<string, string>
+  coins: { coin: string; amount: string; origin: string }[]
+  owed: string
+  held: string
+  reconciled: boolean
+}
+
+/** The books after the latest step that reported them, and after the one before, to mark changes. */
+export function lastTwoBooks(
+  steps: [string, string][],
+  state: Record<string, StepState>,
+): [Books | null, Books | null] {
+  const all = steps.flatMap(([id]) => (state[id]?.detail.books as Books | undefined) ?? [])
+  return [all.at(-1) ?? null, all.at(-2) ?? null]
+}
+

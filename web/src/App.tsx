@@ -6,6 +6,7 @@ import { Ceremonies } from './Ceremonies'
 import { Day } from './Day'
 import { Text } from './fields'
 import { Flow } from './Flow'
+import { RedTeam } from './RedTeam'
 import { Signers } from './Signers'
 import { Step } from './steps'
 import { PENDING, merge, post, type DemoEvent, type StepState } from './stream'
@@ -24,6 +25,7 @@ const TABS = {
   run: 'Settlement run',
   day: 'A day at the custodian',
   ceremonies: 'Key ceremonies',
+  redteam: 'Red team',
   attacks: 'Attack the design',
   check: "Check a client's balance",
 }
@@ -251,6 +253,9 @@ export default function App() {
       </div>
       <div hidden={tab !== 'ceremonies'}>
         <Ceremonies />
+      </div>
+      <div hidden={tab !== 'redteam'}>
+        <RedTeam />
       </div>
       <div hidden={tab !== 'attacks'}>
         <Attacks />

@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from custody_lab.demo import attacks, ceremonies, cli, day, pipeline, server
+from custody_lab.demo import attacks, ceremonies, cli, day, pipeline, redteam, server
 
 GROUP_KEY = "02" + "ab" * 32
 
@@ -286,3 +286,26 @@ def test_the_ceremonies_stream_and_print(tmp_path: Path, monkeypatch: pytest.Mon
     assert list(client.get("/api/ceremonies/steps").json()) == list(ceremonies.STEPS)
     assert result.exit_code == 0, result.output
     assert "      group_key_unchanged: true" in result.output.splitlines()
+
+
+def _a_short_red_team(emit: pipeline.Emit, workdir: Path) -> dict[str, Any]:
+    emit(pipeline.Event("checked", "running", redteam.STEPS["checked"]))
+    emit(pipeline.Event("checked", "done", redteam.STEPS["checked"], {"refusals": ["refused"]}))
+    return {"reconciled": True}
+
+
+def test_the_red_team_streams_and_prints(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(redteam, "run", _a_short_red_team)
+    monkeypatch.setattr(redteam, "RUNS", tmp_path / "redteam")
+    client = TestClient(server.create_app(tmp_path, tmp_path / "no-dashboard", tmp_path))
+
+    events = _events(client.post("/api/redteam"))
+    result = CliRunner().invoke(cli.app, ["redteam"])
+
+    assert [(e["step"], e["status"]) for e in events] == [
+        ("checked", "running"),
+        ("checked", "done"),
+    ]
+    assert list(client.get("/api/redteam/steps").json()) == list(redteam.STEPS)
+    assert result.exit_code == 0, result.output
+    assert "reconciled: true" in result.output

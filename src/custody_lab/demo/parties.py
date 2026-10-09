@@ -9,7 +9,10 @@ Finding 2). Now:
   that process and never leaves it; the coordinator receives authorisations and the audit log,
   nothing else.
 - ``ApproverDevice`` runs one approver's Ed25519 key in its own process, standing in for the
-  approver's own device. It signs the instruction it is given and returns the approval.
+  approver's own device. Without an address book it signs the instruction it is given, blind. With
+  one, its own copy of each client's registered addresses, it first checks that the destination
+  belongs to the client the payment is for, and refuses otherwise: the defence against an
+  instruction builder that has been compromised (chapter 10, Bitget; attack-vectors.md, 5.5).
 
 Every process still runs on one computer, so an administrator of that computer reaches them all
 (attack-vectors.md, vector 1.5). What the separation removes is the single process whose compromise
@@ -19,6 +22,7 @@ authorised anything.
 from __future__ import annotations
 
 import multiprocessing as mp
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -151,34 +155,56 @@ class PolicyService:
         self.close()
 
 
+class DeviceRefused(Exception):
+    """An approver's device refused to sign what it was shown."""
+
+
 class _DeviceInProcess:
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, address_book: Mapping[str, frozenset[str]] | None) -> None:
         self.name = name
         self._key = Ed25519PrivateKey.generate()  # never leaves this process
+        self._book = address_book  # client -> its registered addresses; None signs blind
 
     def public_key(self) -> bytes:
         return self._key.public_key().public_bytes(
             serialization.Encoding.Raw, serialization.PublicFormat.Raw
         )
 
-    def approve(self, ins: SettlementInstruction) -> Approval:
+    def approve(self, ins: SettlementInstruction, client: str | None) -> Approval:
+        if self._book is not None:
+            if client is None or ins.destination not in self._book.get(client, frozenset()):
+                owner = next((c for c, a in self._book.items() if ins.destination in a), None)
+                found = f"{owner}'s registered address" if owner else "no client's address"
+                raise DeviceRefused(
+                    f"{self.name}'s device: the destination is {found}, not {client}'s"
+                )
         return Approval.create(ins, self.name, self._key)
 
 
 class ApproverDevice:
-    """One approver's key in its own process, standing in for the approver's own device."""
+    """One approver's key in its own process, standing in for the approver's own device.
 
-    def __init__(self, name: str) -> None:
+    ``address_book`` is the device's own copy of each client's registered addresses; without it the
+    device signs blind."""
+
+    def __init__(self, name: str, address_book: Mapping[str, frozenset[str]] | None = None) -> None:
         self.name = name
-        self._process = _Process(f"approver-{name}", _DeviceInProcess, name)
+        self._process = _Process(f"approver-{name}", _DeviceInProcess, name, address_book)
         self.public_key: bytes = self._process.call("public_key")
 
     @property
     def pid(self) -> int | None:
         return self._process.pid
 
-    def approve(self, ins: SettlementInstruction) -> Approval:
-        approval: Approval = self._process.call("approve", ins)
+    def approve(self, ins: SettlementInstruction, client: str | None = None) -> Approval:
+        """Approve ``ins``, a payment for ``client``; a checking device raises ``DeviceRefused``."""
+        try:
+            approval: Approval = self._process.call("approve", ins, client)
+        except RuntimeError as refused:
+            match = re.fullmatch(r"DeviceRefused\([\"'](.*)[\"']\)", str(refused))
+            if match:
+                raise DeviceRefused(match.group(1)) from None
+            raise
         return approval
 
     def close(self) -> None:

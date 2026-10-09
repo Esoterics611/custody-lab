@@ -23,7 +23,7 @@ import uvicorn
 from custody_lab.demo import attacks as attack_panel
 from custody_lab.demo import ceremonies as key_ceremonies
 from custody_lab.demo import day as day_scenario
-from custody_lab.demo import pipeline, server
+from custody_lab.demo import pipeline, redteam, server
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 Runs = Annotated[Path, typer.Option(help="Directory that receives one subdirectory per run.")]
@@ -104,6 +104,19 @@ def ceremonies() -> None:
     """Play the key ceremonies: a stolen share against a refresh, and a lost share repaired."""
     try:
         summary = key_ceremonies.run(lambda e: _print(e, key_ceremonies.STEPS))
+    except Exception:  # printed above as the failed step's error; no traceback
+        raise typer.Exit(1) from None
+    typer.echo("")
+    for key, value in summary.items():
+        typer.echo(f"{key}: {_show(value)}")
+
+
+@app.command(name="redteam")
+def red_team() -> None:
+    """Play the red team on regtest: each attack against a weak rule, then against the defence."""
+    workdir = pipeline.new_workdir(redteam.RUNS)
+    try:
+        summary = redteam.run(lambda e: _print(e, redteam.STEPS), workdir)
     except Exception:  # printed above as the failed step's error; no traceback
         raise typer.Exit(1) from None
     typer.echo("")
