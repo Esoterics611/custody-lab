@@ -63,8 +63,42 @@ class _Signer:
         return public
 
     def commit(self) -> bytes:
+        if not self._key_package:
+            raise RuntimeError("no key share: it was lost and has not been repaired")
         self._nonces, commitments = cf.commit(self._key_package)
         return commitments
+
+    def refresh1(self, max_signers: int, min_signers: int) -> bytes:
+        self._secret, package = cf.refresh_part1(self.identifier, max_signers, min_signers)
+        return package
+
+    def refresh2(self, round1_from_others: dict[int, bytes]) -> dict[int, bytes]:
+        self._round1 = round1_from_others
+        self._secret, outgoing = cf.refresh_part2(self._secret, round1_from_others)
+        return outgoing
+
+    def refresh3(self, round2_to_me: dict[int, bytes], public_key_package: bytes) -> bytes:
+        self._key_package, public = cf.refresh_part3(
+            self._secret, self._round1, round2_to_me, public_key_package, self._key_package
+        )
+        self._secret = b""
+        return public
+
+    def copy_share(self) -> bytes:
+        """EDUCATIONAL, NOT PRODUCTION: what a thief who copies this signer's storage holds."""
+        return self._key_package
+
+    def wipe(self) -> None:
+        self._key_package = b""
+
+    def repair1(self, helpers: list[int], participant: int) -> dict[int, bytes]:
+        return cf.repair_part1(helpers, self._key_package, participant)
+
+    def repair2(self, deltas: list[bytes]) -> bytes:
+        return cf.repair_part2(deltas)
+
+    def repair3(self, sigmas: list[bytes], public_key_package: bytes) -> None:
+        self._key_package = cf.repair_part3(sigmas, self.identifier, public_key_package)
 
     def sign(self, signing_package: bytes, token: bytes, taproot: bool) -> bytes:
         if self._nonces is None:
@@ -147,6 +181,61 @@ class SigningCluster:
         package = cf.signing_package(commitments, message)
         shares = self._request({i: ("sign", (package, token, taproot)) for i in signers})
         return cf.aggregate(package, shares, self.public_key_package, taproot)
+
+    def refresh(self) -> bytes:
+        """Proactive refresh: every signer gets a new share of the same key; return the group key.
+
+        The signers run a DKG whose shared secret is zero and add their part of it to their
+        current share. Every share and every verifying share changes; the group key, and so the
+        custody address, do not. A share copied before the refresh no longer combines with
+        shares made after it. Every signer must be running.
+        """
+        ids = list(self._conns)
+        if len(ids) != self.count:
+            raise RuntimeError(f"refresh needs all {self.count} signers; {len(ids)} are running")
+        before = cf.group_public_key(self.public_key_package)
+        round1 = self._request({i: ("refresh1", (self.count, self.threshold)) for i in ids})
+        round2 = self._request(
+            {i: ("refresh2", ({j: round1[j] for j in ids if j != i},)) for i in ids}
+        )
+        publics = self._request(
+            {
+                i: ("refresh3", ({j: round2[j][i] for j in ids if j != i}, self.public_key_package))
+                for i in ids
+            }
+        )
+        if len(set(publics.values())) != 1:
+            raise RuntimeError("signers disagree on the refreshed public key package")
+        if cf.group_public_key(publics[ids[0]]) != before:
+            raise RuntimeError("refresh changed the group key")
+        self.public_key_package = publics[ids[0]]
+        return before
+
+    def export_share(self, identifier: int) -> bytes:
+        """EDUCATIONAL, NOT PRODUCTION: a copy of one signer's key package, as a thief who copied
+        its storage would hold. It exists to show what a stolen share can and cannot do."""
+        share: bytes = self._request({identifier: ("copy_share", ())})[identifier]
+        return share
+
+    def wipe(self, identifier: int) -> None:
+        """Signer ``identifier`` loses its share, as a failed disk without a backup would."""
+        self._request({identifier: ("wipe", ())})
+
+    def repair(self, identifier: int, helpers: Sequence[int]) -> None:
+        """Rebuild signer ``identifier``'s share with the help of ``helpers`` (at least the
+        threshold), by the repairable threshold scheme of Laing and Stinson (ePrint 2017/1155).
+
+        Each helper splits its contribution into one random-looking delta per helper, itself
+        included; each helper adds the deltas it receives into one sigma; the participant adds
+        the sigmas into its share. No helper's share, and no single delta or sigma, reveals a
+        share.
+        """
+        helpers = list(helpers)
+        deltas = self._request({h: ("repair1", (helpers, identifier)) for h in helpers})
+        sigmas = self._request(
+            {k: ("repair2", ([deltas[h][k] for h in helpers],)) for k in helpers}
+        )
+        self._request({identifier: ("repair3", (list(sigmas.values()), self.public_key_package))})
 
     def holders(self) -> dict[int, int | None]:
         """Participant identifier -> operating-system process id holding that share."""

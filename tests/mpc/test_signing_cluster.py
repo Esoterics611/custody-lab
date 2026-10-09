@@ -80,3 +80,55 @@ def test_two_signers_still_sign_after_the_third_process_stops() -> None:
             os.kill(stopped, 0)  # the share's process is gone, not idle
         with pytest.raises(KeyError):
             c.sign(MSG, [1, 2], token())
+
+
+def test_a_refresh_changes_every_share_and_keeps_the_key() -> None:
+    with SigningCluster(2, 3, AUTHORITY_KEY.public_bytes()) as c:
+        group_key = c.dkg()
+        output_key, before = c.taproot_output_key(), c.public_key_package
+        old_1 = c.export_share(1)
+
+        assert c.refresh() == group_key
+        assert c.taproot_output_key() == output_key and c.public_key_package != before
+        assert c.export_share(1) != old_1
+        for pair in combinations((1, 2, 3), 2):  # the new shares sign under the same key
+            assert schnorr.verify(MSG, group_key, c.sign(MSG, pair, token()))
+
+
+def test_shares_from_before_and_after_a_refresh_do_not_combine() -> None:
+    from custody_lab.demo.ceremonies import thief_sign
+
+    with SigningCluster(2, 3, AUTHORITY_KEY.public_bytes()) as c:
+        c.dkg()
+        output_key = c.taproot_output_key()  # thief_sign makes Taproot signatures
+        old_public, old_1, old_3 = c.public_key_package, c.export_share(1), c.export_share(3)
+        # two shares of one period are the key: the refresh does not change that
+        assert schnorr.verify(MSG, output_key, thief_sign(MSG, {1: old_1, 3: old_3}, old_public))
+        c.refresh()
+        new_3 = c.export_share(3)
+        for public in (old_public, c.public_key_package):
+            with pytest.raises(ValueError, match="InvalidSignatureShare"):
+                thief_sign(MSG, {1: old_1, 3: new_3}, public)
+
+
+def test_a_refresh_needs_every_signer() -> None:
+    with SigningCluster(2, 3, AUTHORITY_KEY.public_bytes()) as c:
+        c.dkg()
+        c.stop(2)
+        with pytest.raises(RuntimeError, match="needs all 3 signers"):
+            c.refresh()
+
+
+def test_a_lost_share_is_repaired_by_two_helpers() -> None:
+    with SigningCluster(2, 3, AUTHORITY_KEY.public_bytes()) as c:
+        group_key = c.dkg()
+        public = c.public_key_package
+        c.wipe(2)
+        with pytest.raises(RuntimeError, match="no key share"):
+            c.sign(MSG, [2, 3], token())
+
+        c.repair(2, [1, 3])
+
+        assert c.public_key_package == public
+        for pair in ((1, 2), (2, 3)):
+            assert schnorr.verify(MSG, group_key, c.sign(MSG, pair, token()))
