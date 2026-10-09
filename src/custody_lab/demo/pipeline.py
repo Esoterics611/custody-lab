@@ -28,6 +28,7 @@ import shutil
 import tempfile
 import time
 from collections.abc import Callable, Sequence
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -36,12 +37,12 @@ from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from custody_lab.demo.parties import ApproverDevice, PolicyService, PolicySpec
 from custody_lab.foundations import schnorr
 from custody_lab.mpc.cluster import SigningCluster
-from custody_lab.policy.audit import AuditLog, verify_chain
-from custody_lab.policy.authorisation import AuthorityKey
-from custody_lab.policy.engine import AssetPolicy, Policy, PolicyDenied, PolicyEngine, Tier
-from custody_lab.policy.model import Approval, SettlementInstruction
+from custody_lab.policy.audit import verify_chain
+from custody_lab.policy.engine import AssetPolicy, PolicyDenied, Tier
+from custody_lab.policy.model import SettlementInstruction
 from custody_lab.reserves.merkle_sum import InclusionProof, MerkleSumTree
 from custody_lab.reserves.merkle_sum import verify as verify_inclusion
 from custody_lab.reserves.snapshot import Snapshot, publish
@@ -157,9 +158,9 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
         events.append(event)
         emit(event)
 
-    approvers = {n: Ed25519PrivateKey.generate() for n in ("bob", "carol")}
     custodian_key = Ed25519PrivateKey.generate()
     node: RegtestNode | None = None
+    parties = ExitStack()  # the policy engine and the approvers' devices, each a process
     report("chain", "running")
     try:  # a missing or failing bitcoind is reported as step 1 failing
         node = RegtestNode(workdir / "node")
@@ -177,8 +178,9 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
             velocity_window=timedelta(hours=24),
             velocity_limit=Decimal("20"),
         )
-        policy = Policy({"BTC": btc_policy}, {n: k.public_key() for n, k in approvers.items()})
-        engine = PolicyEngine(policy, AuthorityKey.generate(), AuditLog(_now), _now)
+        devices = {n: parties.enter_context(ApproverDevice(n)) for n in ("bob", "carol")}
+        spec = PolicySpec({"BTC": btc_policy}, {n: d.public_key for n, d in devices.items()})
+        engine = parties.enter_context(PolicyService(spec))
 
         report("keys", "running")
         with SigningCluster(2, len(SHARES), authority=engine.authority_public_key) as cluster:
@@ -198,6 +200,14 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
                 group_key=internal.hex(),
                 output_key=output_key.hex(),
                 address=address,
+                other_keys=[
+                    {"holder": "policy engine", "key": "authority key", "pid": engine.pid},
+                    *(
+                        {"holder": f"{n}'s device", "key": "approval key", "pid": d.pid}
+                        for n, d in devices.items()
+                    ),
+                    {"holder": "coordinator (this server)", "key": "none", "pid": os.getpid()},
+                ],
                 implementations_agree=True,
             )
 
@@ -247,13 +257,13 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
             utxos = chain.custody_utxos(rpc, output_key)
             stx = transfer.build(utxos, amount, destination, change)
             transfer.check_matches(stx, amount, destination, change, max_fee=FEE_CAP_SATS)
-            first = [Approval.create(ins, "bob", approvers["bob"])]
+            first = [devices["bob"].approve(ins)]
             try:
                 engine.authorise(ins, first, stx.sighash())
                 raise RuntimeError("one approval must not be enough for this tier")
             except PolicyDenied as denied:
                 pending = denied.decision
-            both = first + [Approval.create(ins, "carol", approvers["carol"])]
+            both = first + [devices["carol"].approve(ins)]
             token = engine.authorise(ins, both, stx.sighash())
             spent = stx.tx.inputs[0]
             report(
@@ -330,7 +340,8 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
             tree = MerkleSumTree(ledger)
             proofs_ok = all(verify_inclusion(tree.proof(c), tree.root) for c in ledger)
             assets = bitcoin.to_btc(sum(u.amount for u in chain.custody_utxos(rpc, output_key)))
-            verify_chain(engine.audit.entries)
+            entries, head = engine.audit()
+            verify_chain(entries)
             snapshot = Snapshot(
                 taken_at=_now(),
                 block_height=rpc.call("getblockcount"),
@@ -340,7 +351,7 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
                 clients=len(ledger),
                 assets=assets,
                 custody_output_key=output_key.hex(),
-                audit_head=engine.audit.head,
+                audit_head=head,
             )
             attest = engine.authorise_attestation(snapshot.statement())
             message = snapshot.attestation_message()
@@ -372,11 +383,12 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
             node.stop()
         shutil.rmtree(workdir / "node", ignore_errors=True)
         (workdir / "audit.jsonl").write_text(
-            "".join(json.dumps(asdict(e), default=str) + "\n" for e in engine.audit.entries)
+            "".join(json.dumps(asdict(e), default=str) + "\n" for e in engine.audit()[0])
             if "engine" in locals()
             else ""
         )
         (workdir / "events.jsonl").write_text("".join(e.to_json() + "\n" for e in events))
+        parties.close()
     return {
         "txid": txid,
         "reserve_ratio": snapshot.reserve_ratio,

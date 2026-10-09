@@ -51,7 +51,8 @@ moves coins as one that must be stopped, not merely detected.
 
 ## Two findings about the demo as packaged
 
-Writing this analysis found two places where the demo did not do what its documents said.
+Writing this analysis found two places where the demo did not do what its documents said. Both are
+now fixed.
 
 **Finding 1, fixed: the coordinator could read the key-generation sub-shares.** In distributed key
 generation each signer sends every other signer a sub-share, a point on its secret line, and anyone
@@ -63,15 +64,18 @@ HKDF-SHA256, ChaCha20-Poly1305), and a test records everything the coordinator r
 cannot open any of it (`tests/mpc/test_channel.py`). One trust remains: the signers' channel
 public keys pass through the coordinator when the processes start (vector 1.4).
 
-**Finding 2, open in the demo: one process holds the coordinator, the policy engine and the
-approvers.** `pipeline.run` and `day.run` create the policy engine's authority key and bob's and
-carol's approval keys inside the server process, which is also the coordinator. Chapter 0 states
-that "a compromised coordinator can only obtain signatures for transactions that people approved",
-which is true of the design, where these are separate parties. In the demo as packaged, whoever
-controls the server process can approve and authorise any payment, and the signers will sign it,
-because their check is of the authority's signature. Chapter 4 calls the authority key "as
-sensitive as a signing quorum"; the demo keeps it in the same process as the coordinator. Moving
-the policy engine and each approver into processes of their own is a future demo.
+**Finding 2, fixed: one process held the coordinator, the policy engine and the approvers.**
+`pipeline.run` and `day.run` created the policy engine's authority key and bob's and carol's
+approval keys inside the server process, which is also the coordinator. Chapter 0 states that "a
+compromised coordinator can only obtain signatures for transactions that people approved", which is
+true of the design, where these are separate parties; in the demo, whoever controlled the server
+process could approve and authorise any payment, and the signers would sign it, because their check
+is of the authority's signature. The policy engine and each approver's key now run in processes of
+their own (`custody_lab.demo.parties`): the authority key is generated inside the policy engine's
+process and never leaves it, and the server process receives only authorisations and approvals.
+Step 2 of the settlement run lists which process holds which key, and a test checks that the
+coordinator's process holds no authority key (`tests/demo/test_parties.py`). All of these processes
+still run on one computer (vector 1.5).
 
 ## Vectors, layer by layer
 
@@ -169,8 +173,9 @@ each signer records the identifiers it has used. *Status:* refused, demonstrated
 liveness failure.
 
 **3.4 A coordinator that also holds the policy.** *Attack:* control the server process and
-authorise anything. *Stopped by:* in the design, the policy engine and the approvers are separate
-parties. *Status:* open in the demo (Finding 2).
+authorise anything. *Stopped by:* the policy engine and each approver run in processes of their own,
+holding their keys; the coordinator receives only authorisations and approvals (Finding 2).
+*Status:* refused, tested (`tests/demo/test_parties.py`).
 
 ### 4. The policy engine and its authorisations
 
@@ -186,8 +191,8 @@ ML-DSA-65, and the signers require both (chapter 7). *Status:* refused, demonstr
 **4.3 Stealing the authority key.** *Attack:* with the authority key, issue authorisations for any
 transaction. *Stopped by:* in the design, the key in an HSM and authorisations reconciled against
 the audit log (chapter 9's failure table). The signers cannot tell a stolen-key authorisation from
-a genuine one. *Status:* open in the design as a single point, covered by the HSM; open in the
-demo, where the key is in the server process. Chapter 9's Exercise 4 discusses moving the full
+a genuine one. *Status:* open in the design as a single point, covered by the HSM; in the demo
+the key is in the policy engine's own process, not in an HSM. Chapter 9's Exercise 4 discusses moving the full
 policy check into each signer.
 
 **4.4 An authorisation used late.** *Attack:* hold an approved transaction and send it later, the
@@ -376,37 +381,35 @@ This table summarises the statuses above.
 | Status | Vectors |
 |--------|---------|
 | Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 5.1, 5.2, 5.3, 6.2, 7.1, 9.1, 9.2, 9.3, 9.7, 10.1 |
-| Refused, tested or by construction | 1.2, 1.3, 2.2, 2.3, 6.1, 6.3, 7.3, 9.4, 12.2 |
+| Refused, tested or by construction | 1.2, 1.3, 2.2, 2.3, 3.4, 6.1, 6.3, 7.3, 9.4, 12.2 |
 | Contained | 1.8, 2.5, 2.6, 3.3, 4.7, 5.4, 5.6, 10.2, 11.1 |
-| Open in the demo | 1.4, 1.5, 1.6, 3.4, 4.3, 4.4 (signer clock), 4.5, 4.9, 7.2, 7.4, 8.1, 12.1, 13.1 |
+| Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.4 (signer clock), 4.5, 4.9, 7.2, 7.4, 8.1, 12.1, 13.1 |
 | Open | 4.8, 5.5, 8.2, 9.5, 9.6, 10.3, 14.1 |
 
 ## Future demos
 
 Each open vector can be shown as an attack that succeeds, then a defence that stops it.
 
-1. **Split the server** (Finding 2, 3.4, 4.3): run the policy engine and each approver in a process
-   of its own, and show a compromised coordinator unable to authorise.
-2. **Substitute a channel key** (1.4): a coordinator that swaps the keys at start-up reads the
+1. **Substitute a channel key** (1.4): a coordinator that swaps the keys at start-up reads the
    sub-shares; pinned, provisioned keys stop it.
-3. **Read the shares from memory** (1.5, 1.6): an administrator of one machine reads all three
+2. **Read the shares from memory** (1.5, 1.6): an administrator of one machine reads all three
    signer processes, which is why chapter 3 separates them.
-4. **Set a signer's clock back** (4.4): an expired authorisation accepted; a monotonic or attested
+3. **Set a signer's clock back** (4.4): an expired authorisation accepted; a monotonic or attested
    time source refuses it.
-5. **Restart a signer and replay** (4.5): a used authorisation accepted after a restart; a persisted
+4. **Restart a signer and replay** (4.5): a used authorisation accepted after a restart; a persisted
    record refuses it.
-6. **Register an attacker's address** (4.8): an unprotected whitelist change, then registration as
+5. **Register an attacker's address** (4.8): an unprotected whitelist change, then registration as
    an approved instruction with a delay.
-7. **Spoof the instruction** (5.5): a compromised instruction builder fools approvers who sign
+6. **Spoof the instruction** (5.5): a compromised instruction builder fools approvers who sign
    blind; an approver device that decodes against registered addresses refuses.
-8. **Reorganise the chain** (7.2): on regtest, invalidate the block holding a credited deposit and
+7. **Reorganise the chain** (7.2): on regtest, invalidate the block holding a credited deposit and
    double-spend it; a confirmation threshold refuses to credit too early.
-9. **Inject a fill** (8.1): a false execution report in an unauthenticated session changes the
+8. **Inject a fill** (8.1): a false execution report in an unauthenticated session changes the
    settlement; reconciliation against the exchange's statement catches it.
-10. **Borrow for the snapshot** (9.6): a custodian borrows coins for one snapshot; an unannounced
+9. **Borrow for the snapshot** (9.6): a custodian borrows coins for one snapshot; an unannounced
     second snapshot shows the gap.
-11. **Leave a client out** (9.5): the omitted client asks for its proof and finds none.
-12. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
+10. **Leave a client out** (9.5): the omitted client asks for its proof and finds none.
+11. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
     until the next snapshot.
 
 ## Recap
@@ -416,9 +419,9 @@ Each open vector can be shown as an attack that succeeds, then a defence that st
 2. Most vectors that move coins are refused by a check the demo demonstrates: the threshold, the
    signers' own check of the authorisation, its lifetime and single use, the whitelist, the
    transaction check, and the books reconciled with the chain.
-3. Two findings came out of this analysis: the key-generation sub-shares travelled in clear through
-   the coordinator (fixed: they are now sealed), and the demo runs the coordinator, the policy
-   engine and the approvers in one process (open in the demo, not in the design).
+3. Two findings came out of this analysis, both fixed: the key-generation sub-shares travelled in
+   clear through the coordinator (now sealed to their recipient), and the coordinator, the policy
+   engine and the approvers ran in one process (now each in its own).
 4. What remains open is mostly what the demo leaves out on purpose (separate machines, a public
    chain, authenticated sessions) and what no proof of reserves can show (omitted clients,
    borrowed coins). Each has a future demo.

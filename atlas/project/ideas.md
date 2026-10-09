@@ -26,6 +26,9 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   a share stolen before a refresh fails to combine with one stolen after it, two shares of one
   period still sign, and a lost share is rebuilt by two helpers. The dashboard tab,
   `custody-lab ceremonies`, the walkthrough section.
+- **Private channels and a split server** (2026-10-09), both from the attack-vector analysis.
+  Key-generation sub-shares are sealed signer to signer; the policy engine and each approver run in
+  processes of their own, so the coordinator holds none of their keys.
 
 ## Next
 
@@ -40,8 +43,6 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
 Each shows an attack that succeeds, then the defence that stops it. Numbers refer to the vectors
 in `manual/attack-vectors.md`.
 
-- **Split the server** (Finding 2; 3.4, 4.3). Run the policy engine and each approver in a process
-  of its own, and show a compromised coordinator unable to authorise anything.
 - **Substitute a channel key** (1.4). A coordinator that swaps the signers' channel keys at start-up
   reads the sub-shares; keys pinned at provisioning stop it.
 - **Read the shares from memory** (1.5, 1.6). An administrator of the one machine reads all three
