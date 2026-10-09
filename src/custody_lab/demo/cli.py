@@ -1,8 +1,9 @@
 """Command line for the demo.
 
-``custody-lab run`` runs the demo once and prints each step as it happens. ``custody-lab serve``
-starts the HTTP server (``custody_lab.demo.server``), which also serves the dashboard once
-``npm --prefix web run build`` has produced ``web/dist``.
+``custody-lab run`` runs the demo once and prints each step as it happens.
+``custody-lab attacks`` tries every attack in ``custody_lab.demo.attacks`` and prints who refused
+each. ``custody-lab serve`` starts the HTTP server (``custody_lab.demo.server``), which also serves
+the dashboard once ``npm --prefix web run build`` has produced ``web/dist``.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from typing import Annotated, Any
 import typer
 import uvicorn
 
+from custody_lab.demo import attacks as attack_panel
 from custody_lab.demo import pipeline, server
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -52,6 +54,26 @@ def run(
     typer.echo("")
     for key, value in summary.items():
         typer.echo(f"{key}: {_show(value)}")
+
+
+@app.command()
+def attacks() -> None:
+    """Try every attack on the design and print who refused each; exit 1 if any got through."""
+    group = ""
+
+    def show(attempt: attack_panel.Attempt) -> None:
+        nonlocal group
+        if attempt.group != group:
+            group = attempt.group
+            typer.echo(attack_panel.GROUPS[group])
+        typer.echo(f"  {'refused ' if attempt.refused else 'ACCEPTED'}  {attempt.title}")
+        typer.echo(f"            {attempt.defence}: {attempt.reason}")
+
+    attempts = attack_panel.run(show)
+    refused = sum(a.refused for a in attempts)
+    typer.echo(f"\n{refused} of {len(attempts)} attacks refused")
+    if refused < len(attempts):
+        raise typer.Exit(1)
 
 
 @app.command()
