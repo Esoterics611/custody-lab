@@ -9,6 +9,7 @@ the dashboard once ``npm --prefix web run build`` has produced ``web/dist``.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from decimal import Decimal
 from pathlib import Path
@@ -38,7 +39,9 @@ def _print(event: pipeline.Event) -> None:
     width = shutil.get_terminal_size().columns
     for key, value in event.detail.items():
         line = f"      {key}: {_show(value)}"
-        typer.echo(line if len(line) <= width else line[: width - 3] + "...")
+        if len(line) > width and key != "error":  # an error is printed whole
+            line = line[: width - 3] + "..."
+        typer.echo(line)
 
 
 @app.command()
@@ -49,8 +52,13 @@ def run(
         typer.Option(help="A signer to stop before step 7; repeat for each."),
     ] = None,
 ) -> None:
-    """Run the demo end to end and print each step."""
-    summary = pipeline.run(_print, pipeline.new_workdir(runs), offline or [])
+    """Run the demo end to end and print each step; exit 1 if a step fails."""
+    workdir = pipeline.new_workdir(runs)
+    try:
+        summary = pipeline.run(_print, workdir, offline or [])
+    except Exception:  # printed above as the failed step's error; no traceback
+        typer.echo(f"\nThe run stopped. Its events are in {os.path.relpath(workdir)}/events.jsonl")
+        raise typer.Exit(1) from None
     typer.echo("")
     for key, value in summary.items():
         typer.echo(f"{key}: {_show(value)}")
