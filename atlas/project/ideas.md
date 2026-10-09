@@ -33,6 +33,10 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   BTC short, and nothing is credited under a three-confirmation rule; a withdrawal sent to another
   client's registered address passes blind approver devices and is refused by checking ones (a new
   vector, 5.7: the global whitelist does not bind a destination to its client).
+- **Borrow for the snapshot** (2026-10-09). The red team hides its 0.50 BTC hole with a loan for a
+  scheduled snapshot (ratio 1.00000) and an unannounced snapshot after repayment shows 0.66667.
+  "Restart a signer and replay" was dropped: an authorisation names one exact transaction, so a
+  replayed signature gains nothing (attack-vectors.md, 4.5).
 - **Leave a client out** (2026-10-09). A seventeenth attack in the panel: the omitted client finds no
   proof in the published tree, and a proof from a second tree misses the published, signed root.
 
@@ -55,14 +59,10 @@ in `manual/attack-vectors.md`.
   signer processes: why chapter 3 puts shares on separate machines.
 - **Set a signer's clock back** (4.4). An expired authorisation accepted; a trusted time source
   refuses it.
-- **Restart a signer and replay** (4.5). A used authorisation accepted after a restart within its
-  60 seconds; a persisted record refuses it.
 - **Register an attacker's address** (4.8). An unprotected whitelist change, then registration as
   an approved instruction with a delay before first payment.
 - **Inject a fill** (8.1). A false execution report in the unauthenticated FIX session changes the
   settlement; reconciliation against the exchange's statement catches it.
-- **Borrow for the snapshot** (9.6). Coins borrowed for one snapshot; an unannounced second snapshot
-  shows the gap.
 - **Rewrite the log between snapshots** (10.2). Entries after the last anchored head rewritten
   unnoticed until the next snapshot.
 

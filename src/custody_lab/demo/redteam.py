@@ -1,7 +1,7 @@
-"""Red team: two attacks that succeed against a weak rule, then fail against the defence.
+"""Red team: three attacks that succeed against a weak rule, then fail against the defence.
 
 EDUCATIONAL, NOT PRODUCTION. ``run`` sets up a private chain, a 2-of-3 custody key, the policy
-engine and two approvers' devices, each in its own process, and plays two attacks from
+engine and two approvers' devices, each in its own process, and plays three attacks from
 ``manual/attack-vectors.md``, reporting each step as an ``Event`` and the custodian's books
 against the chain after each.
 
@@ -11,6 +11,12 @@ branch in which the same coins pay mallory back, and the custodian owes 0.50 BTC
 A custodian that credits at three confirmations is still waiting when the branch is replaced, and
 credits nothing. On regtest the replacement is made with ``invalidateblock``, which stands in for a
 miner with enough hash power to build the longer branch.
+
+**Coins borrowed for the snapshot** (vector 9.6). The custodian hides the hole the reorganisation
+left by borrowing 0.50 BTC from the exchange just before a scheduled snapshot, which then shows a
+reserve ratio of 1 and is signed. It repays the loan, and an unannounced snapshot taken afterwards
+shows the ratio the books really have. Both snapshots are signed by the same key; only their
+timing differs.
 
 **A misdirected withdrawal** (vector 5.7). A compromised instruction builder sends gamma-treasury's
 0.40 BTC withdrawal to alpha-capital's registered address. The policy's whitelist is global, so it
@@ -38,12 +44,16 @@ from custody_lab.foundations import schnorr
 from custody_lab.mpc.cluster import SigningCluster
 from custody_lab.policy.engine import AssetPolicy, Tier
 from custody_lab.policy.model import SettlementInstruction
+from custody_lab.reserves.merkle_sum import MerkleSumTree
+from custody_lab.reserves.snapshot import Snapshot, publish
 from custody_lab.settlement import bitcoin, chain, transfer
 from custody_lab.settlement.regtest import RegtestNode
 
 STEPS = {
     "setup": "Start the chain, the custody key, the policy engine and the approvers' devices",
     "reorg_weak": "Credit at one confirmation: a reorganised deposit leaves a hole",
+    "borrow": "Hide the hole: borrow coins for a scheduled snapshot",
+    "unannounced": "Repay the loan: an unannounced snapshot shows the hole",
     "reorg_strong": "Credit at three confirmations: the same attack credits nothing",
     "blind": "A misdirected withdrawal, approved on devices that sign blind",
     "checked": "The same withdrawal, refused by devices that check the destination",
@@ -85,6 +95,7 @@ def run(emit: Callable[[Event], None], workdir: Path) -> dict[str, Any]:
             wallets[client] = rpc.wallet(client)
             miner.call("sendtoaddress", wallets[client].call("getnewaddress"), "3")
             registered[client] = wallets[client].call("getnewaddress", "", "bech32")
+        lender = miner.call("getnewaddress", "", "bech32")  # the exchange, which lends the coins
         rpc.call("generatetoaddress", 1, mine_to)
 
         book = {client: frozenset({address}) for client, address in registered.items()}
@@ -99,7 +110,7 @@ def run(emit: Callable[[Event], None], workdir: Path) -> dict[str, Any]:
                     {
                         "BTC": AssetPolicy(
                             (Tier(Decimal("0.1"), 1), Tier(Decimal("10"), 2)),
-                            frozenset(registered.values()),  # one global whitelist
+                            frozenset({*registered.values(), lender}),  # one global whitelist
                             timedelta(hours=24),
                             Decimal("20"),
                         )
@@ -163,6 +174,85 @@ def run(emit: Callable[[Event], None], workdir: Path) -> dict[str, Any]:
             shortfall=f"{after['owed']} owed, {after['held']} held",
             books=after,
         )
+
+        def snapshot(label: str) -> tuple[Decimal, str]:
+            """Take, sign and publish a proof-of-reserves snapshot; return its ratio and file."""
+            tree = MerkleSumTree(ledger)
+            assets = bitcoin.to_btc(sum(u.amount for u in chain.custody_utxos(rpc, output_key)))
+            _, head = policy.audit()
+            taken = Snapshot(
+                taken_at=_now(),
+                block_height=rpc.call("getblockcount"),
+                block_hash=rpc.call("getbestblockhash"),
+                liabilities_root=tree.root.hash.hex(),
+                liabilities=tree.root.total,
+                clients=len(ledger),
+                assets=assets,
+                custody_output_key=output_key.hex(),
+                audit_head=head,
+            )
+            token = policy.authorise_attestation(taken.statement())
+            message = taken.attestation_message()
+            signature = cluster.sign(message, SIGNERS, token.to_bytes(), taproot=True)
+            if not schnorr.verify(message, output_key, signature):
+                raise RuntimeError("proof-of-control signature does not verify")
+            path = publish(taken, signature, workdir / "reserves" / label)
+            return taken.reserve_ratio, os.path.relpath(path)
+
+        def pay(
+            ins: SettlementInstruction,
+            devices: dict[str, ApproverDevice],
+            client: str | None = None,
+        ) -> tuple[str, int]:
+            """Build, check, approve, authorise, sign, broadcast and confirm one payment for
+            ``client``; return its txid and fee in satoshis."""
+            amount = bitcoin.to_sats(ins.amount)
+            destination = chain.script_pubkey(rpc, ins.destination)
+            stx = transfer.build(chain.custody_utxos(rpc, output_key), amount, destination, script)
+            transfer.check_matches(stx, amount, destination, script, FEE_CAP_SATS)
+            approvals = [devices[n].approve(ins, client) for n in ("bob", "carol")]
+            token = policy.authorise(ins, approvals, stx.sighash())
+            signature = cluster.sign(stx.sighash(), SIGNERS, token.to_bytes(), taproot=True)
+            if not schnorr.verify(stx.sighash(), output_key, signature):
+                raise RuntimeError("aggregated signature does not verify")
+            txid: str = rpc.call("sendrawtransaction", stx.finalize(signature))
+            rpc.call("generatetoaddress", 1, mine_to)
+            if len(stx.tx.outputs) > 1:
+                origins[f"{txid}:1"] = f"change from {ins.instruction_id}"
+            return txid, stx.fee
+
+        report("borrow", "running")
+        hole = books(rpc, output_key, ledger, origins)
+        loan = miner.call("sendtoaddress", address, "0.50")
+        rpc.call("generatetoaddress", 1, mine_to)
+        origins[f"{loan}:{_custody_vout(rpc, loan, script)}"] = "borrowed from the exchange"
+        ratio, path = snapshot("scheduled")
+        report(
+            "borrow",
+            "done",
+            before_the_loan=f"{hole['owed']} owed, {hole['held']} held",
+            borrowed="0.50 BTC from the exchange, just before the snapshot",
+            scheduled_snapshot_ratio=ratio,
+            snapshot=path,
+            books=books(rpc, output_key, ledger, origins),
+        )
+
+        report("unannounced", "running")
+        repay = SettlementInstruction(
+            "repay-loan", "BTC", Decimal("0.4999969"), lender, "ops-desk", _now()
+        )  # 0.50 BTC less the 310-satoshi fee, so the custody coins return to where they were
+        repaid, _ = pay(repay, blind)
+        ratio, path = snapshot("unannounced")
+        report(
+            "unannounced",
+            "done",
+            repaid=f"0.50 BTC to the exchange in {repaid}",
+            unannounced_snapshot_ratio=ratio,
+            snapshot=path,
+            lesson="a snapshot shows one moment; unannounced and frequent snapshots, and the "
+            "loan's inflow and outflow on the public chain, expose it",
+            books=books(rpc, output_key, ledger, origins),
+        )
         ledger["mallory"] -= Decimal("0.50")  # written off, to start the defended case clean
 
         report("reorg_strong", "running", credit_rule="3 confirmations")
@@ -195,26 +285,15 @@ def run(emit: Callable[[Event], None], workdir: Path) -> dict[str, Any]:
 
         report("blind", "running")
         ins = spoofed()
-        approvals = [blind[n].approve(ins, "gamma-treasury") for n in ("bob", "carol")]
-        amount = bitcoin.to_sats(ins.amount)
-        destination = chain.script_pubkey(rpc, ins.destination)
-        stx = transfer.build(chain.custody_utxos(rpc, output_key), amount, destination, script)
-        transfer.check_matches(stx, amount, destination, script, FEE_CAP_SATS)
-        token = policy.authorise(ins, approvals, stx.sighash())
-        signature = cluster.sign(stx.sighash(), SIGNERS, token.to_bytes(), taproot=True)
-        if not schnorr.verify(stx.sighash(), output_key, signature):
-            raise RuntimeError("aggregated signature does not verify")
-        txid = rpc.call("sendrawtransaction", stx.finalize(signature))
-        rpc.call("generatetoaddress", 1, mine_to)
-        origins[f"{txid}:1"] = "change from the misdirected withdrawal"
-        ledger["gamma-treasury"] -= ins.amount + bitcoin.to_btc(stx.fee)
+        txid, fee = pay(ins, blind, "gamma-treasury")
+        ledger["gamma-treasury"] -= ins.amount + bitcoin.to_btc(fee)
         report(
             "blind",
             "done",
             request="gamma-treasury withdraws 0.40 BTC",
             destination_put_in="alpha-capital's registered address",
             whitelist="passed: the address is registered, though to another client",
-            approved_by=[a.approver for a in approvals],
+            approved_by=["bob", "carol"],
             signers=SIGNERS,
             txid=txid,
             result="0.40 BTC of gamma-treasury's paid to alpha-capital's address",

@@ -53,3 +53,13 @@ def test_checking_devices_refuse_the_same_payment(done: dict[str, dict[str, Any]
     refusals = done["checked"]["refusals"]
     assert len(refusals) == 2
     assert all("alpha-capital's registered address, not gamma-treasury's" in r for r in refusals)
+
+
+def test_a_loan_hides_the_hole_from_a_scheduled_snapshot_only(
+    done: dict[str, dict[str, Any]],
+) -> None:
+    assert done["borrow"]["before_the_loan"] == "1.50 BTC owed, 1.00 BTC held"
+    assert str(done["borrow"]["scheduled_snapshot_ratio"]) == "1.00000"
+    assert done["borrow"]["books"]["reconciled"] is True  # the borrowed coins are held, for now
+    assert str(done["unannounced"]["unannounced_snapshot_ratio"]) == "0.66667"
+    assert done["unannounced"]["books"]["reconciled"] is False

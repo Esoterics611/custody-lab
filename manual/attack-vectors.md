@@ -202,9 +202,12 @@ ago"). Its limit: each signer checks expiry against its own clock, so a signer w
 been set back would accept an expired authorisation. *Open in the demo.*
 
 **4.5 Replaying after a signer restarts.** *Attack:* the used-authorisation record is kept in each
-signer's memory; restart a signer and present a used authorisation again within its 60 seconds.
-*Stopped by:* the lifetime bounds the window. *Status:* open in the demo: the record is not
-persisted.
+signer's memory; restart a threshold of signers and present a used authorisation again within its
+60 seconds. *Gain:* none in this design. An authorisation names one exact sighash, and a second
+signature over it can only complete the same transaction, spending the same coins, with the same
+txid, since a key-path signature is not part of the txid. *Status:* open in the demo, of no
+consequence while authorisations name exact transactions; it would matter for an authorisation
+that permitted more than one message.
 
 **4.6 Paying an address that is not on the whitelist.** *Stopped by:* the whitelist, checked before
 the approvals, so approvals cannot override it. *Status:* refused, demonstrated (attack panel; the
@@ -334,7 +337,9 @@ its proof from the second tree reaches a root other than the published, signed o
 missed (chapter 0, What a proof of reserves does not show).
 
 **9.6 Borrowed coins.** *Attack:* borrow coins for the moment of the snapshot and return them after.
-*Status:* open: a snapshot shows one moment. Frequent, unannounced snapshots narrow the window.
+*Stopped by:* snapshots that are frequent and unannounced, and the public chain, on which the loan
+arrives just before a snapshot and leaves just after. *Status:* contained, demonstrated (Red team,
+steps 3 and 4: the scheduled snapshot shows 1.00000, the unannounced one 0.66667).
 
 **9.7 A liability created without coins.** *Attack:* a bug or a fraud credits a client with nothing
 behind it, as at Liquid (chapter 10). *Stopped by:* reconciling the books with the chain after every
@@ -395,9 +400,9 @@ This table summarises the statuses above.
 |--------|---------|
 | Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 5.1, 5.2, 5.3, 5.5, 5.7, 6.2, 7.1, 7.2, 9.1, 9.2, 9.3, 9.7, 10.1 |
 | Refused, tested or by construction | 1.2, 1.3, 2.2, 2.3, 3.4, 6.1, 6.3, 7.3, 9.4, 12.2 |
-| Contained | 1.8, 2.5, 2.6, 3.3, 4.7, 5.4, 5.6, 10.2, 11.1 |
-| Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.4 (signer clock), 4.5, 4.9, 7.4, 8.1, 12.1, 13.1 |
-| Open | 4.8, 8.2, 9.5, 9.6, 10.3, 14.1 |
+| Contained | 1.8, 2.5, 2.6, 3.3, 4.7, 5.4, 5.6, 9.6, 10.2, 11.1 |
+| Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.4 (signer clock), 4.5 (no gain), 4.9, 7.4, 8.1, 12.1, 13.1 |
+| Open | 4.8, 8.2, 9.5, 10.3, 14.1 |
 
 ## Future demos
 
@@ -409,15 +414,11 @@ Each open vector can be shown as an attack that succeeds, then a defence that st
    signer processes, which is why chapter 3 separates them.
 3. **Set a signer's clock back** (4.4): an expired authorisation accepted; a monotonic or attested
    time source refuses it.
-4. **Restart a signer and replay** (4.5): a used authorisation accepted after a restart; a persisted
-   record refuses it.
-5. **Register an attacker's address** (4.8): an unprotected whitelist change, then registration as
+4. **Register an attacker's address** (4.8): an unprotected whitelist change, then registration as
    an approved instruction with a delay.
-6. **Inject a fill** (8.1): a false execution report in an unauthenticated session changes the
+5. **Inject a fill** (8.1): a false execution report in an unauthenticated session changes the
    settlement; reconciliation against the exchange's statement catches it.
-7. **Borrow for the snapshot** (9.6): a custodian borrows coins for one snapshot; an unannounced
-   second snapshot shows the gap.
-8. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
+6. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
    until the next snapshot.
 
 ## Recap
