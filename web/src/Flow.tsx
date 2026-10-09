@@ -11,11 +11,14 @@ const STAGES: { name: string; note: string; steps: string[] }[] = [
   { name: 'Reserves', note: 'proof published', steps: ['reserves'] },
 ]
 
-function stage(steps: string[], state: Record<string, StepState>): Status {
+// 'partial': some of the stage's steps are done and none is running, as Bitcoin is between
+// funding (step 3) and broadcast (step 8).
+function stage(steps: string[], state: Record<string, StepState>): Status | 'partial' {
   const statuses = steps.map((s) => state[s]?.status ?? 'pending')
   if (statuses.includes('failed')) return 'failed'
   if (statuses.includes('running')) return 'running'
-  return statuses.every((s) => s === 'done') ? 'done' : 'pending'
+  if (statuses.every((s) => s === 'done')) return 'done'
+  return statuses.includes('done') ? 'partial' : 'pending'
 }
 
 export function Flow({ state }: { state: Record<string, StepState> }) {
