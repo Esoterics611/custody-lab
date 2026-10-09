@@ -6,7 +6,7 @@ A custody system is judged by the payments it refuses. This document goes throug
 demo's design can be attacked, layer by layer, from the moment the key is generated to the
 published proof of reserves, and says for each what stops it, where that defence lives in the
 code or the tests, and what remains open. It is a companion to the walkthrough's [Attacking the
-design](demo-walkthrough.md#attacking-the-design), which runs nineteen of these attacks, and to
+design](demo-walkthrough.md#attacking-the-design), which runs twenty of these attacks, and to
 [chapter 9](chapters/09-capstone.md#failure-modes), whose failure table sets out the same design
 from the defender's side.
 
@@ -356,9 +356,13 @@ movement. *Status:* refused, demonstrated (the day's books panel; chapter 10's r
 **10.1 Editing an audit entry.** *Stopped by:* the hash chain. *Status:* refused, demonstrated
 (attack panel, "Edit an amount in the audit log").
 
-**10.2 Cutting entries off the end.** *Stopped by:* the snapshot records the log's head. *Status:*
-refused at the next snapshot; entries made after the last snapshot can be cut or rewritten
-undetected until the next one. *Contained.*
+**10.2 Cutting or rewriting entries.** *Attack:* delete or change entries and recompute every later
+fingerprint, so the chain verifies; entries after the last snapshot are not covered by its anchored
+head. *Stopped by:* a record the forger does not hold: the signers keep the identifier of every
+authorisation they signed under, and reconciling it against the log shows a deleted payment.
+*Status:* refused, demonstrated (attack panel, "Delete a signed payment from the audit log and
+re-hash it"). A deleted refusal or pending decision, which the signers never saw, is still caught
+only by the next snapshot's head.
 
 **10.3 Editing a run's event file.** The dashboard's replay shows whatever `events.jsonl` says, and
 the file is not signed. *Status:* open; it is a display record, not the system of record.
@@ -404,15 +408,18 @@ This table summarises the statuses above.
 
 | Status | Vectors |
 |--------|---------|
-| Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 4.8, 5.1, 5.2, 5.3, 5.5, 5.7, 6.2, 7.1, 7.2, 8.1, 9.1, 9.2, 9.3, 9.7, 10.1 |
+| Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 4.8, 5.1, 5.2, 5.3, 5.5, 5.7, 6.2, 7.1, 7.2, 8.1, 9.1, 9.2, 9.3, 9.7, 10.1, 10.2 |
 | Refused, tested or by construction | 1.2, 1.3, 2.2, 2.3, 3.4, 6.1, 6.3, 7.3, 9.4, 12.2 |
-| Contained | 1.8, 2.5, 2.6, 3.3, 4.7, 5.4, 5.6, 9.6, 10.2, 11.1 |
+| Contained | 1.8, 2.5, 2.6, 3.3, 4.7, 5.4, 5.6, 9.6, 11.1 |
 | Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.4 (signer clock), 4.5 (no gain), 4.9, 7.4, 12.1, 13.1 |
 | Open | 8.2, 9.5, 10.3, 14.1 |
 
 ## Future demos
 
-Each open vector can be shown as an attack that succeeds, then a defence that stops it.
+Each of these open vectors could be shown as an attack that succeeds, then a defence that stops
+it. The first two would mean writing tools that extract key material, so they stay as analysis
+here: the defences they call for, separate machines and keys provisioned out of band, are
+chapter 3's subject. The third is planned.
 
 1. **Substitute a channel key** (1.4): a coordinator that swaps the keys at start-up reads the
    sub-shares; pinned, provisioned keys stop it.
@@ -420,8 +427,6 @@ Each open vector can be shown as an attack that succeeds, then a defence that st
    signer processes, which is why chapter 3 separates them.
 3. **Set a signer's clock back** (4.4): an expired authorisation accepted; a monotonic or attested
    time source refuses it.
-4. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
-   until the next snapshot.
 
 ## Recap
 

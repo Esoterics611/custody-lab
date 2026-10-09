@@ -26,6 +26,7 @@ REFUSALS = {  # the refusing component's own words
     "alter_a_signed_snapshot": "does not verify over the altered snapshot",
     "understate_a_client_balance": "it does not match",
     "leave_a_client_out": "a root other than the published one",
+    "delete_an_authorisation_and_rechain": "the log does not record",
     "edit_the_audit_log": "content does not match its hash",
 }
 

@@ -37,6 +37,9 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   scheduled snapshot (ratio 1.00000) and an unannounced snapshot after repayment shows 0.66667.
   "Restart a signer and replay" was dropped: an authorisation names one exact transaction, so a
   replayed signature gains nothing (attack-vectors.md, 4.5).
+- **A deleted payment, re-hashed** (2026-10-09). A forger removes a signed payment from the audit log
+  and recomputes the chain; the signers' own record of the authorisations they used exposes it
+  (`SigningCluster.used_authorisations`).
 - **Register an address, with a delay** (2026-10-09). `PolicyEngine.register`: a new withdrawal
   address is approved like the largest payment and payable only after 24 hours; two attacks in the
   panel show both refusals.
@@ -59,14 +62,11 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
 Each shows an attack that succeeds, then the defence that stops it. Numbers refer to the vectors
 in `manual/attack-vectors.md`.
 
-- **Substitute a channel key** (1.4). A coordinator that swaps the signers' channel keys at start-up
-  reads the sub-shares; keys pinned at provisioning stop it.
-- **Read the shares from memory** (1.5, 1.6). An administrator of the one machine reads all three
-  signer processes: why chapter 3 puts shares on separate machines.
+- **Substitute a channel key** (1.4), **read the shares from memory** (1.5, 1.6): not to be built.
+  Each would mean writing a tool that extracts key material; they stay as analysis, and chapter 3
+  covers the defences (separate machines, keys provisioned out of band).
 - **Set a signer's clock back** (4.4). An expired authorisation accepted; a trusted time source
   refuses it.
-- **Rewrite the log between snapshots** (10.2). Entries after the last anchored head rewritten
-  unnoticed until the next snapshot.
 
 ### Other ideas
 

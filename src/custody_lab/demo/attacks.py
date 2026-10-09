@@ -1,7 +1,7 @@
 """Attacks on the custody design, each run against the real code and each expected to be refused.
 
 EDUCATIONAL, NOT PRODUCTION. ``run`` sets up the demo's policy engine, approvers and a 2-of-3
-signing cluster, then tries nineteen things an attacker or a careless insider would try. Each
+signing cluster, then tries twenty things an attacker or a careless insider would try. Each
 attempt reports which component stopped it and that component's own words. An attempt that
 succeeds is reported as accepted: it means a defence is broken, and the tests fail.
 
@@ -34,10 +34,15 @@ from cryptography.hazmat.primitives.asymmetric.mldsa import MLDSA65PrivateKey
 from custody_lab.foundations import schnorr
 from custody_lab.foundations.hashing import sha256
 from custody_lab.mpc.cluster import SigningCluster
-from custody_lab.policy.audit import AuditChainBroken, AuditLog, verify_chain
+from custody_lab.policy.audit import GENESIS, AuditChainBroken, AuditLog, verify_chain
 from custody_lab.policy.authorisation import AuthorityKey, issue
 from custody_lab.policy.engine import AssetPolicy, Policy, PolicyDenied, PolicyEngine, Tier
-from custody_lab.policy.model import AddressRegistration, Approval, SettlementInstruction
+from custody_lab.policy.model import (
+    AddressRegistration,
+    Approval,
+    SettlementInstruction,
+    canonical_json,
+)
 from custody_lab.reserves.merkle_sum import MerkleSumTree
 from custody_lab.reserves.merkle_sum import verify as verify_inclusion
 from custody_lab.reserves.snapshot import Snapshot
@@ -301,6 +306,30 @@ def leave_a_client_out(lab: _Lab) -> str:
     )
 
 
+def delete_an_authorisation_and_rechain(lab: _Lab) -> str:
+    """Delete the record of a signed payment from the audit log and recompute every later hash,
+    so that the chain still verifies; the signers' own records still show the payment."""
+    engine, ins = lab.engine(), lab.instruction()
+    token = engine.authorise(ins, lab.approve(ins, "bob", "carol"), _sighash(ins))
+    lab.sign(_sighash(ins), token.to_bytes())  # the payment the record would hide
+    kept = [e for e in engine.audit.entries if e.event != "authorised"]
+    rewritten, prev = [], GENESIS
+    for seq, entry in enumerate(kept):
+        entry = replace(entry, seq=seq, prev_hash=prev, hash="")
+        entry = replace(entry, hash=sha256(canonical_json(entry.body())).hex())
+        rewritten.append(entry)
+        prev = entry.hash
+    verify_chain(rewritten)  # passes: the forger recomputed every hash
+    logged = {e.payload["authorisation_id"] for e in rewritten if e.event == "authorised"}
+    signed = lab.cluster.used_authorisations()
+    if token.authorisation_id not in signed or token.authorisation_id in logged:
+        raise NotRefused("the deleted authorisation went unnoticed")
+    return (
+        f"the chain verifies after re-hashing, but the signers signed under authorisation "
+        f"{token.authorisation_id[:8]}, which the log does not record"
+    )
+
+
 def edit_the_audit_log(lab: _Lab) -> str:
     engine, ins = lab.engine(), lab.instruction()
     engine.authorise(ins, lab.approve(ins, "bob", "carol"), _sighash(ins))
@@ -352,6 +381,8 @@ ATTACKS: list[tuple[str, str, str, Callable[[_Lab], str]]] = [
      "the client's own check", understate_a_client_balance),
     ("records", "Leave a client out of the liabilities tree", "the client's own check",
      leave_a_client_out),
+    ("records", "Delete a signed payment from the audit log and re-hash it",
+     "the signers' records", delete_an_authorisation_and_rechain),
     ("records", "Edit an amount in the audit log", "the audit chain check",
      edit_the_audit_log),
 ]  # fmt: skip
