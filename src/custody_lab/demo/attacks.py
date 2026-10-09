@@ -1,7 +1,7 @@
 """Attacks on the custody design, each run against the real code and each expected to be refused.
 
 EDUCATIONAL, NOT PRODUCTION. ``run`` sets up the demo's policy engine, approvers and a 2-of-3
-signing cluster, then tries seventeen things an attacker or a careless insider would try. Each
+signing cluster, then tries nineteen things an attacker or a careless insider would try. Each
 attempt reports which component stopped it and that component's own words. An attempt that
 succeeds is reported as accepted: it means a defence is broken, and the tests fail.
 
@@ -37,7 +37,7 @@ from custody_lab.mpc.cluster import SigningCluster
 from custody_lab.policy.audit import AuditChainBroken, AuditLog, verify_chain
 from custody_lab.policy.authorisation import AuthorityKey, issue
 from custody_lab.policy.engine import AssetPolicy, Policy, PolicyDenied, PolicyEngine, Tier
-from custody_lab.policy.model import Approval, SettlementInstruction
+from custody_lab.policy.model import AddressRegistration, Approval, SettlementInstruction
 from custody_lab.reserves.merkle_sum import MerkleSumTree
 from custody_lab.reserves.merkle_sum import verify as verify_inclusion
 from custody_lab.reserves.snapshot import Snapshot
@@ -185,6 +185,24 @@ def drain_through_many_payments(lab: _Lab) -> str:
     return _denied(engine, third, lab.approve(third, "bob", "carol"))
 
 
+def register_with_one_approval(lab: _Lab) -> str:
+    engine = lab.engine()
+    reg = AddressRegistration("reg-attack-1", "BTC", "alpha-capital", ATTACKER, "ops-desk", _now())
+    try:
+        engine.register(reg, [Approval.create(reg, "bob", lab.keys["bob"])])
+    except PolicyDenied as denied:
+        return str(denied)
+    raise NotRefused("the policy engine registered the address")
+
+
+def pay_a_new_address_at_once(lab: _Lab) -> str:
+    engine = lab.engine()
+    reg = AddressRegistration("reg-attack-2", "BTC", "alpha-capital", ATTACKER, "ops-desk", _now())
+    engine.register(reg, [Approval.create(reg, n, lab.keys[n]) for n in ("bob", "carol")])
+    ins = lab.instruction(destination=ATTACKER)
+    return _denied(engine, ins, lab.approve(ins, "bob", "carol"))
+
+
 # Signers
 
 
@@ -312,6 +330,10 @@ ATTACKS: list[tuple[str, str, str, Callable[[_Lab], str]]] = [
      pay_the_same_instruction_twice),
     ("policy", "Drain the account in 9.5 BTC payments, each fully approved", "policy engine",
      drain_through_many_payments),
+    ("policy", "Register an attacker's address with one approval", "policy engine",
+     register_with_one_approval),
+    ("policy", "Pay an address the moment it is registered", "policy engine",
+     pay_a_new_address_at_once),
     ("signers", "Sign with an authorisation from an attacker's own authority key", "signers",
      forge_an_authorisation),
     ("signers", "Forge an authorisation after breaking Ed25519, as a quantum computer could",

@@ -112,7 +112,7 @@ uv run custody-lab run       # one demo run, printed step by step
 uv run custody-lab day       # a day: deposits, a double spend, trading, withdrawals, refusals
 uv run custody-lab ceremonies  # share refresh against a thief, and a lost share repaired; no chain
 uv run custody-lab redteam     # a reorganised deposit and a misdirected withdrawal, weak rule then defence
-uv run custody-lab attacks   # seventeen attacks on the design, each refused; needs no Bitcoin node
+uv run custody-lab attacks   # nineteen attacks on the design, each refused; needs no Bitcoin node
 ```
 
 **Expect:** `custody-lab run` prints `[1/9] Start a private Bitcoin Core regtest chain` and the
@@ -122,7 +122,7 @@ and reserves snapshot. `custody-lab run --offline 1` stops signer 1's process be
 signers 2 and 3 settle instead. `custody-lab day` runs eleven steps, comparing the ledger with the
 coins on chain after each, and ends with `reserve_ratio: 1.00000`. `custody-lab attacks` lists each
 attack with the component that
-refused it and ends with `17 of 17 attacks refused`.
+refused it and ends with `19 of 19 attacks refused`.
 
 To watch a run in the browser instead:
 
@@ -134,7 +134,7 @@ uv run custody-lab serve     # then open http://127.0.0.1:8000 and press "Run th
 
 **Expect:** three tabs. On **Settlement run**, nine numbered steps turn from pending to running
 to done as the events arrive, and a key-shares panel lists signers 1, 2 and 3 with their process
-ids and a switch that takes each offline for the next run. **Attack the design** runs the seventeen
+ids and a switch that takes each offline for the next run. **Attack the design** runs the nineteen
 attacks. **Check a client's balance** recomputes a client's inclusion proof in the browser after a
 run. [The demo walkthrough](manual/demo-walkthrough.md) takes one run through the
 dashboard step by step: what each value on the screen means, and how to check the run's files

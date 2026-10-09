@@ -6,7 +6,7 @@ A custody system is judged by the payments it refuses. This document goes throug
 demo's design can be attacked, layer by layer, from the moment the key is generated to the
 published proof of reserves, and says for each what stops it, where that defence lives in the
 code or the tests, and what remains open. It is a companion to the walkthrough's [Attacking the
-design](demo-walkthrough.md#attacking-the-design), which runs seventeen of these attacks, and to
+design](demo-walkthrough.md#attacking-the-design), which runs nineteen of these attacks, and to
 [chapter 9](chapters/09-capstone.md#failure-modes), whose failure table sets out the same design
 from the defender's side.
 
@@ -219,9 +219,12 @@ contained, demonstrated (attack panel, "Drain the account"; the day's refusal at
 limit bounds the loss per day; it does not prevent payments under it.
 
 **4.8 Adding an attacker's address to the whitelist.** *Attack:* the whitelist decides where coins
-may go, so change it. *Stopped by:* in the design, a registration that is itself an instruction
-under approval, with a delay before the new address may be paid. *Status:* open: the demo's
-whitelist is fixed in code, and no registration process is modelled.
+may go, so change it. *Stopped by:* a registration that is itself approved like the largest payment
+(`PolicyEngine.register`), recorded in the audit log, with a delay of 24 hours before the new
+address may be paid. *Status:* refused, demonstrated (attack panel: "Register an attacker's address
+with one approval" stays pending; "Pay an address the moment it is registered" is refused until
+the delay has passed) and tested (`tests/policy/test_registration.py`). The demo's scenarios still
+fix their whitelists in code.
 
 **4.9 Losing the policy's memory.** *Attack:* the velocity window and the "authorised before"
 check read the audit log in the engine's memory; restart the engine and both reset. *Status:* open
@@ -401,11 +404,11 @@ This table summarises the statuses above.
 
 | Status | Vectors |
 |--------|---------|
-| Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 5.1, 5.2, 5.3, 5.5, 5.7, 6.2, 7.1, 7.2, 8.1, 9.1, 9.2, 9.3, 9.7, 10.1 |
+| Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 4.8, 5.1, 5.2, 5.3, 5.5, 5.7, 6.2, 7.1, 7.2, 8.1, 9.1, 9.2, 9.3, 9.7, 10.1 |
 | Refused, tested or by construction | 1.2, 1.3, 2.2, 2.3, 3.4, 6.1, 6.3, 7.3, 9.4, 12.2 |
 | Contained | 1.8, 2.5, 2.6, 3.3, 4.7, 5.4, 5.6, 9.6, 10.2, 11.1 |
 | Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.4 (signer clock), 4.5 (no gain), 4.9, 7.4, 12.1, 13.1 |
-| Open | 4.8, 8.2, 9.5, 10.3, 14.1 |
+| Open | 8.2, 9.5, 10.3, 14.1 |
 
 ## Future demos
 
@@ -417,9 +420,7 @@ Each open vector can be shown as an attack that succeeds, then a defence that st
    signer processes, which is why chapter 3 separates them.
 3. **Set a signer's clock back** (4.4): an expired authorisation accepted; a monotonic or attested
    time source refuses it.
-4. **Register an attacker's address** (4.8): an unprotected whitelist change, then registration as
-   an approved instruction with a delay.
-5. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
+4. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
    until the next snapshot.
 
 ## Recap

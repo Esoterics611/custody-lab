@@ -37,6 +37,9 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   scheduled snapshot (ratio 1.00000) and an unannounced snapshot after repayment shows 0.66667.
   "Restart a signer and replay" was dropped: an authorisation names one exact transaction, so a
   replayed signature gains nothing (attack-vectors.md, 4.5).
+- **Register an address, with a delay** (2026-10-09). `PolicyEngine.register`: a new withdrawal
+  address is approved like the largest payment and payable only after 24 hours; two attacks in the
+  panel show both refusals.
 - **Inject a fill** (2026-10-09). A man in the middle rewrites a FIX ExecutionReport (LastQty 0.4 to
   1.4, checksum recomputed); the session accepts it, and reconciliation against the exchange's own
   statement refuses it (`trade_session`, `reconcile`).
@@ -62,8 +65,6 @@ in `manual/attack-vectors.md`.
   signer processes: why chapter 3 puts shares on separate machines.
 - **Set a signer's clock back** (4.4). An expired authorisation accepted; a trusted time source
   refuses it.
-- **Register an attacker's address** (4.8). An unprotected whitelist change, then registration as
-  an approved instruction with a delay before first payment.
 - **Rewrite the log between snapshots** (10.2). Entries after the last anchored head rewritten
   unnoticed until the next snapshot.
 

@@ -20,7 +20,7 @@ after every step. [Key ceremonies](#key-ceremonies) shows a share stolen before 
 combine with one stolen after it, and a lost share rebuilt. [Red team](#red-team) runs a reorganised
 deposit, coins borrowed for a snapshot, a misdirected withdrawal and a forged fill, each against a
 weak rule and then the defence. [Attacking the
-design](#attacking-the-design) tries seventeen attacks against the demo's own code and shows which
+design](#attacking-the-design) tries nineteen attacks against the demo's own code and shows which
 component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each client
 recompute its own place in the published snapshot. [Taking a signer
 offline](#taking-a-signer-offline) runs the demo with signers missing, and [Replaying a recorded
@@ -1201,7 +1201,7 @@ that settles shows that the approved path works. It does not show that a thief, 
 or a compromised server is stopped: each refusal has to be tried.
 
 **The idea.** The **Attack the design** tab sets up the demo's policy engine, approvers and a
-2-of-3 signing cluster, without a chain, and tries seventeen attacks against the real code. Each
+2-of-3 signing cluster, without a chain, and tries nineteen attacks against the real code. Each
 row names the component that stopped the attack and quotes that component's own refusal. An
 attack that got through would be marked ACCEPTED in red and the summary would say a defence is
 broken; a test breaks the policy engine on purpose to prove the panel shows it. The attacks need
@@ -1239,6 +1239,12 @@ and the first failure decides.
 - *Drain the account in 9.5 BTC payments, each fully approved*: each payment is within the tier
   that two approvals allow, but a third would bring the day's total to 28.5 BTC, over the 20 BTC
   velocity limit: "velocity limit 20 BTC per 24 hours; 19.0 BTC already authorised".
+- *Register an attacker's address with one approval*: a new withdrawal address is added by a
+  registration, approved like the largest payment, so one approval leaves it pending: "1 of 2".
+- *Pay an address the moment it is registered*: a registration with both approvals succeeds, but
+  the address becomes payable only after 24 hours: "registered but payable only from" that time.
+  The delay is there so that a registration made by an attacker can be noticed before anything is
+  paid to it.
 
 **Signers** ([chapters 2](chapters/02-mpc-custody.md) and [4](chapters/04-policy.md)). Each
 signer process checks the authorisation itself, and each refusal is shown on its own line.
@@ -1283,7 +1289,7 @@ The [attack-vector analysis](attack-vectors.md) goes further: every vector it fo
 layer, with what stops each in the demo, where that is shown or tested, and what remains open.
 
 **On the screen.** Press **Run the attacks**. The rows arrive one after another under the three
-headings, each marked REFUSED in green, and the summary above them reads "17 of 17 attacks
+headings, each marked REFUSED in green, and the summary above them reads "19 of 19 attacks
 refused."
 
 ## Replaying a recorded run
@@ -1358,7 +1364,7 @@ This table summarises what each step has already explained, as a list of what to
 8. Each client recomputes its own place in the published snapshot from the balance it expects,
    with software independent of the custodian's, and a balance one satoshi off misses the root
    (Checking a client's balance).
-9. Seventeen attacks on the design's rules are each refused, by the component the design assigns
+9. Nineteen attacks on the design's rules are each refused, by the component the design assigns
    to that rule and in that component's own words (Attacking the design).
 10. A custodian's books and the chain must agree after every movement. A deposit counts once it
     confirms; netting across clients keeps part of the settlement off the chain; coins at one
