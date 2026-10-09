@@ -243,11 +243,12 @@ main {
 .replay {
   display: flex;
   flex: 1 1 100%;
+  min-width: 0; /* else the longest recorded run's name sets the page width */
   gap: 8px;
 }
 
 .replay select {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   padding: 6px 8px;
   border: 1px solid var(--border);
