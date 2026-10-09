@@ -99,6 +99,13 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def _btc(sats: int) -> str:
+    """Satoshis as BTC for the screen, with at least two decimals: 5.00, 0.85, 4.1499969."""
+    btc = bitcoin.to_btc(sats)
+    shown = btc.quantize(Decimal("0.01")) if btc == btc.quantize(Decimal("0.01")) else btc
+    return f"{shown:f} BTC"
+
+
 def _published(proof: InclusionProof) -> dict[str, Any]:
     """The inclusion proof a client receives: its balance, its salt and the path to the root.
 
@@ -252,12 +259,11 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
             report(
                 "policy",
                 "done",
-                spends=f"{bitcoin.to_btc(stx.spent.amount)} BTC, "
-                f"output {spent.vout} of {spent.txid}",
+                spends=f"{_btc(stx.spent.amount)}, output {spent.vout} of {spent.txid}",
                 pays=[
                     {
                         "to": "exchange" if o.script_pubkey == destination else "custody (change)",
-                        "amount": f"{bitcoin.to_btc(o.amount)} BTC",
+                        "amount": _btc(o.amount),
                     }
                     for o in stx.tx.outputs
                 ],

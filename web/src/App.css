@@ -166,6 +166,10 @@ button.link {
   background: var(--ok-bg);
 }
 
+.flow .partial {
+  border-color: var(--ok);
+}
+
 .flow .done::after {
   background: var(--ok);
 }
