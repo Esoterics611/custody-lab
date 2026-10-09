@@ -22,8 +22,8 @@ actually gone wrong for custodians, and would this design have stopped it? And w
 next?
 
 This chapter answers each from public sources, and ties each answer to the chapter that explains
-the mechanism. Its central finding is uncomfortable and useful: the largest losses of 2025 and
-2026 did not come from stolen keys. The keys were intact, the approvals were real, and the
+the mechanism. Its central finding is uncomfortable and useful: the large losses of 2025 and 2026
+examined here did not come from stolen keys. The keys were intact, the approvals were real, and the
 transactions were signed correctly. What failed was the check of what was being approved.
 
 By the end of this chapter the following should be clear:
@@ -147,6 +147,18 @@ cluster could not sign for an Ethereum account. The third shows that the key its
 obstacle: the ECDSA rule accepts an ECDSA signature from it. Holding ether with MPC therefore
 needs a threshold ECDSA protocol (chapter 2 describes Lindell 2017 and CGGMP), not FROST.
 
+Three rules in the table below change what a custodian must do, so they are defined here. To be
+**slashed** is to lose part of a staked balance as a penalty, because the validator's key signed two
+conflicting messages; a staking key run on two machines at once can do that by accident. A
+**destination tag** is a number attached to a payment that tells a shared address which client it is
+for; a deposit sent without it arrives but cannot be credited to anyone until it is traced. A
+**durable nonce** is a Solana feature that lets a signed transaction stay valid until it is used,
+instead of expiring within about a minute and a half: convenient for offline signing, and, as the
+next section shows, dangerous. Stablecoin issuers keep a **freeze function** in the token's
+contract: Circle's terms reserve the right "to block the transfer of USDC to and from an address on
+chain", and Tether's Ethereum contract includes `addBlackList` and `destroyBlackFunds`. A
+custodian's books can therefore show a balance it is unable to deliver.
+
 **The largest assets.** CoinGecko's ranking by market value, read on 2026-10-09 at 09:27 UTC,
 begins Bitcoin, Ether, Tether (USDT), BNB, XRP, USDC, Solana and TRON (**verify current**). The
 table summarises what each asks of a custodian, from the sources under Further reading.
@@ -154,22 +166,10 @@ table summarises what each asks of a custodian, from the sources under Further r
 | Asset | Signature rule | Ledger | A rule that changes custody (reported) |
 |-------|----------------|--------|----------------------------------------|
 | BTC | ECDSA, or BIP340 Schnorr for Taproot | Coins (UTXO) | The fee is whatever the inputs leave over; nothing expires |
-| ETH | ECDSA on secp256k1 | Accounts | Each account's nonce orders its transactions; staking keys are a separate BLS key, and a validator can be **slashed** |
+| ETH | ECDSA on secp256k1 | Accounts | Each account's nonce orders its transactions; staking keys are a separate BLS key, and a validator can be slashed |
 | USDT, USDC | As the chain each is issued on | Tokens | The issuer can freeze an address's balance |
-| XRP | ECDSA by default; Ed25519 supported | Accounts | A **destination tag** names the client inside a shared address; an account keeps a reserve it cannot spend |
-| SOL | Ed25519 | Accounts | A transaction expires within about a minute unless it uses a **durable nonce**; accounts keep a minimum balance |
-
-Three rules in the table change what a custodian must do, so they are defined here. To be
-**slashed** is to lose part of a staked balance as a penalty, because the validator's key signed
-two conflicting messages; a staking key run on two machines at once can do that by accident. A
-**destination tag** is a number attached to a payment that tells a shared address which client
-it is for; a deposit sent without it arrives but cannot be credited to anyone until it is traced.
-A **durable nonce** is a Solana feature that lets a signed transaction stay valid until it is
-used, instead of expiring within about a minute: convenient for offline signing, and, as the
-next section shows, dangerous. Stablecoin issuers keep a **freeze function** in the token's
-contract: Circle's terms reserve the right "to block the transfer of USDC to and from an address
-on chain", and Tether's Ethereum contract includes `addBlackList` and `destroyBlackFunds`. A
-custodian's books can therefore show a balance it is unable to deliver.
+| XRP | ECDSA by default; Ed25519 supported | Accounts | A destination tag names the client inside a shared address; an account keeps a reserve it cannot spend |
+| SOL | Ed25519 | Accounts | A transaction expires within about a minute and a half unless it uses a durable nonce; accounts keep a minimum balance |
 
 **What breaks when it is done wrong.** A custodian that treats every chain like Bitcoin loses
 money in ways that have nothing to do with keys: a deposit without its tag sits unattributed, a
@@ -263,7 +263,7 @@ with attacks.lab() as setup:
 
 print("A transaction swapped after approval:")
 for line in per_signer(swapped):
-    print("  " + line[:70])
+    print("  " + line)
 print("An authorisation used five minutes after it was issued:")
 for line in per_signer(stale):
     print("  " + line.split(" at ")[0])
@@ -271,8 +271,8 @@ assert "differs from the authorised message" in swapped
 assert "expired" in stale
 ```
 
-The first two printed lines are signers 1 and 3 each refusing to sign a message other than the
-one the authorisation names. The last two are the same signers refusing an authorisation past its
+Under the first heading, signers 1 and 3 each refuse to sign a message other than the one the
+authorisation names. Under the second, the same signers refuse an authorisation past its
 lifetime. Neither refusal needs the coordinator's cooperation: each signer process checks for
 itself.
 
@@ -289,11 +289,11 @@ from custody_lab.reserves.merkle_sum import MerkleSumTree
 
 held = Decimal("5.00")                       # coins at the custody address
 books = dict(LEDGER)
-print(f"books {MerkleSumTree(books).root.total} BTC, held {held} BTC")
+print(f"books {MerkleSumTree(books).root.total:.2f} BTC, held {held} BTC")
 books["delta-trading"] += Decimal("0.40")    # a credit with no coin behind it
 owed = MerkleSumTree(books).root.total
 ratio = (held / owed).quantize(Decimal("0.00001"))
-print(f"books {owed} BTC, held {held} BTC, reserve ratio {ratio}")
+print(f"books {owed:.2f} BTC, held {held} BTC, reserve ratio {ratio}")
 assert ratio < 1
 ```
 
@@ -459,7 +459,8 @@ All read on 2026-10-09. Company, regulatory and incident facts are **verify curr
 - Coinbase Global, Form 10-K for 2025, filed with the SEC (`sec.gov`, CIK 1679788).
 - CoinGecko, `api.coingecko.com/api/v3/coins/markets`, ranking by market capitalisation,
   2026-10-09 09:27 UTC.
-- Circle, USDC terms; Tether, `TetherToken` contract on Ethereum (the freeze functions).
+- Circle, USDC terms (updated 12 December 2025), section 13, `circle.com/legal/usdc-terms`; Tether,
+  `TetherToken` contract on Ethereum (the freeze functions).
 - FBI, Public Service Announcement I-022625-PSA, 26 February 2025 (Bybit).
 - BleepingComputer, "Lazarus hacked Bybit via a breached Safe{Wallet} developer machine" (2025),
   and "Drift loses $280 million" (2 April 2026).

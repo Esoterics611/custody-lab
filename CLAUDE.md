@@ -176,6 +176,7 @@ host lacks.
 | 7 | Post-quantum | done: `wots` (teaching); `rust/custody-pq` (SLH-DSA); hybrid authorisation tokens; tests pass | rewritten to the writing standard; renders (21 pages) | 6 entries, draft |
 | 8 | Industry and regulation (chapter only) | n/a; DvP model cell; the demo's unsettled USD leg measured; fees charged to the client so the custody address holds client coins only | rewritten to the writing standard; renders (17 pages) | 6 entries, draft |
 | 9 | Capstone (chapter only) | n/a; runs the signing cluster (any 2 of 3, replay refused) and computes the design's numbers | rewritten to the writing standard; renders (17 pages) | 1 entry, draft |
+| 10 | Custody in practice (chapter only) | n/a; cells: one key under two signature rules, the signers refusing a swapped and an expired authorisation, an unbacked credit lowering the reserve ratio | written to the writing standard from sources read 2026-10-09; renders (14 pages) | glossary only (8 terms); notes in `atlas/project/research/` |
 
 Plan, dependencies and estimates: `atlas/project/build-plan.md`.
 

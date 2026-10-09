@@ -80,7 +80,8 @@ of another chapter is a link.
    small enough to check by hand, then follows the demo step by step.
 2. **Continue in order** through the [contents page](manual/README.md): foundations, MPC custody,
    key storage, policy, trading to settlement, proof of reserves, post-quantum cryptography,
-   industry and regulation, and a capstone design review.
+   industry and regulation, a capstone design review, and custody in practice today: custodians,
+   assets, recent losses and what is being standardised.
 3. **Look things up** in the [glossary](atlas/glossary.md), which links each term to the section
    that teaches it, and in the [atlas](atlas/index.md), one entry per concept.
 

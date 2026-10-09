@@ -10,6 +10,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Abort.** A protocol run that stops without producing a signature because a party's misbehaviour was detected. Aborting is the safe outcome: no signature is better than a wrong one. It does not by itself say who cheated; see identifiable abort. *Taught in:* [2 FP, What the attacker is assumed to do](../manual/chapters/02-mpc-custody.md#what-the-attacker-is-assumed-to-do).
 
+**Account model.** A ledger that keeps one balance per address, as Ethereum, Solana and XRP do, instead of separate coins spent whole as Bitcoin does. Each transaction carries a counter or reference that fixes its order and, on some chains, how long it stays valid. *Taught in:* [10 FP, What each asset asks of a custodian](../manual/chapters/10-practice.md#what-each-asset-asks-of-a-custodian).
+
 **Additive share.** One of several numbers that add up to the key modulo the group order $n$. Every holder is needed, because leaving one out changes the sum. On the toy curve, 21 and 19 are additive shares of the key 9, since $21 + 19 = 40 \equiv 9 \pmod{31}$; threshold Schnorr signing turns Shamir shares into additive shares for each session. *Taught in:* [2 FP, Three ways to split a key](../manual/chapters/02-mpc-custody.md#three-ways-to-split-a-key).
 
 **Address.** A locking script written in a checksummed text form for people to copy. Paying an address means creating an output with that locking script. Taproot addresses use bech32m and start `bc1p` on the main network and `bcrt1p` on regtest. *Taught in:* [5 FP, Locking and unlocking](../manual/chapters/05-settlement.md#locking-and-unlocking).
@@ -49,6 +51,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 **BIP340.** Bitcoin's Schnorr signature standard, used by Taproot. It adds three rules to textbook Schnorr: x-only 32-byte keys, tagged hashes, and nonces derived from the key, the message and extra randomness. Signatures are 64 bytes. *Taught in:* [1, Schnorr and BIP340](../manual/chapters/01-foundations.md#schnorr-and-bip340).
 
 **BIP86.** A Taproot output whose key is tweaked to commit to an empty script tree, so it can be spent only by the key path. Anyone who knows the untweaked key can confirm that no hidden spending script exists. The demo's custody address is a BIP86 output. *Taught in:* [5, Taproot outputs and the BIP86 tweak](../manual/chapters/05-settlement.md#taproot-outputs-and-the-bip86-tweak).
+
+**Blind signing.** Approving or signing data whose meaning the signer cannot check for itself, typically because a screen or service decodes it for them. If that screen is compromised, the signer approves the attacker's transaction; the Bybit loss of February 2025 is the reported example. *Taught in:* [10 FP, Approved, but wrong](../manual/chapters/10-practice.md#approved-but-wrong).
 
 **Block.** A batch of transactions with a proof of work, containing the hash of the block before it, so the blocks form a chain. Changing an old transaction would change its block's hash and break every later link. *Taught in:* [5 FP, Blocks, confirmation and regtest](../manual/chapters/05-settlement.md#blocks-confirmation-and-regtest).
 
@@ -94,6 +98,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Default-deny.** Refusing anything the policy does not explicitly allow: an unknown asset, an unlisted address or an amount above every tier is refused, not passed through. A misconfiguration therefore fails safe, which matters because a broadcast settlement cannot be reversed. *Taught in:* [4 FP, Default deny](../manual/chapters/04-policy.md#default-deny); [4, The decision function](../manual/chapters/04-policy.md#the-decision-function).
 
+**Destination tag.** A number attached to an XRP payment that names the client inside a shared address. A deposit sent without it arrives but cannot be credited to anyone until it is traced. *Taught in:* [10 FP, What each asset asks of a custodian](../manual/chapters/10-practice.md#what-each-asset-asks-of-a-custodian).
+
 **Digest.** The hash of a message's canonical bytes. Approvals and signatures are made over digests, so a change to any field of the message produces a different digest and the old signature no longer applies. *Taught in:* [4 FP, Approvals: four eyes, signed](../manual/chapters/04-policy.md#approvals-four-eyes-signed); [1, Hash functions](../manual/chapters/01-foundations.md#hash-functions).
 
 **Digital signature.** A number computed from a private key and the exact bytes of a message, which anyone with the public key can check. Changing one byte of the message, or checking against a different public key, makes the check fail, and nobody without the private key can produce one that passes. *Taught in:* [0, Signatures](../manual/chapters/00-orientation.md#signatures).
@@ -107,6 +113,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 **Double spend.** Promising the same coins to two payees, of whom only one can receive them. A payment still in the mempool can be replaced by another spending the same coins (RBF), so a custodian credits a deposit only once it is in a block. The demo's day shows a client replacing its deposit before it confirms. *Taught in:* [the demo walkthrough, Deposits: credit only what has confirmed](../manual/demo-walkthrough.md#deposits-credit-only-what-has-confirmed).
 
 **Double-and-add.** Computing $dG$ by repeated doubling ($2G$, $4G$, $8G$, ...) and adding the doublings that make up $d$: $13G = 8G + 4G + G$. A 256-bit key needs about 256 doublings and at most 256 additions. The teaching version branches on secret bits, which leaks them through timing. *Taught in:* [1 FP, Easy forwards, infeasible backwards](../manual/chapters/01-foundations.md#easy-forwards-infeasible-backwards).
+
+**Durable nonce.** A Solana feature that keeps a signed transaction valid until it is used, instead of letting it expire within about a minute and a half. It allows offline signing, and it turns a collected approval into a standing permission, as in the reported Drift loss of April 2026. *Taught in:* [10 FP, What each asset asks of a custodian](../manual/chapters/10-practice.md#what-each-asset-asks-of-a-custodian).
 
 **Dust.** An output too small for Bitcoin Core to relay under its default policy: below 330 satoshis for a Taproot output. The demo's transaction builder adds change below that limit to the fee instead of creating it. *Taught in:* [5 FP, Coins are outputs, not balances](../manual/chapters/05-settlement.md#coins-are-outputs-not-balances).
 
@@ -141,6 +149,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 **FORS.** The few-time signature scheme at the bottom of SLH-DSA, which signs the message digest at a leaf chosen by a hash of the message. A few-time scheme tolerates a small number of signatures per key, which is why SLH-DSA needs no record of used leaves. *Taught in:* [7 FP, A Merkle tree of one-time keys](../manual/chapters/07-post-quantum.md#a-merkle-tree-of-one-time-keys).
 
 **Four-eyes.** Requiring approval by someone other than the person who raised a request (maker-checker). The policy engine enforces it by not counting the initiator's approval. *Taught in:* [4 FP, Approvals: four eyes, signed](../manual/chapters/04-policy.md#approvals-four-eyes-signed).
+
+**Freeze function.** A function in a stablecoin's contract that lets the issuer block an address's balance. A custodian can therefore hold a balance on its books that it is unable to deliver. *Taught in:* [10 FP, What each asset asks of a custodian](../manual/chapters/10-practice.md#what-each-asset-asks-of-a-custodian).
 
 **FROST.** Flexible Round-Optimized Schnorr Threshold signatures (RFC 9591): threshold Schnorr in two rounds, commit then sign, with a binding factor that ties every nonce to one message and commitment list. The output is an ordinary Schnorr signature. It is the demo's signing protocol, through the Zcash Foundation crate. *Taught in:* [2, FROST](../manual/chapters/02-mpc-custody.md#frost).
 
@@ -270,6 +280,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 ## N
 
+**MuSig2.** A Schnorr multi-signature scheme for Bitcoin (BIP 327) that aggregates every signer's key into one. It is n-of-n: every key holder must sign, where FROST needs only a threshold. *Taught in:* [10 FP, What is being standardised](../manual/chapters/10-practice.md#what-is-being-standardised).
+
 **Netting.** Adding up a settlement cycle's fills into one obligation per asset, so only the net moves. The demo's four fills net to 0.85 BTC owed to the exchange and 54,415.925 USD owed to the client. *Taught in:* [5, Netting](../manual/chapters/05-settlement.md#netting).
 
 **Nitro Enclave.** An isolated virtual machine carved out of an AWS EC2 instance by AWS's Nitro hypervisor, with no persistent storage, no interactive access and no external network. Its attestation document is signed through AWS's certificate chain. *Taught in:* [3, Trusted execution environments](../manual/chapters/03-key-storage.md#trusted-execution-environments).
@@ -360,6 +372,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Reserve ratio.** Assets divided by liabilities in a reserves snapshot. After the demo's settlement both are 4.1499969 BTC, so the ratio is exactly 1. *Taught in:* [6, Snapshot and attestation](../manual/chapters/06-reserves.md#snapshot-and-attestation).
 
+**ROAST.** A wrapper around FROST that keeps a signing session completing when some signers stall or misbehave, so one unavailable node cannot block a payment (Ruffing and others, ACM CCS 2022). *Taught in:* [10 FP, What is being standardised](../manual/chapters/10-practice.md#what-is-being-standardised).
+
 **Rogue-key attack.** Publishing a key or commitment chosen to cancel the other parties' contributions, so that the joint key is one the attacker alone controls. A proof of knowledge of the published value's discrete logarithm stops it. *Taught in:* [2 FP, Zero-knowledge proofs](../manual/chapters/02-mpc-custody.md#zero-knowledge-proofs); [2, Distributed key generation](../manual/chapters/02-mpc-custody.md#distributed-key-generation).
 
 **Root of trust.** The key a verifier trusts at the base of a chain of signatures, such as the key a processor maker built into its chips. Every attestation report traces back to it. *Taught in:* [3 FP, Remote attestation](../manual/chapters/03-key-storage.md#remote-attestation).
@@ -409,6 +423,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 **Sighash.** The 32-byte hash of a transaction's fields that a signature actually signs, with the witness left out. It commits to every input's amount and script and every output, so one sighash authorises exactly one transaction. *Taught in:* [5 FP, What the signature covers: the sighash](../manual/chapters/05-settlement.md#what-the-signature-covers-the-sighash).
 
 **Signing quorum.** The machines holding key shares, $t$ of which must take part in a signature: in the demo, any two of three signer processes. It is separate from the approval quorum of people. *Taught in:* [0, Two quorums](../manual/chapters/00-orientation.md#two-quorums); [2, What this chapter is for](../manual/chapters/02-mpc-custody.md#what-this-chapter-is-for).
+
+**Slashing.** The loss of part of a staked balance as a penalty, because a validator's key signed two conflicting messages. A staking key run on two machines at once can do it by accident, which is why staking keys need their own custody rules. *Taught in:* [10 FP, What each asset asks of a custodian](../manual/chapters/10-practice.md#what-each-asset-asks-of-a-custodian).
 
 **SLH-DSA.** The FIPS 205 stateless hash-based signature: a hypertree of XMSS trees with FORS at the bottom, secure as long as the hash function is. SHA2-128f signatures are 17,088 bytes. *Taught in:* [7, SLH-DSA (FIPS 205)](../manual/chapters/07-post-quantum.md#slh-dsa-fips-205).
 
