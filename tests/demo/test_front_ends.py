@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from custody_lab.demo import cli, pipeline, server
+from custody_lab.demo import attacks, cli, pipeline, server
 
 GROUP_KEY = "02" + "ab" * 32
 
@@ -151,3 +151,25 @@ def test_run_passes_the_named_signers_to_the_pipeline(
     assert CliRunner().invoke(cli.app, args).exit_code == 0
     assert CliRunner().invoke(cli.app, ["run", "--runs", str(tmp_path)]).exit_code == 0
     assert received == [[2, 3], pipeline.SIGNERS]
+
+
+def test_the_attack_panel_streams_every_attempt_refused(tmp_path: Path) -> None:
+    client = TestClient(server.create_app(tmp_path, tmp_path / "no-dashboard"))
+
+    response = client.post("/api/attacks")
+
+    assert response.headers["content-type"] == "application/x-ndjson"
+    attempts = _events(response)
+    assert [a["attack"] for a in attempts] == [f.__name__ for *_, f in attacks.ATTACKS]
+    assert all(a["refused"] for a in attempts)
+    assert list(tmp_path.iterdir()) == []  # attacks leave no run directory
+
+
+def test_attacks_prints_each_refusal_and_the_count() -> None:
+    result = CliRunner().invoke(cli.app, ["attacks"])
+
+    assert result.exit_code == 0, result.output
+    assert "  refused   Replay an authorisation that has already been used" in result.output
+    assert result.output.endswith(
+        f"{len(attacks.ATTACKS)} of {len(attacks.ATTACKS)} attacks refused\n"
+    )
