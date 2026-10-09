@@ -125,8 +125,9 @@ class PolicyEngine:
         if used + ins.amount > asset.velocity_limit:
             return Decision(
                 Status.DENIED,
-                f"velocity limit {asset.velocity_limit} per {asset.velocity_window}; "
-                f"{used} already authorised",
+                f"velocity limit {asset.velocity_limit} {ins.asset} per "
+                f"{asset.velocity_window / timedelta(hours=1):g} hours; "
+                f"{used} {ins.asset} already authorised",
             )
         digest = ins.digest()
         if self._already_authorised(digest):

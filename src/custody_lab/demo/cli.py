@@ -1,6 +1,7 @@
 """Command line for the demo.
 
-``custody-lab run`` runs the demo once and prints each step as it happens.
+``custody-lab run`` runs the demo once and prints each step as it happens. ``custody-lab day``
+runs a busier day (``custody_lab.demo.day``) the same way.
 ``custody-lab attacks`` tries every attack in ``custody_lab.demo.attacks`` and prints who refused
 each. ``custody-lab serve`` starts the HTTP server (``custody_lab.demo.server``), which also serves
 the dashboard once ``npm --prefix web run build`` has produced ``web/dist``.
@@ -19,6 +20,7 @@ import typer
 import uvicorn
 
 from custody_lab.demo import attacks as attack_panel
+from custody_lab.demo import day as day_scenario
 from custody_lab.demo import pipeline, server
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -31,17 +33,28 @@ def _show(value: Any) -> str:
     return json.dumps(value, default=str, separators=(",", ":"))
 
 
-def _print(event: pipeline.Event) -> None:
-    order = list(pipeline.STEPS)
+def _print(event: pipeline.Event, steps: dict[str, str] = pipeline.STEPS) -> None:
+    order = list(steps)
     if event.status == "running":
         typer.echo(f"[{order.index(event.step) + 1}/{len(order)}] {event.title}")
         return
     width = shutil.get_terminal_size().columns
     for key, value in event.detail.items():
-        line = f"      {key}: {_show(value)}"
-        if len(line) > width and key != "error":  # an error is printed whole
-            line = line[: width - 3] + "..."
-        typer.echo(line)
+        lines = [f"      {key}: {_show(value)}"]
+        if key == "books":  # the day's reconciliation, in one line
+            agree = "reconciled" if value["reconciled"] else "NOT RECONCILED"
+            lines = [f"      books: ledger {value['owed']}, coins {value['held']}: {agree}"]
+        elif key == "inclusion_proofs":  # for the dashboard's balance check
+            lines = [f"      inclusion_proofs: {len(value)} published"]
+        elif isinstance(value, list) and value and all(isinstance(v, dict) for v in value):
+            lines = [f"      {key}:"] + [
+                "        - " + ", ".join(f"{k}: {_show(v)}" for k, v in row.items())
+                for row in value
+            ]
+        for line in lines:
+            if len(line) > width and key != "error":  # an error is printed whole
+                line = line[: width - 3] + "..."
+            typer.echo(line)
 
 
 @app.command()
@@ -58,6 +71,20 @@ def run(
         summary = pipeline.run(_print, workdir, offline or [])
     except Exception:  # printed above as the failed step's error; no traceback
         typer.echo(f"\nThe run stopped. Its events are in {os.path.relpath(workdir)}/events.jsonl")
+        raise typer.Exit(1) from None
+    typer.echo("")
+    for key, value in summary.items():
+        typer.echo(f"{key}: {_show(value)}")
+
+
+@app.command()
+def day(runs: Runs = day_scenario.RUNS) -> None:
+    """Run a day of deposits, trading, withdrawals and refusals; exit 1 if a step fails."""
+    workdir = pipeline.new_workdir(runs)
+    try:
+        summary = day_scenario.run(lambda e: _print(e, day_scenario.STEPS), workdir)
+    except Exception:  # printed above as the failed step's error; no traceback
+        typer.echo(f"\nThe day stopped. Its events are in {os.path.relpath(workdir)}/events.jsonl")
         raise typer.Exit(1) from None
     typer.echo("")
     for key, value in summary.items():

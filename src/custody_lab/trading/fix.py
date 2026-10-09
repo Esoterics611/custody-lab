@@ -117,8 +117,8 @@ class Session:
 class ToyExchange:
     """Accepts one client session and fills each NewOrderSingle in full at its limit price."""
 
-    def __init__(self, transcript: list[str]) -> None:
-        self._transcript = transcript
+    def __init__(self, transcript: list[str], client: str = CLIENT_ID) -> None:
+        self._transcript, self._client = transcript, client
         self._exec_ids = (f"E{n:04d}" for n in itertools.count(1))
         self._server: asyncio.Server | None = None
 
@@ -133,7 +133,7 @@ class ToyExchange:
             await self._server.wait_closed()
 
     async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        session = Session(reader, writer, EXCHANGE_ID, CLIENT_ID, self._transcript)
+        session = Session(reader, writer, EXCHANGE_ID, self._client, self._transcript)
         try:
             while True:
                 msg = await session.receive()
@@ -169,9 +169,11 @@ class ToyExchange:
         ]
 
 
-async def _run_client(port: int, orders: Sequence[Order], transcript: list[str]) -> list[Fill]:
+async def _run_client(
+    port: int, orders: Sequence[Order], transcript: list[str], client: str
+) -> list[Fill]:
     reader, writer = await asyncio.open_connection("127.0.0.1", port)
-    session = Session(reader, writer, CLIENT_ID, EXCHANGE_ID, transcript)
+    session = Session(reader, writer, client, EXCHANGE_ID, transcript)
     await session.send("A", LOGON_FIELDS)
     if (await session.receive()).get(35) != b"A":
         raise ConnectionError("logon rejected")
@@ -208,16 +210,17 @@ async def _run_client(port: int, orders: Sequence[Order], transcript: list[str])
     return fills
 
 
-def trade(orders: Sequence[Order]) -> tuple[list[Fill], list[str]]:
+def trade(orders: Sequence[Order], client: str = CLIENT_ID) -> tuple[list[Fill], list[str]]:
     """Run one client session against a fresh toy exchange; return fills and the FIX transcript
-    (both directions, in order, with SOH shown as ``|``)."""
+    (both directions, in order, with SOH shown as ``|``). ``client`` is the session's
+    SenderCompID, so each client of the custodian logs on as itself."""
     transcript: list[str] = []
 
     async def main() -> list[Fill]:
-        exchange = ToyExchange(transcript)
+        exchange = ToyExchange(transcript, client)
         port = await exchange.start()
         try:
-            return await _run_client(port, orders, transcript)
+            return await _run_client(port, orders, transcript, client)
         finally:
             await exchange.stop()
 
