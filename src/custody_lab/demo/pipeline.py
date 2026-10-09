@@ -12,7 +12,9 @@ Cast:
 - **alpha-capital** trades on the toy exchange.
 - **ops-desk** raises the settlement instruction.
 - **bob** and **carol** approve it.
-- Signers 1 and 3 of 3 sign it.
+- Signers 1 and 3 of 3 sign it, unless the run is told which signers are online. The others'
+  processes are stopped before signing, as an outage would stop them; with fewer than two left,
+  step 7 fails and no coins move.
 
 The network fee is charged to the client whose settlement it is, so the custody address holds
 client coins only and assets equal liabilities after every batch (MiCA Article 75(7), chapter 8).
@@ -24,7 +26,7 @@ import json
 import os
 import shutil
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -71,7 +73,8 @@ ORDERS = [
     Order("C3", "BTC-USD", "sell", Decimal("0.35"), Decimal("64010")),
     Order("C4", "BTC-USD", "sell", Decimal("0.25"), Decimal("64020")),
 ]
-SIGNERS = [1, 3]
+SIGNERS = [1, 3]  # the signers online at step 7 unless the run names others
+SHARES = (1, 2, 3)
 FEE_CAP_SATS = 10_000  # the most network fee a settlement may pay
 RUNS = Path("var/demo")
 
@@ -101,8 +104,14 @@ def new_workdir(root: Path = RUNS) -> Path:
     return Path(tempfile.mkdtemp(prefix=f"{stamp}-", dir=root))
 
 
-def run(emit: Emit, workdir: Path) -> dict[str, Any]:
-    """Run the demo end to end in ``workdir``; return the final summary."""
+def run(emit: Emit, workdir: Path, signers: Sequence[int] = SIGNERS) -> dict[str, Any]:
+    """Run the demo end to end in ``workdir``; return the final summary.
+
+    ``signers`` are the share holders still online at step 7; the others' processes are stopped.
+    """
+    signers = sorted(set(signers))
+    if not set(signers) <= set(SHARES):
+        raise ValueError(f"signers must be among {SHARES}, not {signers}")
     events: list[Event] = []
     current = next(iter(STEPS))
 
@@ -137,7 +146,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
         engine = PolicyEngine(policy, AuthorityKey.generate(), AuditLog(_now), _now)
 
         report("keys", "running")
-        with SigningCluster(2, 3, authority=engine.authority_public_key) as cluster:
+        with SigningCluster(2, len(SHARES), authority=engine.authority_public_key) as cluster:
             internal = cluster.dkg()
             output_key = cluster.taproot_output_key()
             address = chain.custody_address(rpc, internal)
@@ -233,11 +242,29 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 authorisation_id=token.authorisation_id,
             )
 
-            report("sign", "running", signers=SIGNERS)
-            signature = cluster.sign(stx.sighash(), SIGNERS, token.to_bytes(), taproot=True)
+            offline = [i for i in SHARES if i not in signers]
+            report("sign", "running", signers=signers, offline=offline)
+            for i in offline:
+                cluster.stop(i)
+            try:
+                signature = cluster.sign(stx.sighash(), signers, token.to_bytes(), taproot=True)
+            except (RuntimeError, ValueError) as refused:
+                if len(signers) >= cluster.threshold:
+                    raise
+                raise RuntimeError(
+                    f"{len(signers)} of {cluster.count} signers online and {cluster.threshold} "
+                    f"are required; FROST refused: {refused}"
+                ) from refused
             if not schnorr.verify(stx.sighash(), output_key, signature):
                 raise RuntimeError("aggregated signature does not verify")
-            report("sign", "done", signers=SIGNERS, signature=signature.hex(), verified=True)
+            report(
+                "sign",
+                "done",
+                signers=signers,
+                offline=offline,
+                signature=signature.hex(),
+                verified=True,
+            )
 
             report("broadcast", "running")
             txid = rpc.call("sendrawtransaction", stx.finalize(signature))
@@ -272,7 +299,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
             )
             attest = engine.authorise_attestation(snapshot.statement())
             message = snapshot.attestation_message()
-            proof_of_control = cluster.sign(message, SIGNERS, attest.to_bytes(), taproot=True)
+            proof_of_control = cluster.sign(message, signers, attest.to_bytes(), taproot=True)
             if not schnorr.verify(message, output_key, proof_of_control):
                 raise RuntimeError("proof-of-control signature does not verify")
             path = publish(snapshot, proof_of_control, workdir / "reserves")

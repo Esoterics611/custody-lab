@@ -26,12 +26,13 @@ def _two_steps(emit: pipeline.Emit) -> None:
     emit(_event("keys", "done", signers=[{"share": 1, "pid": 4242}], group_key=GROUP_KEY))
 
 
-def _succeeds(emit: pipeline.Emit, workdir: Path) -> dict[str, Any]:
+def _succeeds(emit: pipeline.Emit, workdir: Path, signers: list[int]) -> dict[str, Any]:
     _two_steps(emit)
+    emit(_event("sign", "running", signers=signers))
     return {"txid": "ff" * 32}
 
 
-def _fails(emit: pipeline.Emit, workdir: Path) -> dict[str, Any]:
+def _fails(emit: pipeline.Emit, workdir: Path, signers: list[int]) -> dict[str, Any]:
     _two_steps(emit)
     emit(_event("sign", "running", signers=[1, 3]))
     emit(_event("sign", "failed", error="RuntimeError: aggregated signature does not verify"))
@@ -64,8 +65,10 @@ def test_a_run_streams_its_events_in_order_from_its_own_directory(tmp_path: Path
         ("chain", "done"),
         ("keys", "running"),
         ("keys", "done"),
+        ("sign", "running"),
     ]
-    assert _events(first)[-1]["detail"]["signers"] == [{"share": 1, "pid": 4242}]
+    assert _events(first)[3]["detail"]["signers"] == [{"share": 1, "pid": 4242}]
+    assert _events(first)[-1]["detail"]["signers"] == pipeline.SIGNERS
     assert _events(second) == _events(first)
     assert len(list(tmp_path.iterdir())) == 2
 
@@ -105,6 +108,7 @@ def test_run_prints_each_step_its_details_and_the_summary(tmp_path: Path) -> Non
         f"[2/9] {pipeline.STEPS['keys']}",
         '      signers: [{"share":1,"pid":4242}]',
         "      group_key: 02" + "ab" * 29 + "...",  # cut to the 80-column terminal
+        f"[7/9] {pipeline.STEPS['sign']}",
         "",
         "txid: " + "ff" * 32,
     ]
@@ -118,3 +122,32 @@ def test_run_prints_the_failure_and_exits_non_zero(tmp_path: Path) -> None:
     assert result.exit_code == 1
     assert "      error: RuntimeError: aggregated signature does not verify" in result.output
     assert isinstance(result.exception, RuntimeError)
+
+
+@pytest.mark.usefixtures("succeeding_run")
+def test_a_run_can_name_the_signers_online_and_refuses_unknown_ones(tmp_path: Path) -> None:
+    client = TestClient(server.create_app(tmp_path, tmp_path / "no-dashboard"))
+
+    named = client.post("/api/runs", json={"signers": [2, 3]})
+    unknown = client.post("/api/runs", json={"signers": [1, 4]})
+
+    assert _events(named)[-1]["detail"]["signers"] == [2, 3]
+    assert unknown.status_code == 422
+    assert len(list(tmp_path.iterdir())) == 1  # the refused request made no run directory
+
+
+def test_run_passes_the_named_signers_to_the_pipeline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    received: list[list[int]] = []
+
+    def record(emit: pipeline.Emit, workdir: Path, signers: list[int]) -> dict[str, Any]:
+        received.append(signers)
+        return {}
+
+    monkeypatch.setattr(pipeline, "run", record)
+    args = ["run", "--runs", str(tmp_path), "--signer", "2", "--signer", "3"]
+
+    assert CliRunner().invoke(cli.app, args).exit_code == 0
+    assert CliRunner().invoke(cli.app, ["run", "--runs", str(tmp_path)]).exit_code == 0
+    assert received == [[2, 3], pipeline.SIGNERS]
