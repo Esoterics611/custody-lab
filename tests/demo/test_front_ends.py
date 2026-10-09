@@ -84,6 +84,7 @@ def test_a_failed_run_ends_its_stream_with_the_failed_event(tmp_path: Path) -> N
         "status": "failed",
         "title": pipeline.STEPS["sign"],
         "detail": {"error": "RuntimeError: aggregated signature does not verify"},
+        "at_ms": 0,
     }
 
 

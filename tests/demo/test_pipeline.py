@@ -1,5 +1,6 @@
 import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -50,9 +51,10 @@ def test_a_failing_step_is_reported_and_logged_before_it_propagates(
         pipeline.STEPS["trade"],
         {"error": "ConnectionRefusedError: toy exchange unreachable"},
     )
-    assert events[-1] == failed
+    assert replace(events[-1], at_ms=0) == failed
+    assert events[-1].at_ms >= events[-2].at_ms > 0
     logged = (tmp_path / "events.jsonl").read_text().splitlines()
-    assert json.loads(logged[-1]) == json.loads(failed.to_json())
+    assert json.loads(logged[-1]) == json.loads(events[-1].to_json())
 
 
 def test_a_missing_bitcoind_is_reported_as_the_first_step_failing(
