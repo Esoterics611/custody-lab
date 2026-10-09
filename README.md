@@ -110,6 +110,7 @@ uv sync                      # create the environment and compile the two Rust e
 uv run pytest                # all tests, including real settlements on regtest
 uv run custody-lab run       # one demo run, printed step by step
 uv run custody-lab day       # a day: deposits, a double spend, trading, withdrawals, refusals
+uv run custody-lab ceremonies  # share refresh against a thief, and a lost share repaired; no chain
 uv run custody-lab attacks   # sixteen attacks on the design, each refused; needs no Bitcoin node
 ```
 

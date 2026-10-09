@@ -414,6 +414,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Share.** One party's piece of a secret. For Shamir sharing, a point $(i, f(i))$ on the secret polynomial: for $f(x) = 9 + 5x$ modulo 31, the shares are $(1, 14)$, $(2, 19)$ and $(3, 24)$. *Taught in:* [1 FP, Sharing a secret as a line through points](../manual/chapters/01-foundations.md#sharing-a-secret-as-a-line-through-points).
 
+**Share repair.** Rebuilding a lost share from the help of a threshold of other holders, without any of them revealing its own. Each helper splits a value derived from its share into random-looking pieces, one per helper; each helper sums what it receives and sends only that sum; the holder being repaired adds the sums into its share. The demo uses ZF FROST's repairable threshold scheme. *Taught in:* [2, Backup, recovery and repair](../manual/chapters/02-mpc-custody.md#backup-recovery-and-repair); [the demo walkthrough, Key ceremonies](../manual/demo-walkthrough.md#key-ceremonies).
+
 **Shor's algorithm.** The quantum algorithm that factors integers and computes discrete logarithms efficiently. A large enough quantum computer running it breaks ECDSA, Schnorr, Ed25519 and Paillier outright; larger keys do not help. *Taught in:* [7, What this chapter is for](../manual/chapters/07-post-quantum.md#what-this-chapter-is-for); [7 FP, What a quantum computer breaks](../manual/chapters/07-post-quantum.md#what-a-quantum-computer-breaks).
 
 **Sibling.** The other child of a node's parent in a hash tree. An inclusion proof is one sibling per level. *Taught in:* [6 FP, Hash trees](../manual/chapters/06-reserves.md#hash-trees).
