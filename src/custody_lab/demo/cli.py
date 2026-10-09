@@ -1,8 +1,9 @@
 """Command line for the demo.
 
 ``custody-lab run`` runs the demo once and prints each step as it happens. ``custody-lab day``
-runs a busier day (``custody_lab.demo.day``) the same way, and ``custody-lab ceremonies`` the key
-ceremonies (``custody_lab.demo.ceremonies``).
+runs a busier day (``custody_lab.demo.day``) the same way, ``custody-lab ceremonies`` the key
+ceremonies (``custody_lab.demo.ceremonies``) and ``custody-lab clocks`` the signers' clocks
+(``custody_lab.demo.clocks``).
 ``custody-lab attacks`` tries every attack in ``custody_lab.demo.attacks`` and prints who refused
 each. ``custody-lab serve`` starts the HTTP server (``custody_lab.demo.server``), which also serves
 the dashboard once ``npm --prefix web run build`` has produced ``web/dist``.
@@ -22,6 +23,7 @@ import uvicorn
 
 from custody_lab.demo import attacks as attack_panel
 from custody_lab.demo import ceremonies as key_ceremonies
+from custody_lab.demo import clocks as signer_clocks
 from custody_lab.demo import day as day_scenario
 from custody_lab.demo import pipeline, redteam, server
 
@@ -48,6 +50,8 @@ def _print(event: pipeline.Event, steps: dict[str, str] = pipeline.STEPS) -> Non
             lines = [f"      books: ledger {value['owed']}, coins {value['held']}: {agree}"]
         elif key == "inclusion_proofs":  # for the dashboard's balance check
             lines = [f"      inclusion_proofs: {len(value)} published"]
+        elif key == "lifetime":  # the dashboard's bar; the times are printed beside it
+            lines = []
         elif isinstance(value, list) and value and all(isinstance(v, dict) for v in value):
             lines = [f"      {key}:"] + [
                 "        - " + ", ".join(f"{k}: {_show(v)}" for k, v in row.items())
@@ -59,7 +63,7 @@ def _print(event: pipeline.Event, steps: dict[str, str] = pipeline.STEPS) -> Non
                 for name, row in value.items()
             ]
         for line in lines:
-            whole = key == "error" or line.startswith("        - ")  # errors and records wrap
+            whole = key in ("error", "refusal") or line.startswith("        - ")  # these wrap
             if len(line) > width and not whole:
                 line = line[: width - 3] + "..."
             typer.echo(line)
@@ -104,6 +108,18 @@ def ceremonies() -> None:
     """Play the key ceremonies: a stolen share against a refresh, and a lost share repaired."""
     try:
         summary = key_ceremonies.run(lambda e: _print(e, key_ceremonies.STEPS))
+    except Exception:  # printed above as the failed step's error; no traceback
+        raise typer.Exit(1) from None
+    typer.echo("")
+    for key, value in summary.items():
+        typer.echo(f"{key}: {_show(value)}")
+
+
+@app.command()
+def clocks() -> None:
+    """Play the clocks: an expired authorisation, signers' clocks set back, and signed time."""
+    try:
+        summary = signer_clocks.run(lambda e: _print(e, signer_clocks.STEPS))
     except Exception:  # printed above as the failed step's error; no traceback
         raise typer.Exit(1) from None
     typer.echo("")

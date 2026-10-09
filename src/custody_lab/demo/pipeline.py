@@ -310,6 +310,7 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
                     f"{online} of {cluster.count} signers online and {cluster.threshold} "
                     f"are required; FROST refused: {refused}"
                 ) from refused
+            left = token.expires_at - _now()  # the signers checked the expiry before this
             if not schnorr.verify(stx.sighash(), output_key, signature):
                 raise RuntimeError("aggregated signature does not verify")
             report(
@@ -319,6 +320,7 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
                 offline=offline,
                 signature=signature.hex(),
                 verified=True,
+                authorisation_time_left=f"{left.total_seconds():.2f} s of its 60 s",
             )
 
             report("broadcast", "running")

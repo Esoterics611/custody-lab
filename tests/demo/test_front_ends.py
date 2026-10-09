@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from custody_lab.demo import attacks, ceremonies, cli, day, pipeline, redteam, server
+from custody_lab.demo import attacks, ceremonies, cli, clocks, day, pipeline, redteam, server
 
 GROUP_KEY = "02" + "ab" * 32
 
@@ -286,6 +286,37 @@ def test_the_ceremonies_stream_and_print(tmp_path: Path, monkeypatch: pytest.Mon
     assert list(client.get("/api/ceremonies/steps").json()) == list(ceremonies.STEPS)
     assert result.exit_code == 0, result.output
     assert "      group_key_unchanged: true" in result.output.splitlines()
+
+
+REFUSAL = "signer 1: expired at 2026-10-09T13:56:26.284129+00:00; signer 3: expired at 2026-10-09"
+
+
+def _a_short_clock(emit: pipeline.Emit) -> dict[str, Any]:
+    emit(pipeline.Event("too_late", "running", clocks.STEPS["too_late"]))
+    detail = {"refusal": REFUSAL, "lifetime": {"life_s": 60.0, "true_s": 300.0}}
+    emit(pipeline.Event("too_late", "done", clocks.STEPS["too_late"], detail))
+    return {"signed": []}
+
+
+def test_the_clocks_stream_and_print_refusals_whole(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(clocks, "run", _a_short_clock)
+    monkeypatch.setenv("COLUMNS", "60")
+    client = TestClient(server.create_app(tmp_path, tmp_path / "no-dashboard", tmp_path))
+
+    events = _events(client.post("/api/clocks"))
+    result = CliRunner().invoke(cli.app, ["clocks"])
+
+    assert [(e["step"], e["status"]) for e in events] == [
+        ("too_late", "running"),
+        ("too_late", "done"),
+    ]
+    assert events[-1]["detail"]["lifetime"]["true_s"] == 300.0  # for the dashboard's bar
+    assert list(client.get("/api/clocks/steps").json()) == list(clocks.STEPS)
+    assert result.exit_code == 0, result.output
+    assert f"      refusal: {REFUSAL}" in result.output.splitlines()
+    assert "lifetime" not in result.output
 
 
 def _a_short_red_team(emit: pipeline.Emit, workdir: Path) -> dict[str, Any]:

@@ -17,6 +17,10 @@ steps.
 refresh, a share lost and repaired) the same way, with no chain; ``GET /api/ceremonies/steps``
 lists their steps.
 
+``POST /api/clocks`` plays the clocks scenario (``clocks.run``: an authorisation's 60-second
+life, signers whose clocks are set back, and signers on a time authority's signed time) the same
+way, with no chain; ``GET /api/clocks/steps`` lists its steps.
+
 ``POST /api/redteam`` plays the red team on regtest (``redteam.run``: a reorganised deposit, coins
 borrowed for a snapshot, a misdirected withdrawal and a forged FIX fill, each against a weak rule
 and then the defence) in a fresh directory under ``var/redteam``; ``GET /api/redteam/steps``
@@ -48,7 +52,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from custody_lab.demo import attacks, ceremonies, day, pipeline, redteam
+from custody_lab.demo import attacks, ceremonies, clocks, day, pipeline, redteam
 
 DASHBOARD = Path("web/dist")
 RECENT = 20  # recorded runs listed
@@ -159,6 +163,14 @@ def create_app(
     @app.post("/api/ceremonies")
     def ceremony() -> StreamingResponse:
         return _stream("key ceremonies", ceremonies.run)
+
+    @app.get("/api/clocks/steps")
+    def clock_steps() -> dict[str, str]:
+        return clocks.STEPS
+
+    @app.post("/api/clocks")
+    def clock() -> StreamingResponse:
+        return _stream("clocks", clocks.run)
 
     @app.get("/api/redteam/steps")
     def redteam_steps() -> dict[str, str]:
