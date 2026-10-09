@@ -174,3 +174,50 @@ def test_attacks_prints_each_refusal_and_the_count() -> None:
     assert result.output.endswith(
         f"{len(attacks.ATTACKS)} of {len(attacks.ATTACKS)} attacks refused\n"
     )
+
+
+def _record(runs: Path, name: str, *events: pipeline.Event) -> None:
+    (runs / name).mkdir(parents=True)
+    (runs / name / "events.jsonl").write_text("".join(e.to_json() + "\n" for e in events))
+
+
+def test_recorded_runs_are_listed_newest_first_with_how_each_ended(tmp_path: Path) -> None:
+    _record(tmp_path, "20261009T080000Z-a", _event("chain", "running"), _event("chain", "done"))
+    _record(
+        tmp_path,
+        "20261009T090000Z-b",
+        _event("sign", "running", offline=[1, 3]),
+        _event("sign", "failed", error="RuntimeError: 1 of 3 signers online"),
+    )
+    _record(tmp_path, "20261009T100000Z-c", _event("reserves", "done"))
+    (tmp_path / "20261009T110000Z-d").mkdir()  # still running: no events.jsonl yet
+    client = TestClient(server.create_app(tmp_path, tmp_path / "no-dashboard"))
+
+    assert client.get("/api/runs").json() == [
+        {"run": "20261009T100000Z-c", "ended": "settled", "offline": []},
+        {"run": "20261009T090000Z-b", "ended": "failed at step 7", "offline": [1, 3]},
+        {"run": "20261009T080000Z-a", "ended": "stopped during step 1", "offline": []},
+    ]
+
+
+def test_a_recorded_run_is_returned_and_nothing_outside_the_runs_directory(
+    tmp_path: Path,
+) -> None:
+    runs = tmp_path / "runs"
+    _record(runs, "20261009T080000Z-a", _event("chain", "running"), _event("chain", "done"))
+    (tmp_path / "secret").mkdir()
+    (tmp_path / "secret" / "events.jsonl").write_text('{"step": "chain"}\n')
+    client = TestClient(server.create_app(runs, tmp_path / "no-dashboard"))
+
+    events = client.get("/api/runs/20261009T080000Z-a").json()
+
+    assert [(e["step"], e["status"]) for e in events] == [("chain", "running"), ("chain", "done")]
+    assert client.get("/api/runs/..%2Fsecret").status_code == 404
+    assert client.get("/api/runs/unknown").status_code == 404
+
+
+def test_no_runs_directory_lists_nothing(tmp_path: Path) -> None:
+    client = TestClient(server.create_app(tmp_path / "never-created", tmp_path / "no-dashboard"))
+
+    assert client.get("/api/runs").json() == []
+    assert client.get("/api/runs/anything").status_code == 404

@@ -8,6 +8,16 @@ import { Signers } from './Signers'
 import { post, type DemoEvent, type StepState } from './stream'
 
 const PENDING: StepState = { status: 'pending', detail: {} }
+const LONGEST_PAUSE_MS = 700 // a replay shortens longer gaps, such as bitcoind starting
+
+// One entry of GET /api/runs.
+interface Recorded {
+  run: string
+  ended: string
+  offline: number[]
+}
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const TABS = { run: 'Settlement run', attacks: 'Attack the design', check: "Check a client's balance" }
 type Tab = keyof typeof TABS
 
@@ -65,12 +75,23 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const [offline, setOffline] = useState<number[]>([])
+  const [recorded, setRecorded] = useState<Recorded[]>([])
+  const [chosen, setChosen] = useState('')
+  const [replayed, setReplayed] = useState<string | null>(null) // the run on screen, if replayed
+
+  function listRecorded() {
+    fetch('/api/runs')
+      .then((response) => response.json())
+      .then((listed: Recorded[]) => setRecorded(listed))
+      .catch(() => setRecorded([]))
+  }
 
   useEffect(() => {
     fetch('/api/steps')
       .then((response) => response.json())
       .then((listed: Record<string, string>) => setSteps(Object.entries(listed)))
       .catch(() => setProblem('The demo server is not reachable. Start it: uv run custody-lab serve'))
+    listRecorded()
   }, [])
 
   function toggle(share: number) {
@@ -79,30 +100,58 @@ export default function App() {
     )
   }
 
+  function apply(event: DemoEvent) {
+    setState((previous) => {
+      const before = previous[event.step]
+      return {
+        ...previous,
+        [event.step]: {
+          status: event.status,
+          detail: { ...before?.detail, ...event.detail },
+          started: before?.started ?? event.at_ms,
+          ended: event.status === 'running' ? undefined : event.at_ms,
+        },
+      }
+    })
+  }
+
   async function start() {
     setBusy(true)
     setState({})
     setProblem(null)
+    setReplayed(null)
     let last: DemoEvent | undefined
     try {
       await post<DemoEvent>('/api/runs', { offline }, (event) => {
         last = event
-        setState((previous) => {
-          const before = previous[event.step]
-          return {
-            ...previous,
-            [event.step]: {
-              status: event.status,
-              detail: { ...before?.detail, ...event.detail },
-              started: before?.started ?? event.at_ms,
-              ended: event.status === 'running' ? undefined : event.at_ms,
-            },
-          }
-        })
+        apply(event)
       })
       if (last?.status === 'running') setProblem(`The stream ended during: ${last.title}`)
     } catch (error) {
       setProblem(`The run stream broke: ${String(error)}`)
+    } finally {
+      setBusy(false)
+      listRecorded()
+    }
+  }
+
+  async function replay(run: string) {
+    setBusy(true)
+    setState({})
+    setProblem(null)
+    setReplayed(run)
+    try {
+      const response = await fetch(`/api/runs/${encodeURIComponent(run)}`)
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      let previous = 0
+      for (const event of (await response.json()) as DemoEvent[]) {
+        const gap = event.at_ms === undefined ? 150 : event.at_ms - previous
+        await pause(Math.min(gap, LONGEST_PAUSE_MS))
+        previous = event.at_ms ?? previous
+        apply(event)
+      }
+    } catch (error) {
+      setProblem(`The recorded run could not be read: ${String(error)}`)
     } finally {
       setBusy(false)
     }
@@ -147,7 +196,7 @@ export default function App() {
           <div>
             <div className="toolbar card">
               <button type="button" onClick={start} disabled={busy || steps.length === 0}>
-                {busy ? 'Running' : 'Run the demo'}
+                {busy ? (replayed ? 'Replaying' : 'Running') : 'Run the demo'}
               </button>
               <div className="progress" aria-label={`${done} of ${steps.length} steps done`}>
                 <div style={{ width: `${(100 * done) / Math.max(steps.length, 1)}%` }} />
@@ -155,7 +204,39 @@ export default function App() {
               <span className="muted">
                 {done} of {steps.length} steps
               </span>
+              {recorded.length > 0 && (
+                <div className="replay">
+                  <select
+                    value={chosen}
+                    onChange={(event) => setChosen(event.target.value)}
+                    disabled={busy}
+                    aria-label="Recorded run"
+                  >
+                    <option value="">Replay a recorded run</option>
+                    {recorded.map(({ run, ended, offline: off }) => (
+                      <option key={run} value={run}>
+                        {run.slice(0, 16)}: {ended}
+                        {off.length > 0 && `, signer${off.length > 1 ? 's' : ''} ${off.join(' and ')} offline`}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => replay(chosen)}
+                    disabled={busy || !chosen}
+                  >
+                    Replay
+                  </button>
+                </div>
+              )}
             </div>
+            {replayed && (
+              <p className="replayed">
+                Replaying recorded run {replayed}, from <code>var/demo/{replayed}/events.jsonl</code>.
+                Durations are as recorded; pauses longer than {LONGEST_PAUSE_MS} ms are shortened.
+              </p>
+            )}
             <Summary state={state} onCheck={check} />
             <ol className="steps">
               {steps.map(([id, title], i) => (

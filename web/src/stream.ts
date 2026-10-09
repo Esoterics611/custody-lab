@@ -10,7 +10,7 @@ export interface DemoEvent {
   status: Exclude<Status, 'pending'>
   title: string
   detail: Detail
-  at_ms: number // since the run started, stamped by the server
+  at_ms?: number // since the run started, stamped by the server; absent from older recordings
 }
 
 export interface StepState {
