@@ -18,7 +18,8 @@ custodian](#a-day-at-the-custodian) runs a busier day: deposits, a double spend,
 trading, netting across them, withdrawals and three refusals, with the books compared to the chain
 after every step. [Key ceremonies](#key-ceremonies) shows a share stolen before a refresh failing to
 combine with one stolen after it, and a lost share rebuilt. [Red team](#red-team) runs a reorganised
-deposit and a misdirected withdrawal, each against a weak rule and then the defence. [Attacking the
+deposit, coins borrowed for a snapshot and a misdirected withdrawal, each against a weak rule and then
+the defence. [Attacking the
 design](#attacking-the-design) tries seventeen attacks against the demo's own code and shows which
 component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each client
 recompute its own place in the published snapshot. [Taking a signer
@@ -938,8 +939,8 @@ custodian schedules them like any other change, with the same approvals.
 crediting a deposit once it is in a block, or keeping one list of every registered withdrawal
 address, works every day until someone exploits it. The **Red team** tab runs two such attacks on
 a private chain, each first against the weak rule, where it succeeds, and then against the
-defence, where it fails. The [attack-vector analysis](attack-vectors.md) lists them as vectors 7.2
-and 5.7. `uv run custody-lab redteam` runs the same in the terminal.
+defence, where it fails. The [attack-vector analysis](attack-vectors.md) lists them as vectors 7.2,
+9.6 and 5.7. `uv run custody-lab redteam` runs the same in the terminal.
 
 Step 1 sets the scene: a chain, the 2-of-3 custody key, the policy engine and four approver
 devices, each in a process of its own (two that sign blind, two that check), and gamma-treasury's
@@ -969,6 +970,27 @@ gamma-treasury's coins. Step 3 repeats the attack against a custodian that credi
 confirmations: when the branch is replaced the deposit has one confirmation, nothing has been
 credited, and the books still agree.
 
+### Coins borrowed for the snapshot
+
+**The idea in plain words.** A proof of reserves shows one moment. A custodian that is short can
+borrow coins just before a snapshot it has announced, publish a snapshot that balances, and return
+the coins afterwards. The snapshot is genuine and signed: the coins really were there. The defence
+is timing and publicity: snapshots that are frequent and unannounced, and a public chain on which
+anyone can see coins arrive at the custody address just before a snapshot and leave just after.
+
+The counterpart is window dressing: a balance sheet improved for the reporting date and reversed
+the day after. The comparison stops at who can see it: here the loan's arrival and departure are
+on the public chain for anyone who looks.
+
+**Worked example.** Step 3 continues from the hole step 2 left: the books owe 1.50 BTC and the
+custody address holds 1.00 BTC. The custodian borrows 0.50 BTC from the exchange, and the
+scheduled snapshot shows liabilities and assets of 1.50 BTC: a reserve ratio of 1.00000, signed by
+signers 1 and 3. The books panel agrees too, because the borrowed coins are held at that moment.
+Step 4 repays the loan, 0.50 BTC less the 310-satoshi fee so that the custody coins return to
+1.00 BTC, and takes an unannounced snapshot: 1.00 / 1.50 = 0.66667. Both snapshots are signed by the
+same key; only their timing differs. The custodian then writes off mallory's credit, so that the
+defended case below starts clean.
+
 ### A misdirected withdrawal
 
 **The idea in plain words.** The policy's whitelist is one list of every client's registered
@@ -983,19 +1005,21 @@ different customer; the defence is matching the beneficiary to the account being
 comparison stops at recall: a bank can sometimes reverse such a transfer, and a confirmed payment
 stays where it went.
 
-**Worked example.** Step 4: "gamma-treasury withdraws 0.40 BTC", with alpha-capital's registered
+**Worked example.** Step 6: "gamma-treasury withdraws 0.40 BTC", with alpha-capital's registered
 address put in by the builder. The whitelist passes it, bob's and carol's blind devices approve it,
 signers 1 and 3 sign it, and 0.40 BTC of gamma-treasury's goes to alpha-capital's address.
 gamma-treasury's balance falls by 0.40 BTC and the fee, and the books still agree with the chain:
 both fell by the same amount. Reconciliation cannot see a payment that went to the wrong place.
-Step 5 sends the same request to the checking devices. Each refuses: "the destination is
+Step 7 sends the same request to the checking devices. Each refuses: "the destination is
 alpha-capital's registered address, not gamma-treasury's". No approval exists, so the policy
 engine has nothing to authorise and nothing is signed.
 
 **What the red team shows.** A deposit counts when it can no longer be undone at a cost an
-attacker would pay, not when it first appears in a block. And the books agreeing with the chain is
-necessary but not enough: a payment to the wrong client leaves them in agreement, and only a check
-of the destination against the client catches it.
+attacker would pay, not when it first appears in a block. A snapshot shows one moment, so its timing
+must not be the custodian's to choose. And the books agreeing with the chain is necessary but not
+enough: borrowed coins make them agree for a moment, a payment to the wrong client leaves them in
+agreement, and only unannounced snapshots and a check of the destination against the client catch
+these.
 
 ## Taking a signer offline
 
