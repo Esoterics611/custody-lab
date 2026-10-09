@@ -169,9 +169,9 @@ run starts.
 Each finished step shows on the right how long it took, as measured by the server. Step 1 takes
 about five seconds, almost all of it Bitcoin Core starting. Step 2 takes under half a second and
 every later step under a tenth of a second; the threshold signature in step 7 takes about 30
-milliseconds. The
-custody steps are fast because they are a handful of calculations and messages between processes
-on one computer, and the chain answers at once because regtest produces blocks on command.
+milliseconds. The custody steps are fast because they are a handful of calculations and messages
+between processes on one computer, and the chain answers at once because regtest produces blocks on
+command.
 
 Long values, such as keys, fingerprints, signatures and addresses, are shown by their first ten
 and last eight characters. Hovering over one shows the whole value, and **copy** beside it copies
@@ -637,11 +637,10 @@ snapshot would take two of the three shares and a fresh authorisation from the p
 Each press of **Run the demo** starts from nothing: a new chain, a new key, a new custody address
 and three new signing processes. Some values therefore change on every run and others never do.
 
-- **The same on every run:** height 101; 5.00 BTC funded; 4 fills and 12 FIX messages;
-  0.85 BTC delivered and 54,415.925 USD received; the fee of 310 satoshis; "1 of 2 required
-  approvals" with one approval; signers 1 and 3 while all three are online; one confirmation;
-  liabilities and assets of
-  4.1499969 BTC; a reserve ratio of 1.00000; `snapshot-103.json`. A different value here means
+- **The same on every run:** height 101; 5.00 BTC funded; 4 fills and 12 FIX messages; 0.85 BTC
+  delivered and 54,415.925 USD received; the fee of 310 satoshis; "1 of 2 required approvals" with
+  one approval; signers 1 and 3 while all three are online; one confirmation; liabilities and assets
+  of 4.1499969 BTC; a reserve ratio of 1.00000; `snapshot-103.json`. A different value here means
   the code has changed.
 - **Different on every run:** process numbers, keys, addresses, transaction ids, the output
   number in step 6's `spends`, the sighash, the signature, the authorisation id, the Merkle root,
@@ -703,8 +702,8 @@ Steps 8 and 9 stay PENDING. Nothing was broadcast, so the coins never left the c
 Signer 2 reads "could not sign alone", and the Signers box in the top row is red.
 
 The same runs work from the command line: `uv run custody-lab run --offline 1` settles with
-signers 2 and 3, and `uv run custody-lab run --offline 1 --offline 3` stops at step 7 with the
-error above.
+signers 2 and 3, and `uv run custody-lab run --offline 1 --offline 3` stops at step 7: it prints
+the error above in full, names the run's `events.jsonl`, and exits with status 1.
 
 **What it shows.** One signer down changes nothing a client would notice; two down stops payments
 and loses nothing. The threshold sets that balance: with 3 of 3, one signer down would stop
