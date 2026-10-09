@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import itertools
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -119,6 +119,7 @@ class ToyExchange:
 
     def __init__(self, transcript: list[str], client: str = CLIENT_ID) -> None:
         self._transcript, self._client = transcript, client
+        self.statement: list[Fill] = []  # the exchange's own record of what it executed
         self._exec_ids = (f"E{n:04d}" for n in itertools.count(1))
         self._server: asyncio.Server | None = None
 
@@ -151,6 +152,16 @@ class ToyExchange:
     def _fill(self, order: simplefix.FixMessage) -> list[tuple[int, str]]:
         exec_id = next(self._exec_ids)
         qty, price = order.get(38).decode(), order.get(44).decode()
+        self.statement.append(
+            Fill(
+                exec_id,
+                order.get(11).decode(),
+                order.get(55).decode(),
+                SIDES[order.get(54).decode()],
+                Decimal(qty),
+                Decimal(price),
+            )
+        )
         return [
             (37, f"O-{exec_id}"),  # OrderID
             (11, order.get(11).decode()),  # ClOrdID
@@ -210,24 +221,110 @@ async def _run_client(
     return fills
 
 
-def trade(orders: Sequence[Order], client: str = CLIENT_ID) -> tuple[list[Fill], list[str]]:
-    """Run one client session against a fresh toy exchange; return fills and the FIX transcript
-    (both directions, in order, with SOH shown as ``|``). ``client`` is the session's
-    SenderCompID, so each client of the custodian logs on as itself."""
+Rewrite = Callable[[simplefix.FixMessage], simplefix.FixMessage | None]
+
+
+@dataclass(frozen=True)
+class SessionResult:
+    fills: list[Fill]  # as the client received them
+    transcript: list[str]  # as each side sent them
+    statement: list[Fill]  # the exchange's own record of what it executed
+    rewritten: list[str]  # messages a man in the middle changed, as the client received them
+
+
+async def _man_in_the_middle(
+    exchange_port: int, rewrite: Rewrite, rewritten: list[str]
+) -> asyncio.Server:
+    """EDUCATIONAL: a relay between client and exchange that passes the client's messages through
+    and gives each message from the exchange to ``rewrite``, forwarding what it returns. simplefix
+    recomputes BodyLength and CheckSum, so a rewritten message is well formed."""
+
+    async def handle(client_in: asyncio.StreamReader, client_out: asyncio.StreamWriter) -> None:
+        exchange_in, exchange_out = await asyncio.open_connection("127.0.0.1", exchange_port)
+
+        async def upstream() -> None:
+            while data := await client_in.read(4096):
+                exchange_out.write(data)
+                await exchange_out.drain()
+            exchange_out.close()
+
+        async def downstream() -> None:
+            parser = simplefix.FixParser()
+            while data := await exchange_in.read(4096):
+                parser.append_buffer(data)
+                while (msg := parser.get_message()) is not None:
+                    changed = rewrite(msg)
+                    raw = (changed or msg).encode()
+                    if changed is not None:
+                        rewritten.append(raw.replace(b"\x01", b"|").decode())
+                    client_out.write(raw)
+                await client_out.drain()
+            client_out.close()
+
+        await asyncio.gather(upstream(), downstream(), return_exceptions=True)
+
+    return await asyncio.start_server(handle, "127.0.0.1", 0)
+
+
+def trade_session(
+    orders: Sequence[Order], client: str = CLIENT_ID, rewrite: Rewrite | None = None
+) -> SessionResult:
+    """Run one client session against a fresh toy exchange, optionally through a man in the middle
+    that rewrites the exchange's messages; return what the client received, the transcript, and
+    the exchange's own statement of what it executed."""
     transcript: list[str] = []
+    rewritten: list[str] = []
+    exchange = ToyExchange(transcript, client)
 
     async def main() -> list[Fill]:
-        exchange = ToyExchange(transcript, client)
         port = await exchange.start()
+        relay = await _man_in_the_middle(port, rewrite, rewritten) if rewrite else None
         try:
-            return await _run_client(port, orders, transcript, client)
+            connect_to = relay.sockets[0].getsockname()[1] if relay else port
+            return await _run_client(connect_to, orders, transcript, client)
         finally:
+            if relay is not None:
+                relay.close()
+                await relay.wait_closed()
             await exchange.stop()
 
     try:
         asyncio.get_running_loop()
+        in_loop = True
     except RuntimeError:  # no loop in this thread: the usual case
-        return asyncio.run(main()), transcript
-    # Called from inside an event loop (a notebook, an async server): run on a worker thread.
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(asyncio.run, main()).result(), transcript
+        in_loop = False
+    if in_loop:  # called from inside an event loop (a notebook, an async server)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            fills = pool.submit(asyncio.run, main()).result()
+    else:
+        fills = asyncio.run(main())
+    return SessionResult(fills, transcript, list(exchange.statement), rewritten)
+
+
+def trade(orders: Sequence[Order], client: str = CLIENT_ID) -> tuple[list[Fill], list[str]]:
+    """Run one client session against a fresh toy exchange; return fills and the FIX transcript
+    (both directions, in order, with SOH shown as ``|``). ``client`` is the session's
+    SenderCompID, so each client of the custodian logs on as itself."""
+    result = trade_session(orders, client)
+    return result.fills, result.transcript
+
+
+def reconcile(fills: Sequence[Fill], statement: Sequence[Fill]) -> list[str]:
+    """Differences between the fills a session delivered and the exchange's own statement, matched
+    by ExecID. An empty list means they agree; settle only then."""
+    ours, theirs = {f.exec_id: f for f in fills}, {f.exec_id: f for f in statement}
+    problems = [
+        f"{i}: in the session, not in the exchange's statement" for i in ours.keys() - theirs.keys()
+    ]
+    problems += [
+        f"{i}: in the exchange's statement, not in the session" for i in theirs.keys() - ours.keys()
+    ]
+    for i in sorted(ours.keys() & theirs.keys()):
+        a, b = ours[i], theirs[i]
+        for field in ("cl_ord_id", "symbol", "side", "qty", "price"):
+            if getattr(a, field) != getattr(b, field):
+                problems.append(
+                    f"{i}: {field} {getattr(a, field)} in the session, "
+                    f"{getattr(b, field)} in the exchange's statement"
+                )
+    return sorted(problems)

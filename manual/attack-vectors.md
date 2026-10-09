@@ -306,8 +306,11 @@ demo attributes deposits to the single custody address by the transaction id the
 
 **8.1 A false fill.** *Attack:* inject or alter execution reports in the FIX session, so that the
 custodian delivers coins it does not owe. The demo's session has no Logon credentials and no TLS.
-*Stopped by:* in production, an authenticated and encrypted session, and reconciliation of fills
-against the exchange's own statement before settlement. *Status:* open in the demo.
+*Stopped by:* reconciliation of the session's fills against the exchange's own statement, matched
+by ExecID, before netting; in production also an authenticated, encrypted session. *Status:*
+refused, demonstrated (Red team, steps 8 and 9: a man in the middle rewrites LastQty from 0.4 to
+1.4 and recomputes the checksum; the session accepts it and reconciliation refuses it). The demo's
+sessions remain unauthenticated and unencrypted.
 
 **8.2 The other leg never paid.** *Attack:* the custodian delivers bitcoin and the exchange does not
 pay the dollars. *Stopped by:* delivery versus payment (chapter 8). *Status:* open: the demo settles
@@ -398,10 +401,10 @@ This table summarises the statuses above.
 
 | Status | Vectors |
 |--------|---------|
-| Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 5.1, 5.2, 5.3, 5.5, 5.7, 6.2, 7.1, 7.2, 9.1, 9.2, 9.3, 9.7, 10.1 |
+| Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 5.1, 5.2, 5.3, 5.5, 5.7, 6.2, 7.1, 7.2, 8.1, 9.1, 9.2, 9.3, 9.7, 10.1 |
 | Refused, tested or by construction | 1.2, 1.3, 2.2, 2.3, 3.4, 6.1, 6.3, 7.3, 9.4, 12.2 |
 | Contained | 1.8, 2.5, 2.6, 3.3, 4.7, 5.4, 5.6, 9.6, 10.2, 11.1 |
-| Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.4 (signer clock), 4.5 (no gain), 4.9, 7.4, 8.1, 12.1, 13.1 |
+| Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.4 (signer clock), 4.5 (no gain), 4.9, 7.4, 12.1, 13.1 |
 | Open | 4.8, 8.2, 9.5, 10.3, 14.1 |
 
 ## Future demos
@@ -416,9 +419,7 @@ Each open vector can be shown as an attack that succeeds, then a defence that st
    time source refuses it.
 4. **Register an attacker's address** (4.8): an unprotected whitelist change, then registration as
    an approved instruction with a delay.
-5. **Inject a fill** (8.1): a false execution report in an unauthenticated session changes the
-   settlement; reconciliation against the exchange's statement catches it.
-6. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
+5. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
    until the next snapshot.
 
 ## Recap

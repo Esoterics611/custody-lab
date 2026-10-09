@@ -18,8 +18,9 @@ refresh, a share lost and repaired) the same way, with no chain; ``GET /api/cere
 lists their steps.
 
 ``POST /api/redteam`` plays the red team on regtest (``redteam.run``: a reorganised deposit, coins
-borrowed for a snapshot and a misdirected withdrawal, each against a weak rule and then the
-defence) in a fresh directory under ``var/redteam``; ``GET /api/redteam/steps`` lists its steps.
+borrowed for a snapshot, a misdirected withdrawal and a forged FIX fill, each against a weak rule
+and then the defence) in a fresh directory under ``var/redteam``; ``GET /api/redteam/steps``
+lists its steps.
 
 ``POST /api/attacks`` runs ``attacks.run`` the same way and streams one attempt per line: each
 attack, the component that refused it and that component's reason. It needs no regtest node.

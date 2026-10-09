@@ -63,3 +63,15 @@ def test_a_loan_hides_the_hole_from_a_scheduled_snapshot_only(
     assert done["borrow"]["books"]["reconciled"] is True  # the borrowed coins are held, for now
     assert str(done["unannounced"]["unannounced_snapshot_ratio"]) == "0.66667"
     assert done["unannounced"]["books"]["reconciled"] is False
+
+
+def test_a_forged_fill_is_caught_only_by_reconciliation(done: dict[str, dict[str, Any]]) -> None:
+    weak = done["fill_weak"]
+    assert (
+        weak["session_says"] == "1.4 BTC filled"
+        and weak["exchange_statement_says"] == "0.4 BTC filled"
+    )
+    assert weak["would_deliver"] == "1.4 BTC to the exchange"
+    assert done["fill_strong"]["reconciliation"] == [
+        "E0001: qty 1.4 in the session, 0.4 in the exchange's statement"
+    ]

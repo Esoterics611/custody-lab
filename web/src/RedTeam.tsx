@@ -41,11 +41,12 @@ export function RedTeam() {
     <section className="day redteam">
       <div className="toolbar card">
         <p>
-          Three attacks on a private chain, each first against a weak rule and then against the
-          defence. A deposit credited at one confirmation is taken back by a reorganised chain;
-          credited at three, it never is. The hole it leaves is hidden from a scheduled snapshot by
-          borrowed coins, and shown by an unannounced one. A withdrawal sent to another client's
-          registered address passes devices that sign blind; devices that check refuse it.
+          Four attacks, each first against a weak rule and then against the defence. A deposit
+          credited at one confirmation is taken back by a reorganised chain; credited at three, it
+          never is. The hole it leaves is hidden from a scheduled snapshot by borrowed coins, and
+          shown by an unannounced one. A withdrawal sent to another client's registered address
+          passes devices that sign blind; devices that check refuse it. A forged FIX fill passes the
+          session; reconciliation with the exchange's statement refuses it.
         </p>
         <button type="button" onClick={start} disabled={busy || steps.length === 0}>
           {busy ? 'Attacking' : finished ? 'Run the red team again' : 'Run the red team'}

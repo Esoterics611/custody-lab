@@ -37,6 +37,9 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   scheduled snapshot (ratio 1.00000) and an unannounced snapshot after repayment shows 0.66667.
   "Restart a signer and replay" was dropped: an authorisation names one exact transaction, so a
   replayed signature gains nothing (attack-vectors.md, 4.5).
+- **Inject a fill** (2026-10-09). A man in the middle rewrites a FIX ExecutionReport (LastQty 0.4 to
+  1.4, checksum recomputed); the session accepts it, and reconciliation against the exchange's own
+  statement refuses it (`trade_session`, `reconcile`).
 - **Leave a client out** (2026-10-09). A seventeenth attack in the panel: the omitted client finds no
   proof in the published tree, and a proof from a second tree misses the published, signed root.
 
@@ -61,8 +64,6 @@ in `manual/attack-vectors.md`.
   refuses it.
 - **Register an attacker's address** (4.8). An unprotected whitelist change, then registration as
   an approved instruction with a delay before first payment.
-- **Inject a fill** (8.1). A false execution report in the unauthenticated FIX session changes the
-  settlement; reconciliation against the exchange's statement catches it.
 - **Rewrite the log between snapshots** (10.2). Entries after the last anchored head rewritten
   unnoticed until the next snapshot.
 
