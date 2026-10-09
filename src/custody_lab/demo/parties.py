@@ -13,6 +13,10 @@ Finding 2). Now:
   one, its own copy of each client's registered addresses, it first checks that the destination
   belongs to the client the payment is for, and refuses otherwise: the defence against an
   instruction builder that has been compromised (chapter 10, Bitget; attack-vectors.md, 5.5).
+- ``TimeService`` runs a time authority's Ed25519 key in its own process, standing in for a time
+  server outside the custodian. It signs the time together with any nonce it is sent
+  (``custody_lab.policy.signed_time``); signers started with its public key check authorisations'
+  expiry against that signed time instead of their own clocks (attack-vectors.md, 4.4).
 
 Every process still runs on one computer, so an administrator of that computer reaches them all
 (attack-vectors.md, vector 1.5). What the separation removes is the single process whose compromise
@@ -33,6 +37,7 @@ from typing import Any
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
+from custody_lab.policy import signed_time
 from custody_lab.policy.audit import AuditEntry, AuditLog
 from custody_lab.policy.authorisation import Authorisation, AuthorityKey
 from custody_lab.policy.engine import AssetPolicy, Policy, PolicyDenied, PolicyEngine
@@ -211,6 +216,50 @@ class ApproverDevice:
         self._process.close()
 
     def __enter__(self) -> ApproverDevice:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.close()
+
+
+class _TimeAuthorityInProcess:
+    def __init__(self) -> None:
+        self._key = Ed25519PrivateKey.generate()  # never leaves this process
+
+    def public_key(self) -> bytes:
+        return self._key.public_key().public_bytes(
+            serialization.Encoding.Raw, serialization.PublicFormat.Raw
+        )
+
+    def stamp(self, nonce: bytes) -> bytes:
+        return signed_time.stamp(self._key, nonce, _now()).to_bytes()
+
+
+class TimeService:
+    """A time authority's key and clock in their own process; a ``cluster.TimeSource``."""
+
+    def __init__(self) -> None:
+        self._process = _Process("time-authority", _TimeAuthorityInProcess)
+        self.public_key: bytes = self._process.call("public_key")
+
+    @property
+    def pid(self) -> int | None:
+        return self._process.pid
+
+    def stamp(self, nonce: bytes) -> bytes:
+        """The time authority's current time, signed together with ``nonce``."""
+        signed: bytes = self._process.call("stamp", nonce)
+        return signed
+
+    def close(self) -> None:
+        self._process.close()
+
+    def __enter__(self) -> TimeService:
         return self
 
     def __exit__(

@@ -9,7 +9,8 @@ from decimal import Decimal
 
 import pytest
 
-from custody_lab.demo.parties import ApproverDevice, PolicyService, PolicySpec
+from custody_lab.demo.parties import ApproverDevice, PolicyService, PolicySpec, TimeService
+from custody_lab.policy import signed_time
 from custody_lab.policy.authorisation import AuthorityKey
 from custody_lab.policy.engine import AssetPolicy, PolicyDenied, Tier
 from custody_lab.policy.model import SettlementInstruction
@@ -71,3 +72,12 @@ def test_a_refusal_crosses_the_process_boundary_with_its_decision(
     assert denied.value.decision.reason == "1 of 2 required approvals"
     entries, head = policy.audit()
     assert entries[-1].payload["status"] == "pending" and head == entries[-1].hash
+
+
+def test_the_time_authority_signs_the_time_for_a_nonce_in_its_own_process() -> None:
+    with TimeService() as service:
+        nonce = signed_time.new_nonce()
+        signed = signed_time.SignedTime.from_bytes(service.stamp(nonce))
+        moment = signed_time.read(signed, service.public_key, nonce)
+        assert service.pid not in (None, os.getpid())
+        assert abs(moment - datetime.now(UTC)) < timedelta(seconds=5)

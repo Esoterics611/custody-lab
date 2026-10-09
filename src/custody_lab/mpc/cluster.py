@@ -24,29 +24,39 @@ signer checks four things:
 
 Nonces are burnt before those checks, so a refused request cannot be retried with the same nonces
 on a different message.
+
+Expiry is checked against the signer's own clock, unless the cluster was started with a time
+authority. Then each signer sends a fresh nonce with every signing, the coordinator fetches the
+time authority's signed time for it, and the signer checks the expiry against that time and never
+reads its own clock (``custody_lab.policy.signed_time``). The coordinator relays the signed time;
+it cannot change it or substitute an earlier one, because the signature covers the signer's own
+nonce.
 """
 
 from __future__ import annotations
 
 import multiprocessing as mp
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from multiprocessing.connection import Connection
 from types import TracebackType
-from typing import Any
+from typing import Any, Protocol
 
 import custody_frost as cf
 
 from custody_lab.mpc import channel
-from custody_lab.policy import authorisation
+from custody_lab.policy import authorisation, signed_time
 
 
 class _Signer:
     """State held inside one signer process."""
 
-    def __init__(self, identifier: int, authority: bytes) -> None:
+    def __init__(self, identifier: int, authority: bytes, time_authority: bytes | None) -> None:
         self.identifier = identifier
         self._authority = authority
+        self._time_authority = time_authority  # None: this machine's clock decides expiry
+        self._time_nonce: bytes | None = None
+        self._clock_offset = timedelta(0)
         self._used_authorisations: set[str] = set()
         self._secret = b""
         self._round1: dict[int, bytes] = {}
@@ -129,21 +139,47 @@ class _Signer:
         opened = [self._open(k, "repair-sigma", sealed) for k, sealed in sigmas.items()]
         self._key_package = cf.repair_part3(opened, self.identifier, public_key_package)
 
-    def sign(self, signing_package: bytes, token: bytes, taproot: bool) -> bytes:
+    def set_clock(self, offset: timedelta) -> None:
+        """EDUCATIONAL, NOT PRODUCTION: this machine's clock reads the true time plus ``offset``,
+        as an attacker who can set the clock would leave it."""
+        self._clock_offset = offset
+
+    def time_nonce(self) -> bytes:
+        self._time_nonce = signed_time.new_nonce()
+        return self._time_nonce
+
+    def _now(self, stamped: bytes | None) -> datetime:
+        if self._time_authority is None:
+            return datetime.now(UTC) + self._clock_offset
+        nonce, self._time_nonce = self._time_nonce, None  # one signed time per nonce
+        if stamped is None or nonce is None:
+            raise authorisation.AuthorisationRejected("no signed time from the time authority")
+        try:
+            return signed_time.read(
+                signed_time.SignedTime.from_bytes(stamped), self._time_authority, nonce
+            )
+        except signed_time.TimeRejected as rejected:
+            raise authorisation.AuthorisationRejected(str(rejected)) from None
+
+    def sign(
+        self, signing_package: bytes, token: bytes, taproot: bool, stamped: bytes | None
+    ) -> bytes:
         if self._nonces is None:
             raise RuntimeError("no nonces: commit first; nonces are single-use")
         nonces, self._nonces = self._nonces, None
         auth = authorisation.Authorisation.from_bytes(token)
         message = cf.signing_package_message(signing_package)
-        authorisation.check(auth, self._authority, message, datetime.now(UTC))
+        authorisation.check(auth, self._authority, message, self._now(stamped))
         if auth.authorisation_id in self._used_authorisations:
             raise authorisation.AuthorisationRejected("authorisation already used")
         self._used_authorisations.add(auth.authorisation_id)
         return cf.sign(signing_package, nonces, self._key_package, taproot)
 
 
-def _signer_main(identifier: int, authority: bytes, conn: Connection) -> None:
-    signer = _Signer(identifier, authority)
+def _signer_main(
+    identifier: int, authority: bytes, time_authority: bytes | None, conn: Connection
+) -> None:
+    signer = _Signer(identifier, authority, time_authority)
     while (request := conn.recv()) is not None:
         method, args = request
         try:
@@ -152,17 +188,37 @@ def _signer_main(identifier: int, authority: bytes, conn: Connection) -> None:
             conn.send((False, repr(exc)))
 
 
+class TimeSource(Protocol):
+    """The coordinator's route to a time authority (``custody_lab.demo.parties.TimeService``)."""
+
+    @property
+    def public_key(self) -> bytes: ...  # raw Ed25519, given to every signer at start
+
+    def stamp(self, nonce: bytes) -> bytes: ...  # a serialized ``signed_time.SignedTime``
+
+
 class SigningCluster:
-    def __init__(self, threshold: int, count: int, authority: bytes) -> None:
-        """``authority`` is the policy engine's hybrid public key, ``AuthorityKey.public_bytes``."""
+    def __init__(
+        self, threshold: int, count: int, authority: bytes, time_source: TimeSource | None = None
+    ) -> None:
+        """``authority`` is the policy engine's hybrid public key, ``AuthorityKey.public_bytes``.
+
+        With ``time_source``, every signer is given its public key and checks expiry against the
+        time authority's signed time only; ``time_source`` is how this process fetches it, and
+        replacing it later changes nothing the signers accept.
+        """
         self.threshold, self.count = threshold, count
         self.public_key_package = b""
+        self.time_source = time_source
+        time_authority = time_source.public_key if time_source else None
         ctx = mp.get_context("spawn")
         self._conns: dict[int, Connection] = {}
         self._procs: dict[int, mp.process.BaseProcess] = {}
         for i in range(1, count + 1):
             parent, child = ctx.Pipe()
-            proc = ctx.Process(target=_signer_main, args=(i, authority, child), name=f"signer-{i}")
+            proc = ctx.Process(
+                target=_signer_main, args=(i, authority, time_authority, child), name=f"signer-{i}"
+            )
             proc.start()
             self._conns[i], self._procs[i] = parent, proc
         # Private channels: each signer's channel public key, handed to the others. The keys pass
@@ -212,7 +268,13 @@ class SigningCluster:
         """
         commitments = self._request({i: ("commit", ()) for i in signers})
         package = cf.signing_package(commitments, message)
-        shares = self._request({i: ("sign", (package, token, taproot)) for i in signers})
+        stamped: dict[int, bytes | None] = dict.fromkeys(signers)
+        if self.time_source is not None:
+            nonces = self._request({i: ("time_nonce", ()) for i in signers})
+            stamped = {i: self.time_source.stamp(nonce) for i, nonce in nonces.items()}
+        shares = self._request(
+            {i: ("sign", (package, token, taproot, stamped[i])) for i in signers}
+        )
         return cf.aggregate(package, shares, self.public_key_package, taproot)
 
     def refresh(self) -> bytes:
@@ -269,6 +331,12 @@ class SigningCluster:
             {k: ("repair2", ({h: deltas[h][k] for h in helpers}, identifier)) for k in helpers}
         )
         self._request({identifier: ("repair3", (sigmas, self.public_key_package))})
+
+    def set_clock(self, identifier: int, offset: timedelta) -> None:
+        """EDUCATIONAL, NOT PRODUCTION: signer ``identifier``'s machine clock reads the true time
+        plus ``offset`` from now on, as an attacker who sets it would leave it. A signer started
+        with a time authority never reads it."""
+        self._request({identifier: ("set_clock", (offset,))})
 
     def used_authorisations(self) -> set[str]:
         """Every authorisation identifier any running signer has signed under: the signers' own
