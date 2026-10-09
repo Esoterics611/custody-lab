@@ -2,6 +2,49 @@
 
 Newest first.
 
+## 2026-10-09: Five more vectors demonstrated: borrowed coins, a forged fill, address registration, a re-hashed log, an omitted client
+
+Continuing down the attack-vector analysis's future demos.
+
+**Red team** (now four attacks, nine steps). *Borrowed coins* (9.6): the hole the reorganised deposit
+leaves is hidden from a scheduled snapshot by 0.50 BTC borrowed from the exchange (reserve ratio
+1.00000, signed; the books panel agrees while the loan is held); after repayment an unannounced
+snapshot shows 0.66667. *A forged fill* (8.1): `trading.fix.trade_session` can run a session
+through an educational man in the middle; rewriting LastQty from 0.4 to 1.4 passes the session,
+because simplefix recomputes BodyLength and CheckSum (observed); `reconcile()` against the
+exchange's own statement refuses it ("E0001: qty 1.4 in the session, 0.4 in the exchange's
+statement").
+
+**Address registration** (4.8). `PolicyEngine.register`: an `AddressRegistration` approved like the
+largest payment, recorded in the audit log, payable only after 24 hours; hashed under its own key,
+so payment approvals never count for it.
+
+**Attack panel**, now twenty attacks: an omitted client (9.5), registration with one approval, payment
+to a just-registered address, and a signed payment deleted from the audit log and re-hashed (10.2),
+caught by the signers' own record (`SigningCluster.used_authorisations`).
+
+**Reassessed.** Vector 4.5, replay after signers restart: an authorisation names one exact sighash,
+so a replayed signature can only complete the same transaction with the same txid; no gain, demo
+dropped. Two future demos that would mean writing tools to extract key material (substituting a
+channel key, reading shares from memory) stay as analysis only.
+
+**Verified.** Full suite: 263 passed. `ruff`, `mypy` strict, `oxlint` clean. `custody-lab attacks`:
+20 of 20 refused.
+
+**Open.** One planned future demo (a signer's clock set back, 4.4) and the other ideas in
+`atlas/project/ideas.md`.
+
+### Deliverables
+
+- The red team now also shows a custodian hiding a shortfall with coins borrowed for a scheduled
+  proof of reserves, exposed by an unannounced one.
+- A forged FIX execution report that passes every session check is caught by reconciling against the
+  exchange's own record of what it executed.
+- New withdrawal addresses now need the approvals of the largest payment and a 24-hour wait before
+  anything can be paid to them.
+- The attack panel grew to twenty attacks, including a deleted payment hidden by re-hashing the
+  audit log and caught by the signers' own records.
+
 ## 2026-10-09: Attack-vector analysis; private channels; a split server; a red team
 
 The owner asked for a thorough analysis of attack vectors, added to the future-demos list and the
