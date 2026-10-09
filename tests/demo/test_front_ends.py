@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from custody_lab.demo import attacks, cli, pipeline, server
+from custody_lab.demo import attacks, cli, day, pipeline, server
 
 GROUP_KEY = "02" + "ab" * 32
 
@@ -107,7 +107,8 @@ def test_run_prints_each_step_its_details_and_the_summary(tmp_path: Path) -> Non
         f"[1/9] {pipeline.STEPS['chain']}",
         "      height: 101",
         f"[2/9] {pipeline.STEPS['keys']}",
-        '      signers: [{"share":1,"pid":4242}]',
+        "      signers:",
+        "        - share: 1, pid: 4242",
         "      group_key: 02" + "ab" * 29 + "...",  # cut to the 80-column terminal
         f"[7/9] {pipeline.STEPS['sign']}",
         "",
@@ -223,3 +224,39 @@ def test_no_runs_directory_lists_nothing(tmp_path: Path) -> None:
 
     assert client.get("/api/runs").json() == []
     assert client.get("/api/runs/anything").status_code == 404
+
+
+def _a_short_day(emit: pipeline.Emit, workdir: Path) -> dict[str, Any]:
+    books = {"ledger": {}, "coins": [], "owed": "4.50 BTC", "held": "4.50 BTC", "reconciled": True}
+    emit(pipeline.Event("deposits", "running", day.STEPS["deposits"]))
+    emit(pipeline.Event("deposits", "done", day.STEPS["deposits"], {"books": books}))
+    return {"reserve_ratio": "1.00000"}
+
+
+def test_a_day_streams_from_its_own_runs_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(day, "run", _a_short_day)
+    runs, days = tmp_path / "runs", tmp_path / "days"
+    client = TestClient(server.create_app(runs, tmp_path / "no-dashboard", days))
+
+    events = _events(client.post("/api/day"))
+
+    assert [(e["step"], e["status"]) for e in events] == [
+        ("deposits", "running"),
+        ("deposits", "done"),
+    ]
+    assert list(client.get("/api/day/steps").json()) == list(day.STEPS)
+    assert len(list(days.iterdir())) == 1
+    assert client.get("/api/runs").json() == []  # a day is not a nine-step run
+
+
+def test_day_prints_the_reconciliation_in_one_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(day, "run", _a_short_day)
+
+    result = CliRunner().invoke(cli.app, ["day", "--runs", str(tmp_path)])
+
+    assert result.exit_code == 0, result.output
+    assert "      books: ledger 4.50 BTC, coins 4.50 BTC: reconciled" in result.output.splitlines()

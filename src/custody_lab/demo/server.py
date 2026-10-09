@@ -9,6 +9,10 @@ issues only GET and reconnects on its own, so a reconnect after a run finished w
 another run. A run continues to completion if the client disconnects, and its artefacts stay in
 its directory.
 
+``POST /api/day`` runs ``day.run``, a day of deposits, trading, withdrawals and refusals, the
+same way, in a fresh directory under the day's runs directory; ``GET /api/day/steps`` lists its
+steps.
+
 ``POST /api/attacks`` runs ``attacks.run`` the same way and streams one attempt per line: each
 attack, the component that refused it and that component's reason. It needs no regtest node.
 
@@ -35,7 +39,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from custody_lab.demo import attacks, pipeline
+from custody_lab.demo import attacks, day, pipeline
 
 DASHBOARD = Path("web/dist")
 RECENT = 20  # recorded runs listed
@@ -85,7 +89,9 @@ def _ending(events: list[dict[str, Any]]) -> str:
     return f"stopped during step {n}"
 
 
-def create_app(runs: Path = pipeline.RUNS, dashboard: Path = DASHBOARD) -> FastAPI:
+def create_app(
+    runs: Path = pipeline.RUNS, dashboard: Path = DASHBOARD, days: Path = day.RUNS
+) -> FastAPI:
     app = FastAPI(title="custody-lab demo")
 
     @app.get("/api/steps")
@@ -123,6 +129,19 @@ def create_app(runs: Path = pipeline.RUNS, dashboard: Path = DASHBOARD) -> FastA
         if not log.is_file():
             raise HTTPException(404, f"run {run!r} recorded no events")
         return [json.loads(line) for line in log.read_text().splitlines()]
+
+    @app.get("/api/day/steps")
+    def day_steps() -> dict[str, str]:
+        return day.STEPS
+
+    @app.post("/api/day")
+    def start_day() -> StreamingResponse:
+        workdir = pipeline.new_workdir(days)
+
+        def work(emit: pipeline.Emit) -> None:
+            day.run(emit, workdir)
+
+        return _stream(f"day in {workdir}", work)
 
     @app.post("/api/attacks")
     def attack() -> StreamingResponse:

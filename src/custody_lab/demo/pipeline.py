@@ -99,14 +99,14 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def _btc(sats: int) -> str:
+def show_btc(sats: int) -> str:
     """Satoshis as BTC for the screen, with at least two decimals: 5.00, 0.85, 4.1499969."""
     btc = bitcoin.to_btc(sats)
     shown = btc.quantize(Decimal("0.01")) if btc == btc.quantize(Decimal("0.01")) else btc
     return f"{shown:f} BTC"
 
 
-def _published(proof: InclusionProof) -> dict[str, Any]:
+def published_proof(proof: InclusionProof) -> dict[str, Any]:
     """The inclusion proof a client receives: its balance, its salt and the path to the root.
 
     The dashboard checks it in the browser (``web/src/reserves.ts``) without the Python code.
@@ -259,11 +259,11 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
             report(
                 "policy",
                 "done",
-                spends=f"{_btc(stx.spent.amount)}, output {spent.vout} of {spent.txid}",
+                spends=f"{show_btc(stx.spent.amount)}, output {spent.vout} of {spent.txid}",
                 pays=[
                     {
                         "to": "exchange" if o.script_pubkey == destination else "custody (change)",
-                        "amount": _btc(o.amount),
+                        "amount": show_btc(o.amount),
                     }
                     for o in stx.tx.outputs
                 ],
@@ -360,7 +360,7 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
                 audit_head=snapshot.audit_head,
                 snapshot=os.path.relpath(path),  # no home directory on screen
                 # each client receives only its own; the dashboard plays every client
-                inclusion_proofs=[_published(tree.proof(c)) for c in ledger],
+                inclusion_proofs=[published_proof(tree.proof(c)) for c in ledger],
             )
             del custodian_key  # reserved for signing published snapshots in a later module
     except Exception as exc:

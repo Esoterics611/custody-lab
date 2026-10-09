@@ -812,8 +812,7 @@ and the first failure decides.
   finds the earlier authorisation in its own audit log.
 - *Drain the account in 9.5 BTC payments, each fully approved*: each payment is within the tier
   that two approvals allow, but a third would bring the day's total to 28.5 BTC, over the 20 BTC
-  velocity limit: "velocity limit 20 per 1 day, 0:00:00; 19.0 already authorised". The middle of
-  that message is how Python prints a period of 24 hours.
+  velocity limit: "velocity limit 20 BTC per 24 hours; 19.0 BTC already authorised".
 
 **Signers** ([chapters 2](chapters/02-mpc-custody.md) and [4](chapters/04-policy.md)). Each
 signer process checks the authorisation itself, and each refusal is shown on its own line.

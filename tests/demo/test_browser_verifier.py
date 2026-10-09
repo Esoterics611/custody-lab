@@ -15,7 +15,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from custody_lab.demo.pipeline import LEDGER, _published
+from custody_lab.demo.pipeline import LEDGER, published_proof
 from custody_lab.reserves.merkle_sum import MerkleSumTree
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node not on PATH")
@@ -25,7 +25,10 @@ HARNESS = "web/tests/verify-proofs.ts"
 def _browser_roots(
     tree: MerkleSumTree, claims: dict[str, str] | None = None
 ) -> dict[str, dict[str, Any]]:
-    document = {"proofs": [_published(tree.proof(c)) for c in tree.salts], "claims": claims or {}}
+    document = {
+        "proofs": [published_proof(tree.proof(c)) for c in tree.salts],
+        "claims": claims or {},
+    }
     done = subprocess.run(
         ["node", HARNESS], input=json.dumps(document), capture_output=True, text=True, check=True
     )
