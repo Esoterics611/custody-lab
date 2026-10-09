@@ -54,7 +54,7 @@ export function Attacks() {
     <section className="attacks">
       <div className="toolbar card">
         <p>
-          Seventeen attacks a thief or a careless insider would try, each run against the demo's real
+          Nineteen attacks a thief or a careless insider would try, each run against the demo's real
           policy engine, signer processes and verifiers. No chain is needed. Each row names the
           component that refused the attack and quotes its refusal.
         </p>

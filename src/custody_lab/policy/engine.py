@@ -7,7 +7,8 @@ allow is denied. Checks run in this order, and the first failure decides:
 2. The amount is a finite, positive Decimal.
 3. The amount falls within a tier (tiers set the approval quorum by size; above the top tier is
    denied outright).
-4. The destination is whitelisted for the asset.
+4. The destination is whitelisted for the asset: listed in the policy, or registered through
+   ``register`` and past the registration delay.
 5. The rolling-window velocity limit holds, counting authorisations already issued.
 6. The instruction has not been authorised before.
 7. Enough valid, distinct approvals are present. Valid means: signed by a known approver, over
@@ -22,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 
@@ -32,7 +33,7 @@ from custody_lab.foundations.hashing import sha256, tagged_hash
 from custody_lab.policy import authorisation
 from custody_lab.policy.audit import AuditLog, Clock
 from custody_lab.policy.authorisation import Authorisation, AuthorityKey
-from custody_lab.policy.model import Approval, SettlementInstruction
+from custody_lab.policy.model import AddressRegistration, Approval, SettlementInstruction
 from custody_lab.reserves.snapshot import ATTESTATION_TAG
 
 
@@ -84,9 +85,11 @@ class PolicyEngine:
         audit: AuditLog,
         clock: Clock,
         authorisation_ttl: timedelta = timedelta(seconds=60),
+        registration_delay: timedelta = timedelta(hours=24),
     ) -> None:
         self.policy, self.audit = policy, audit
         self._key, self._clock, self._ttl = authority_key, clock, authorisation_ttl
+        self._delay = registration_delay
 
     @property
     def authority_public_key(self) -> bytes:
@@ -104,6 +107,87 @@ class PolicyEngine:
             Decimal(0),
         )
 
+    def _registered(self, asset: str, address: str) -> datetime | None:
+        """When ``address`` became, or becomes, payable for ``asset`` by registration."""
+        for e in self.audit.entries:
+            if e.event == "registered" and e.payload["asset"] == asset:
+                if e.payload["address"] == address:
+                    effective: datetime = e.payload["effective_at"]
+                    return effective
+        return None
+
+    def _not_payable(self, asset_name: str, asset: AssetPolicy, address: str) -> str | None:
+        """Why ``address`` may not be paid now, or None if it may."""
+        if address in asset.whitelist:
+            return None
+        effective = self._registered(asset_name, address)
+        if effective is None:
+            return f"destination {address} is not whitelisted"
+        if self._clock() < effective:
+            return f"destination {address} is registered but payable only from {effective}"
+        return None
+
+    def register(
+        self, registration: AddressRegistration, approvals: Sequence[Approval]
+    ) -> datetime:
+        """Approve adding an address to the whitelist; return when it becomes payable.
+
+        A registration needs the quorum of the highest tier, from approvers other than its
+        initiator, like the largest payment, and takes effect only after the registration delay,
+        so that a registration made by an attacker can be noticed before anything is paid to it.
+        Raises ``PolicyDenied`` with a PENDING or DENIED decision otherwise.
+        """
+        asset = self.policy.assets.get(registration.asset)
+        quorum = max((t.quorum for t in asset.tiers), default=0) if asset else 0
+        digest = registration.digest()
+        counted = sorted(
+            {
+                a.approver
+                for a in approvals
+                if a.instruction_digest == digest
+                and a.approver != registration.initiator
+                and a.approver in self.policy.approvers
+                and a.is_valid(self.policy.approvers[a.approver])
+            }
+        )
+        if asset is None:
+            decision = Decision(Status.DENIED, f"no policy for asset {registration.asset!r}")
+        elif self._not_payable(registration.asset, asset, registration.address) is None or (
+            self._registered(registration.asset, registration.address) is not None
+        ):
+            decision = Decision(Status.DENIED, f"{registration.address} is already registered")
+        elif len(counted) < quorum:
+            decision = Decision(
+                Status.PENDING, f"{len(counted)} of {quorum} required approvals", tuple(counted)
+            )
+        else:
+            decision = Decision(
+                Status.APPROVED, f"{len(counted)} of {quorum} required approvals", tuple(counted)
+            )
+        self.audit.append(
+            "registration_evaluated",
+            {
+                "registration_id": registration.registration_id,
+                "status": decision.status.value,
+                "reason": decision.reason,
+                "approvers": list(decision.approvers),
+            },
+        )
+        if decision.status is not Status.APPROVED:
+            raise PolicyDenied(decision)
+        effective = self._clock() + self._delay
+        self.audit.append(
+            "registered",
+            {
+                "registration_id": registration.registration_id,
+                "asset": registration.asset,
+                "client": registration.client,
+                "address": registration.address,
+                "effective_at": effective,
+            },
+        )
+        return effective
+
     def _already_authorised(self, digest: bytes) -> bool:
         return any(
             e.event == "authorised" and e.payload["instruction_digest"] == digest.hex()
@@ -119,8 +203,9 @@ class PolicyEngine:
         tier = next((t for t in asset.tiers if ins.amount <= t.max_amount), None)
         if tier is None:
             return Decision(Status.DENIED, "amount above the highest tier")
-        if ins.destination not in asset.whitelist:
-            return Decision(Status.DENIED, f"destination {ins.destination} is not whitelisted")
+        refusal = self._not_payable(ins.asset, asset, ins.destination)
+        if refusal:
+            return Decision(Status.DENIED, refusal)
         used = self._velocity_used(ins.asset, asset.velocity_window)
         if used + ins.amount > asset.velocity_limit:
             return Decision(

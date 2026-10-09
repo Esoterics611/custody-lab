@@ -15,6 +15,8 @@ REFUSALS = {  # the refusing component's own words
     "raise_the_amount_after_approval": "pending: 0 of 2 required approvals",
     "pay_the_same_instruction_twice": "denied: instruction already authorised",
     "drain_through_many_payments": "denied: velocity limit 20",
+    "register_with_one_approval": "pending: 1 of 2 required approvals",
+    "pay_a_new_address_at_once": "is registered but payable only from",
     "forge_an_authorisation": "not signed by the policy authority (Ed25519)",
     "forge_after_breaking_ed25519": "not signed by the policy authority (ML-DSA-65)",
     "replay_a_used_authorisation": "authorisation already used",

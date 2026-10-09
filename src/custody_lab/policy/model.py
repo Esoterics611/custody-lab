@@ -44,6 +44,23 @@ class SettlementInstruction:
 
 
 @dataclass(frozen=True)
+class AddressRegistration:
+    """A request to add ``address`` to ``client``'s withdrawal addresses for ``asset``, raised by
+    ``initiator``. Approved like a payment, it takes effect only after the policy's delay."""
+
+    registration_id: str
+    asset: str
+    client: str
+    address: str
+    initiator: str
+    created_at: datetime
+
+    def digest(self) -> bytes:
+        # Hashed under a key no instruction has, so an approval of one never counts for the other.
+        return sha256(canonical_json({"register_address": asdict(self)}))
+
+
+@dataclass(frozen=True)
 class Approval:
     """An approver's Ed25519 signature over one instruction's digest."""
 
@@ -57,7 +74,10 @@ class Approval:
 
     @classmethod
     def create(
-        cls, instruction: SettlementInstruction, approver: str, key: Ed25519PrivateKey
+        cls,
+        instruction: SettlementInstruction | AddressRegistration,
+        approver: str,
+        key: Ed25519PrivateKey,
     ) -> Approval:
         digest = instruction.digest()
         return cls(digest, approver, key.sign(cls.payload(digest, approver)))

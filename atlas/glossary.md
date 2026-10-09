@@ -496,7 +496,7 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Warm wallet.** Online signers with a human approval quorum for every transaction. The demo is a warm wallet. *Taught in:* [9, Deep dives](../manual/chapters/09-capstone.md#deep-dives).
 
-**Whitelist.** The set of destination addresses the policy allows for an asset; an instruction to any other address is refused regardless of approvals. Changing it needs its own controls, because it becomes the attacker's target. *Taught in:* [4, The decision function](../manual/chapters/04-policy.md#the-decision-function).
+**Whitelist.** The set of destination addresses the policy allows for an asset; an instruction to any other address is refused regardless of approvals. Changing it needs its own controls, because it becomes the attacker's target: in the demo a new address is added by a registration approved like the largest payment, and is payable only after 24 hours ([the demo walkthrough, Attacking the design](../manual/demo-walkthrough.md#attacking-the-design)). *Taught in:* [4, The decision function](../manual/chapters/04-policy.md#the-decision-function).
 
 **Witness.** The data that satisfies a locking script, such as a signature. A Taproot key-path witness is one 64-byte signature. *Taught in:* [5 FP, Locking and unlocking](../manual/chapters/05-settlement.md#locking-and-unlocking).
 
