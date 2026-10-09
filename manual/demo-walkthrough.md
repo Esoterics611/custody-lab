@@ -985,6 +985,15 @@ over it. **Lower the liabilities by 1 BTC** changes one figure on the page, as a
 a debt would: the recomputed message changes, the signature no longer verifies, and the verdict
 turns red. This is the after-the-run check on `var/altered.json`, done in the browser.
 
+One more question remains: is the key that signed the snapshot the key that holds the coins? A
+custodian could sign with a key that controls nothing. A Taproot address is that key written in
+bech32m, the address format of BIP 350, so the client can read the key out of the address it
+deposited to without asking the custodian. The card shows the custody address from step 2, the
+key decoded from it in the browser (with `@scure/base`), and whether it is the key that signed;
+the verdict is green only when it is. Bitcoin Core is the oracle for the decoder: it derives
+addresses from known keys, and the browser code must read the same keys back
+(`tests/demo/test_browser_address.py`).
+
 The counterpart is an auditor's signed opinion on the reconciliation: it is worth something
 because the figures cannot be changed afterwards without the signature failing. The comparison
 stops at who can check it: anyone with the snapshot can verify this signature, with any BIP340

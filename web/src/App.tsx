@@ -251,7 +251,10 @@ export default function App() {
         <Attacks />
       </div>
       <div hidden={tab !== 'check'}>
-        <BalanceCheck reserves={state.reserves} />
+        <BalanceCheck
+          reserves={state.reserves}
+          address={state.keys?.detail.address as string | undefined}
+        />
       </div>
     </div>
   )

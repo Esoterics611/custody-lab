@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { taprootKey } from './address'
 import { Hex } from './fields'
 import { toBtc, toSats } from './reserves'
 import { checkSnapshot, type SnapshotCheck, type SnapshotDocument } from './snapshot'
@@ -9,8 +10,23 @@ function lowered(snapshot: SnapshotDocument): SnapshotDocument {
   return { ...snapshot, liabilities: toBtc(toSats(String(snapshot.liabilities)) - ONE_BTC) }
 }
 
-/** The client's check that the custodian signed the snapshot its balance check relies on. */
-export function SignatureCheck({ snapshot }: { snapshot: SnapshotDocument }) {
+/** The key inside the custody address, or why it could not be read. */
+function keyIn(address: string): { key?: string; problem?: string } {
+  try {
+    return { key: taprootKey(address).key }
+  } catch (error) {
+    return { problem: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+interface Props {
+  snapshot: SnapshotDocument
+  address?: string // the custody address the clients deposited to, from step 2
+}
+
+/** The client's check that the custodian signed the snapshot its balance check relies on, with
+ * the key that holds the coins. */
+export function SignatureCheck({ snapshot, address }: Props) {
   const [altered, setAltered] = useState(false)
   const [check, setCheck] = useState<SnapshotCheck | null>(null)
   const shown = altered ? lowered(snapshot) : snapshot
@@ -26,6 +42,9 @@ export function SignatureCheck({ snapshot }: { snapshot: SnapshotDocument }) {
   }, [snapshot, altered])
 
   const signed = check?.messageMatches && check.signatureValid
+  const inside = address ? keyIn(address) : undefined
+  const sameKey = inside?.key === shown.custody_output_key
+  const holds = address === undefined || sameKey
   return (
     <div className="card signature">
       <h2>Check the custodian's signature</h2>
@@ -50,10 +69,23 @@ export function SignatureCheck({ snapshot }: { snapshot: SnapshotDocument }) {
         <dd>
           <Hex text={String(shown.liabilities_root)} />
         </dd>
-        <dt>custody key</dt>
+        <dt>key that signed</dt>
         <dd>
           <Hex text={shown.custody_output_key} />
         </dd>
+        {address && (
+          <>
+            <dt>custody address</dt>
+            <dd>
+              <Hex text={address} /> (where the clients deposited)
+            </dd>
+            <dt>key inside it</dt>
+            <dd>
+              {inside?.key ? <Hex text={inside.key} /> : inside?.problem}{' '}
+              {inside?.key && (sameKey ? '(the same key)' : '(a different key)')}
+            </dd>
+          </>
+        )}
         <dt>message, recomputed</dt>
         <dd>{check && <Hex text={check.message} />}</dd>
         <dt>message, published</dt>
@@ -71,10 +103,12 @@ export function SignatureCheck({ snapshot }: { snapshot: SnapshotDocument }) {
         </button>
       </div>
       {check && (
-        <p className={`verdict ${signed ? 'ok' : 'bad'}`}>
-          {signed
-            ? 'Signed. The custody key signed exactly these figures: the recomputed message equals the published one, and the signature verifies over it.'
-            : `Not signed. The recomputed message ${check.messageMatches ? 'equals' : 'differs from'} the published one, and the signature ${check.signatureValid ? 'verifies' : 'does not verify'} over it: the custody key did not sign these figures.`}
+        <p className={`verdict ${signed && holds ? 'ok' : 'bad'}`}>
+          {!signed
+            ? `Not signed. The recomputed message ${check.messageMatches ? 'equals' : 'differs from'} the published one, and the signature ${check.signatureValid ? 'verifies' : 'does not verify'} over it: the custody key did not sign these figures.`
+            : !holds
+              ? 'Signed, but not by the key that holds the coins: the key inside the custody address is a different key, so this signature proves nothing about those coins.'
+              : `Signed. The recomputed message equals the published one, the signature verifies over it, and the key that signed it is the key inside the custody address${address ? '' : ' (no address to compare on this page)'}: the holder of the coins signed exactly these figures.`}
         </p>
       )}
     </div>

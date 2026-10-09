@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@noble/curves": "2.4.0",
+    "@scure/base": "2.4.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

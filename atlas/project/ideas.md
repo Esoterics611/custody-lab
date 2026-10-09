@@ -13,15 +13,13 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   coins, a signer taken down at noon, withdrawals at both approval tiers, and three refusals by
   three layers (ledger, whitelist, velocity). The ledger is reconciled with the chain after every
   step. `custody_lab.demo.day`, the dashboard tab, `custody-lab day`, the walkthrough section.
+- **The client checks the custodian's signature in the browser** (2026-10-09). The snapshot's
+  BIP340 signature, rebuilt and verified with `@noble/curves`; oracles: the 19 BIP340 vectors and
+  Python-signed snapshots.
+- **The key is the one holding the coins** (2026-10-09). The custody address decoded in the
+  browser with `@scure/base`, and its key compared with the key that signed; oracle: Bitcoin Core.
 
 ## Next
-
-- **The client checks the custodian's signature in the browser.** The balance check proves that a
-  balance is inside the published root, but not that the custodian signed that root. Verifying the
-  snapshot's BIP340 proof-of-control signature in TypeScript, with an audited library
-  (`@noble/curves` 2.4.0, published 2026-08-27), closes the client's own check. Oracle: the BIP340
-  test vectors and snapshots made by the Python code, run under Node as
-  `tests/demo/test_browser_verifier.py` does for the tree.
 - **Course material from the industry research.** How leading custodians secure keys today, the
   top assets and the signature schemes they need, the research frontier, and recent incidents with
   their custody lessons. Sources and evidence classes from the research report; time-sensitive
@@ -29,9 +27,6 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
 
 ## Open
 
-- **The key is the one holding the coins.** Decode the custody address (bech32m) in the browser
-  and show that the snapshot's signing key is the key inside it, so a client checks the proof of
-  control against the address it deposited to, not against a key the custodian names.
 - **Watch the signing protocol.** An animated sequence of the actual messages between the
   coordinator and the signers during key generation and signing: round-one commitments, round-two
   partial signatures, aggregation, each with its size. Needs the cluster to report its messages as

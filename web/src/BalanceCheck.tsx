@@ -7,6 +7,7 @@ import type { StepState } from './stream'
 
 interface Props {
   reserves?: StepState
+  address?: string // the custody address, from step 2
 }
 
 function plusOneSatoshi(btc: string): string {
@@ -17,7 +18,7 @@ function plusOneSatoshi(btc: string): string {
   }
 }
 
-export function BalanceCheck({ reserves }: Props) {
+export function BalanceCheck({ reserves, address }: Props) {
   const proofs = (reserves?.detail.inclusion_proofs ?? []) as InclusionProof[]
   const [client, setClient] = useState(0)
   const [claim, setClaim] = useState<string | null>(null) // null: the proof's own balance
@@ -141,7 +142,7 @@ export function BalanceCheck({ reserves }: Props) {
           </p>
         </>
       )}
-      {snapshot && <SignatureCheck snapshot={snapshot} />}
+      {snapshot && <SignatureCheck snapshot={snapshot} address={address} />}
     </section>
   )
 }
