@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from custody_lab.demo import attacks, cli, day, pipeline, server
+from custody_lab.demo import attacks, ceremonies, cli, day, pipeline, server
 
 GROUP_KEY = "02" + "ab" * 32
 
@@ -260,3 +260,29 @@ def test_day_prints_the_reconciliation_in_one_line(
 
     assert result.exit_code == 0, result.output
     assert "      books: ledger 4.50 BTC, coins 4.50 BTC: reconciled" in result.output.splitlines()
+
+
+def _a_short_ceremony(emit: pipeline.Emit) -> dict[str, Any]:
+    emit(pipeline.Event("refresh", "running", ceremonies.STEPS["refresh"]))
+    emit(
+        pipeline.Event(
+            "refresh", "done", ceremonies.STEPS["refresh"], {"group_key_unchanged": True}
+        )
+    )
+    return {"group_key": "ab" * 32}
+
+
+def test_the_ceremonies_stream_and_print(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(ceremonies, "run", _a_short_ceremony)
+    client = TestClient(server.create_app(tmp_path, tmp_path / "no-dashboard", tmp_path))
+
+    events = _events(client.post("/api/ceremonies"))
+    result = CliRunner().invoke(cli.app, ["ceremonies"])
+
+    assert [(e["step"], e["status"]) for e in events] == [
+        ("refresh", "running"),
+        ("refresh", "done"),
+    ]
+    assert list(client.get("/api/ceremonies/steps").json()) == list(ceremonies.STEPS)
+    assert result.exit_code == 0, result.output
+    assert "      group_key_unchanged: true" in result.output.splitlines()

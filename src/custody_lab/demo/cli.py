@@ -1,7 +1,8 @@
 """Command line for the demo.
 
 ``custody-lab run`` runs the demo once and prints each step as it happens. ``custody-lab day``
-runs a busier day (``custody_lab.demo.day``) the same way.
+runs a busier day (``custody_lab.demo.day``) the same way, and ``custody-lab ceremonies`` the key
+ceremonies (``custody_lab.demo.ceremonies``).
 ``custody-lab attacks`` tries every attack in ``custody_lab.demo.attacks`` and prints who refused
 each. ``custody-lab serve`` starts the HTTP server (``custody_lab.demo.server``), which also serves
 the dashboard once ``npm --prefix web run build`` has produced ``web/dist``.
@@ -20,6 +21,7 @@ import typer
 import uvicorn
 
 from custody_lab.demo import attacks as attack_panel
+from custody_lab.demo import ceremonies as key_ceremonies
 from custody_lab.demo import day as day_scenario
 from custody_lab.demo import pipeline, server
 
@@ -91,6 +93,18 @@ def day(runs: Runs = day_scenario.RUNS) -> None:
         summary = day_scenario.run(lambda e: _print(e, day_scenario.STEPS), workdir)
     except Exception:  # printed above as the failed step's error; no traceback
         typer.echo(f"\nThe day stopped. Its events are in {os.path.relpath(workdir)}/events.jsonl")
+        raise typer.Exit(1) from None
+    typer.echo("")
+    for key, value in summary.items():
+        typer.echo(f"{key}: {_show(value)}")
+
+
+@app.command()
+def ceremonies() -> None:
+    """Play the key ceremonies: a stolen share against a refresh, and a lost share repaired."""
+    try:
+        summary = key_ceremonies.run(lambda e: _print(e, key_ceremonies.STEPS))
+    except Exception:  # printed above as the failed step's error; no traceback
         raise typer.Exit(1) from None
     typer.echo("")
     for key, value in summary.items():

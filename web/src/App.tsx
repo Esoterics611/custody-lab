@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import { Attacks } from './Attacks'
 import { BalanceCheck } from './BalanceCheck'
+import { Ceremonies } from './Ceremonies'
 import { Day } from './Day'
 import { Text } from './fields'
 import { Flow } from './Flow'
@@ -22,6 +23,7 @@ const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const TABS = {
   run: 'Settlement run',
   day: 'A day at the custodian',
+  ceremonies: 'Key ceremonies',
   attacks: 'Attack the design',
   check: "Check a client's balance",
 }
@@ -246,6 +248,9 @@ export default function App() {
       {/* every tab stays mounted, so a tab's results survive switching away from it */}
       <div hidden={tab !== 'day'}>
         <Day />
+      </div>
+      <div hidden={tab !== 'ceremonies'}>
+        <Ceremonies />
       </div>
       <div hidden={tab !== 'attacks'}>
         <Attacks />
