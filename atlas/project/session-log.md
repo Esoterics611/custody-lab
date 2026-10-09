@@ -2,6 +2,99 @@
 
 Newest first.
 
+## 2026-10-09: Offline signers, attack panel, browser balance check, replay
+
+The owner asked for more in the demo, to make it more useful and better to look at, and to keep
+building. Five features were added, each with tests, and the dashboard was rebuilt around them.
+
+**Offline signers.**
+- `SigningCluster.stop(i)` ends one signer's process. `pipeline.run` takes `offline`: those
+  signers' processes stop at the start of step 7, and the coordinator asks signers 1 and 3 while
+  both run, otherwise whichever are running (`_asked`). The default run is unchanged, so signer 2
+  stays online and unasked as chapter 0 says.
+- The first version took the signers to ask (`signers`) and stopped the rest, which stopped
+  signer 2 in the default run. It was replaced within the session (commit c842f1c).
+- With one signer left, the FROST crate refuses with `IncorrectNumberOfCommitments` (observed);
+  step 7 fails with "1 of 3 signers online and 2 are required" and nothing is broadcast.
+- `POST /api/runs` takes `{"offline": [...]}` and answers 422 for an identifier outside 1 to 3,
+  before creating a run directory; `custody-lab run --offline N`.
+
+**Attack panel.** `custody_lab.demo.attacks` sets up the policy, approvers and a 2-of-3 cluster
+without a chain and tries sixteen attacks: seven on the policy engine, six on the signers
+(including an authorisation with a valid Ed25519 signature and a forged ML-DSA-65 one), three on
+the published records. Each reports the refusing component's own message; one that succeeds is
+reported as accepted, which a test proves by breaking `PolicyEngine._decide`. `POST /api/attacks`
+streams them through the same worker-thread helper as runs; `custody-lab attacks` prints them and
+exits 1 if any got through.
+
+**Browser balance check.** The reserves step publishes each client's inclusion proof.
+`web/src/reserves.ts` recomputes the path on WebCrypto SHA-256 and bigint satoshis, sharing no code
+with `merkle_sum.py`. `tests/demo/test_browser_verifier.py` runs it under Node on Python-built
+proofs, including Hypothesis ledgers. That test found `str(Decimal)` publishing one satoshi as
+`1E-8`, which the TypeScript side refuses; balances are now published in fixed point.
+
+**Dashboard.** Three tabs (settlement run, attacks, balance check), a six-stage strip above them, a
+progress bar, per-step durations, a summary once settled, a switch per signer, signer roles through
+step 9 (the snapshot signature, open since 2026-10-09), shortened hashes with a copy button, and
+tables that scroll in their own box (the 390 px word breaks, open since 2026-10-09). `App.tsx` was
+split into six modules.
+
+**Durations.** Browser timing showed steps 3 to 9 as "0.0 s". Measured on the server: step 1
+5.04 s, step 2 150 ms in that run, steps 3 to 9 between 0 and 41 ms, signing 30 ms. Events that
+arrive in one network read cannot be told apart in the browser, so each event now carries `at_ms`
+from the server's monotonic clock.
+
+**Replay.** `GET /api/runs` lists the 20 newest recorded runs with how each ended and which signers
+were offline; `GET /api/runs/<run>` returns one run's events, by directory name only. The dashboard
+replays them, shortening pauses over 700 ms.
+
+**Other.** Step 6 shows what the transaction spends and pays. The missing-`bitcoind` error points at
+the README's prerequisites (open since 2026-10-09). `cluster.py` was formatted. The walkthrough
+gained four sections (taking a signer offline, checking a client's balance, attacking the design,
+replaying a recorded run), and its screen descriptions, troubleshooting, summary table and recap
+were updated; the glossary gained **Replay**; README and CLAUDE.md describe the new commands.
+
+**Verified.**
+- `uv run pytest`: 226 passed (38 s), including the regtest runs with signer 1 offline and with
+  signers 1 and 3 offline. `ruff check` and `mypy` (strict) clean; `oxlint` clean;
+  `npm --prefix web run build` succeeded; `tests/test_docs_links.py` passes.
+- `custody-lab attacks`: 16 of 16 refused in 0.2 s, each reason read.
+- The built dashboard was driven headless (Playwright 1.63.0, headless shell 1243, the three
+  libraries again unpacked into the scratchpad): a full run, the balance check with +1 satoshi, the
+  attacks, a run with signer 1 offline, a run with signers 1 and 3 offline, replays of a failed and
+  a settled run, phone width (390 px) on all three tabs with no horizontal scroll, and dark mode.
+  No console messages. Screenshots were inspected.
+
+**Decided.** Three Proposed entries in the CLAUDE.md decisions log: offline signers and how the
+coordinator chooses; the attack panel reports rather than raises; the TypeScript verifier as the
+tree's cross-language oracle.
+
+**Open.**
+- The three browser libraries are still not installed system-wide.
+- `ruff format --check` reports `tests/policy/test_authorisation.py`, untouched this session.
+- The policy engine's velocity refusal prints the window as `1 day, 0:00:00`; the walkthrough
+  explains it rather than the engine changing its message.
+- The copy button was not clicked in the headless run; the clipboard was not checked.
+- Not checked: the Windows browser reaching the server inside WSL2.
+
+### Deliverables
+
+- The demo can now take any signer offline before signing: with one signer down the payment still
+  settles, and with two down it stops safely at the signing step with no coins moved.
+- A new attack panel runs sixteen attacks against the demo's real code, from a forged
+  approval to a quantum-style forgery and a doctored reserves report, and shows each one refused by
+  the right component in its own words.
+- Each client can now check its own balance against the published proof of reserves directly in
+  the browser, with code independent of the custodian's, and sees the check fail when its balance
+  is off by one satoshi.
+- The dashboard was redesigned around three tabs, with a live view of where the settlement is,
+  real timings per step, a summary once settled, and a layout that works on a phone and in dark
+  mode.
+- Recorded runs can be replayed on the dashboard without a Bitcoin node, so the demo can be shown
+  on any machine and a failed run can be looked at again.
+- The operator's walkthrough gained four sections explaining these features from first principles,
+  and the full test suite (226 tests) passes.
+
 ## 2026-10-09: Dashboard checked in a browser; operator walkthrough
 
 The owner asked to see the dashboard in a browser for the first time, check its nine steps and

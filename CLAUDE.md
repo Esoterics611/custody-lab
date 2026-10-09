@@ -102,13 +102,13 @@ toy exchange ──FIX──▶ trading ──fills──▶ settlement batch (n
 
 | Path | Contents |
 |------|----------|
-| `src/custody_lab/` | Python package, one subpackage per demo module (`foundations`, `mpc`, `policy`, `trading`, `settlement`, `reserves`, `pq`); `demo/pipeline.py` runs all of them end to end; `demo/cli.py` is the `custody-lab` command (`run`, `serve`); `demo/server.py` streams each run's events to the dashboard |
+| `src/custody_lab/` | Python package, one subpackage per demo module (`foundations`, `mpc`, `policy`, `trading`, `settlement`, `reserves`, `pq`); `demo/pipeline.py` runs all of them end to end, with any signers taken offline before step 7; `demo/attacks.py` tries sixteen attacks on the design against the real code, with no chain; `demo/cli.py` is the `custody-lab` command (`run`, `attacks`, `serve`); `demo/server.py` streams runs and attacks to the dashboard and serves recorded runs for replay |
 | `tests/` | pytest + Hypothesis |
 | `atlas/` | knowledge base; `atlas/index.md` is the index; `atlas/glossary.md` defines every term the manual uses; `atlas/project/` holds the plan, feasibility notes and session log |
 | `manual/` | chapter sources; `manual/_quarto.yml` holds the shared settings for both outputs; `manual/chapter-template.qmd` is the template; chapters go in `manual/chapters/NN-slug.qmd`; `00-orientation.qmd` is the plain-language entry point; `manual/demo-walkthrough.md` (plain Markdown, not rendered) walks the operator through one dashboard run. Each chapter builds to a PDF (not committed) and to GitHub Markdown beside its source (`NN-slug.md` and `NN-slug_files/`, committed, so the manual reads and links on GitHub). `manual/links.py` is a Pandoc filter: chapter links per format, "chapter N" auto-links, previous/next lines, heading anchors. `manual/README.md` is the contents page. Code lines wrap; printed output does not, so keep it under 80 characters |
 | `rust/custody-frost/` | PyO3 extension over ZF `frost-secp256k1-tr`; a uv workspace member built by maturin on `uv sync` |
 | `rust/custody-pq/` | PyO3 extension over RustCrypto `slh-dsa` (FIPS 205); a uv workspace member, like `custody-frost` |
-| `web/` | Dashboard: Vite + React + TypeScript. One page: starts a run, shows each step as its events arrive, and which process holds which share. `custody-lab serve` serves the build in `web/dist` |
+| `web/` | Dashboard: Vite + React + TypeScript. Three tabs: the settlement run (each step as its events arrive, which process holds which share, a switch per signer to take it offline, replay of recorded runs), the attack panel, and a client's balance check. `web/src/reserves.ts` is a second implementation of the Merkle-sum check, run in the browser; `tests/demo/test_browser_verifier.py` drives it under Node through `web/tests/verify-proofs.ts`. `custody-lab serve` serves the build in `web/dist` |
 | `scripts/` | `regtest.sh` (start / stop / cli) and `bitcoin-regtest.conf`; `render-manual.sh` (every chapter, or the ones named, to PDF and Markdown) |
 | `var/` | local runtime data, gitignored (`var/regtest`; demo runs in `var/demo/<run>/`) |
 
@@ -149,6 +149,8 @@ scripts/regtest.sh start                 # regtest node; data in var/regtest
 scripts/regtest.sh cli getblockchaininfo
 scripts/regtest.sh stop
 uv run custody-lab run                   # the demo once, printed step by step; artefacts in var/demo/<run>/
+uv run custody-lab run --offline 1       # the same with signer 1's process stopped before step 7
+uv run custody-lab attacks               # sixteen attacks on the design, each refused; no bitcoind needed
 npm --prefix web run build               # type-check and bundle the dashboard into web/dist
 uv run custody-lab serve                 # API and built dashboard at http://127.0.0.1:8000
 npm --prefix web run dev                 # dashboard dev server; proxies /api to custody-lab serve
@@ -168,7 +170,7 @@ host lacks.
 | 3 | Key storage (chapter only) | n/a; model cells for key wrapping (RFC 3394 vector), attestation, sealing, side channels, key release | rewritten to the writing standard; renders (20 pages) | 3 entries, draft |
 | 4 | Policy and authorisation | done: `model`, `audit`, `authorisation`, `engine`; signers enforce authorisations; tests pass | rewritten to the writing standard; renders (20 pages) | 5 entries, draft |
 | 5 | Trading to settlement | done: FIX 5.0 SP2 `trading/fix`; `settlement/` netting, BIP341/BIP86 transactions, regtest node; FROST-signed spends confirm on regtest; tests pass | rewritten to the writing standard; renders (18 pages) | 4 entries, draft |
-| – | Demo front ends | done: `custody-lab run` and `serve`, events streamed per run, React dashboard; tests pass | n/a | n/a |
+| – | Demo front ends | done: `custody-lab run`, `attacks` and `serve`; events streamed per run with server timings; dashboard with offline switches, attack panel, in-browser balance check and replay; tests pass | n/a | n/a |
 | 6 | Proof of reserves | done: `merkle_sum`, `snapshot`; `demo/pipeline` runs all nine steps; tests pass | rewritten to the writing standard; renders (16 pages) | 4 entries, draft |
 | 7 | Post-quantum | done: `wots` (teaching); `rust/custody-pq` (SLH-DSA); hybrid authorisation tokens; tests pass | rewritten to the writing standard; renders (21 pages) | 6 entries, draft |
 | 8 | Industry and regulation (chapter only) | n/a; DvP model cell; the demo's unsettled USD leg measured; fees charged to the client so the custody address holds client coins only | rewritten to the writing standard; renders (17 pages) | 6 entries, draft |
@@ -182,6 +184,9 @@ Newest first. **Proposed** entries await review; they become **Accepted** or are
 
 | Date | Decision | Status |
 |------|----------|--------|
+| 2026-10-09 | The dashboard's balance check is a TypeScript reimplementation of the Merkle-sum verifier on WebCrypto, sharing no code with the Python tree; a test runs it under Node against Python-built proofs, so it is also the tree's cross-language oracle | Proposed |
+| 2026-10-09 | The attack panel runs against the real policy engine, signer processes and verifiers, without a chain; an attack that succeeds is reported as accepted, not raised, so a broken defence shows on the panel | Proposed |
+| 2026-10-09 | A run can take signers offline: their processes stop before step 7, and the coordinator asks signers 1 and 3 while both run, otherwise any still running. The default run is unchanged, so chapter 0's numbers hold | Proposed |
 | 2026-10-08 | The project is open source under MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`, standard texts), copyright Esoterics611 | Accepted (owner) |
 | 2026-10-08 | Chapters are also built to GitHub Markdown and committed beside their sources, so the manual reads on GitHub; PDFs stay local builds. `manual/links.py` (standard library, a Pandoc JSON filter) rewrites chapter links per format and links every "chapter N" | Accepted (owner) |
 | 2026-10-08 | The manual, atlas and glossary follow the writing standard above: each concept explained at length, problem first, with a worked example; chapter 0 is the pilot | Accepted (owner) |

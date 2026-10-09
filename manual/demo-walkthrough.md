@@ -13,6 +13,13 @@ The reader is assumed to know trading infrastructure: FIX sessions, signed excha
 maker-checker approval, clearing and netting. Where one of those has a counterpart in the demo,
 the walkthrough names it and says where the comparison stops holding.
 
+The dashboard has two more tabs, explained after the run. [Attacking the
+design](#attacking-the-design) tries sixteen attacks against the demo's own code and shows which
+component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each
+client recompute its own place in the published snapshot. [Taking a signer
+offline](#taking-a-signer-offline) runs the demo with signers missing, and [Replaying a recorded
+run](#replaying-a-recorded-run) shows a past run again without a Bitcoin node.
+
 Terms printed in **bold** are defined where they appear and in [the glossary](../atlas/glossary.md).
 
 One run takes about seven seconds. The checks in the last sections use only the files a run
@@ -127,10 +134,17 @@ Open <http://127.0.0.1:8000> in a browser. With the repository under WSL2, use t
 browser at the same address; if the page does not load there while the `curl` check works, see
 [Troubleshooting](#troubleshooting).
 
-**The page before a run.** The header holds the title, a one-line summary, the red banner and a
-blue **Run the demo** button. On the left are the nine numbered steps, each marked PENDING. On the
-right, the **Key shares** panel reads "Key generation has not run." followed by the sentence about
-the coordinator.
+**The page before a run.** The header holds the title, a one-line summary and the red banner.
+Under it, a row of six boxes traces a settlement's path through the design: Exchange, Netting,
+Policy, Signers, Bitcoin and Reserves. During a run each box turns amber while one of its steps is
+running and green once all of them are done. Below the row are three tabs, and the page opens on
+**Settlement run**. That tab has a blue **Run the demo** button beside a progress bar reading
+"0 of 9 steps", and under them the nine numbered steps, each marked PENDING. On the right, the
+**Key shares** panel shows Signer 1, Signer 2 and Signer 3, each "not started" and each with a
+switch set to "online", followed by two notes: any 2 of 3 sign, and the coordinator holds no
+share. Leave the switches on for the first run; [Taking a signer
+offline](#taking-a-signer-offline) explains them. Once a run has been recorded, a list under the
+button offers past runs for replay.
 
 ## The cast
 
@@ -151,6 +165,17 @@ Press **Run the demo**. The button greys out and reads "Running" until the run e
 turns from PENDING to RUNNING, with an amber bar on its left, and then to DONE, with a green bar,
 and its results appear under its title. Terminal 1 logs `"POST /api/runs HTTP/1.1" 200 OK` as the
 run starts.
+
+Each finished step shows on the right how long it took, as measured by the server. Step 1 takes
+about five seconds, almost all of it Bitcoin Core starting. Step 2 takes under half a second and
+every later step under a tenth of a second; the threshold signature in step 7 takes about 30
+milliseconds. The
+custody steps are fast because they are a handful of calculations and messages between processes
+on one computer, and the chain answers at once because regtest produces blocks on command.
+
+Long values, such as keys, fingerprints, signatures and addresses, are shown by their first ten
+and last eight characters. Hovering over one shows the whole value, and **copy** beside it copies
+the whole value.
 
 Each press starts a new run with its own private chain, its own three signing processes and its
 own directory under `var/demo/`, named by the time it started in UTC, for example
@@ -188,7 +213,7 @@ uses for a single ordinary key. The custody address in step 2 starts `bcrt1p`: v
 **Taproot**.
 
 **If it fails.** Without Bitcoin Core on the server's `PATH`, step 1 turns red and shows
-`error RuntimeError: bitcoind not found on PATH (see CLAUDE.md, Toolchain)`, and terminal 1 prints
+`error RuntimeError: bitcoind not found on PATH (see README.md, Prerequisites)`, and terminal 1 prints
 `demo run in var/demo/... failed` followed by the traceback.
 
 ### Step 2: Distributed key generation: 2-of-3, one process per share
@@ -227,8 +252,8 @@ a key nobody holds, permanently.
 - `address`: the custody address, starting `bcrt1p`.
 - `implementations agree yes`: the three derivations matched.
 
-The **Key shares** panel now lists Signer 1, Signer 2 and Signer 3, each with its process number
-and "holds share N of 3", and ends with "Threshold 2 of 3."
+In the **Key shares** panel, each signer now reads "holds its share" and shows its process
+number, for example "process 780714, share 1 of 3".
 
 **Check it.** Compare the three process numbers with the number terminal 1 printed at start-up.
 They are different: the shares live in three other processes, and the server, which is the
@@ -382,6 +407,10 @@ middle, breaks the chain; entries cut off the end leave no break, which step 9 d
 
 **On the screen.**
 
+- `spends`: "5 BTC, output 0 of" (or "output 1 of") a transaction id. The id is the funding
+  transaction's from step 3, and the output number is where the exchange's wallet placed the
+  custody payment in it, which the wallet chooses at random.
+- `pays`: a table of the two new coins, `exchange 0.85 BTC` and `custody (change) 4.1499969 BTC`.
 - `matches instruction yes`: the transaction passed the check against the instruction.
 - `fee 310 sats` and `fee cap 10,000 sats`.
 - `sighash`: 64 hexadecimal characters.
@@ -417,9 +446,10 @@ indistinguishable from one made with a single key, and cannot tell that two part
 Two of three is a deliberate choice. One signer can be offline, broken or lost and the coins can
 still move; one signer that is compromised cannot move them alone.
 
-**On the screen.** `signers 1, 3`; `signature`, 128 hexadecimal characters (64 bytes);
-`verified yes`. In the **Key shares** panel, Signer 1 and Signer 3 are marked "signed" and
-Signer 2 "not asked".
+**On the screen.** `signers 1, 3`; `offline none`; `signature`, 128 hexadecimal characters
+(64 bytes); `verified yes`. In the **Key shares** panel, Signer 1 and Signer 3 read "signing the
+payment" and then "signed the payment", with a green background, and Signer 2 reads "online, not
+asked".
 
 ### Step 8: Broadcast and confirm on chain
 
@@ -481,10 +511,14 @@ it cannot show that the coins were not borrowed for the moment of the snapshot (
 `root`, `inclusion proofs verify yes`, `proof of control yes`, `audit head`, and `snapshot`, the
 file's path: `var/demo/<run>/reserves/snapshot-103.json`. The 103 is the block height at the
 snapshot: the 101 blocks of step 1, the funding block of step 3 and the settlement block of
-step 8. The **Key shares** panel keeps showing signers 1 and 3 as "signed" from step 7; it does
-not mark this second signature separately.
+step 8. In the **Key shares** panel, signers 1 and 3 read "signing the snapshot" and then "signed
+payment and snapshot". Under the step's details, **4 inclusion proofs published: check one in this
+browser** opens the balance check described in [Checking a client's
+balance](#checking-a-clients-balance).
 
-The button returns to **Run the demo** when the run is over.
+When the run is over, the button returns to **Run the demo**, all six boxes in the top row are
+green, and a green box above the steps sums up the run: the amount paid to the exchange, the
+signers, the settlement's transaction id and the reserve ratio, with a button to the balance check.
 
 ## After the run: checking the files
 
@@ -508,7 +542,8 @@ line: a running and a done event for each step.
 wc -l < "$RUN/events.jsonl"
 ```
 
-**Expect:** `18`.
+**Expect:** `18`. Each event also carries `at_ms`, the milliseconds since the run started, which
+the dashboard uses for each step's duration and for replays.
 
 **The audit log.** `audit.jsonl` is the policy engine's hash chain. The command below prints each
 entry and checks that it names the fingerprint of the entry before it (the first names 64 zeros),
@@ -604,15 +639,243 @@ and three new signing processes. Some values therefore change on every run and o
 
 - **The same on every run:** height 101; 5.00 BTC funded; 4 fills and 12 FIX messages;
   0.85 BTC delivered and 54,415.925 USD received; the fee of 310 satoshis; "1 of 2 required
-  approvals" with one approval; signers 1 and 3; one confirmation; liabilities and assets of
+  approvals" with one approval; signers 1 and 3 while all three are online; one confirmation;
+  liabilities and assets of
   4.1499969 BTC; a reserve ratio of 1.00000; `snapshot-103.json`. A different value here means
   the code has changed.
-- **Different on every run:** process numbers, keys, addresses, transaction ids, the sighash, the
-  signature, the authorisation id, the Merkle root, the audit head and the run directory.
+- **Different on every run:** process numbers, keys, addresses, transaction ids, the output
+  number in step 6's `spends`, the sighash, the signature, the authorisation id, the Merkle root,
+  the audit head, the run directory, and each step's duration by a few milliseconds.
 
 The same run can be watched in the terminal instead of the browser with `uv run custody-lab run`,
 which prints each step and its details and writes the same files. To stop the server, press
 Ctrl+C in terminal 1.
+
+## Taking a signer offline
+
+**The problem.** A 2-of-3 key exists so that the coins can still move when one signer cannot take
+part: its machine has failed, its site is cut off, or it has been taken out of service because it
+may be compromised. A design that claims this should show it working, and should show what happens
+when too many signers are gone.
+
+**The idea.** The coordinator does not need particular signers, only enough of them. It asks
+signers 1 and 3 while both are running, and otherwise asks whichever signers are still running.
+With fewer than two running, no signature can form: the run stops at step 7 and the coins stay
+where they are. That is a **liveness** failure: the payment is delayed, nothing is lost, and it can
+be made once a signer is back. The opposite, a payment made that should not have been, is a
+**safety** failure, and cannot be undone.
+
+The counterpart is a bank mandate with three authorised signatories, any two of whom must sign a
+payment: one on leave does not stop payments, and two on leave do. The comparison stops at what
+the signatories check. Here each signer checks the policy engine's authorisation before it takes
+part, so the signers still running cannot sign anything the policy engine has not approved, however
+urgent the payment.
+
+**The switches.** Each card in the **Key shares** panel has a switch. A signer switched off keeps
+its share through key generation, because a share has to exist before its holder can lose it, and
+at the start of step 7 the server stops that signer's process, as a power failure would. The
+switches apply to the next run, stay where they are set, and are locked while a run is going. The
+note under the cards counts the signers that will be online and turns red when fewer than two
+will be.
+
+**Worked example: one signer offline.** Switch off Signer 1. Its card reads "stops before step 7".
+Press **Run the demo**. Steps 1 to 6 run as before. At step 7, Signer 1's card changes to
+"offline: process stopped", and the coordinator asks signers 2 and 3. Step 7 shows `signers 2, 3`
+and `offline 1`, and the run settles exactly as before: 0.85 BTC to the exchange, a 310-satoshi
+fee, liabilities and assets of 4.1499969 BTC. Signers 2 and 3 end as "signed payment and
+snapshot".
+
+Nothing on the chain shows the difference. The signature from signers 2 and 3 verifies under the
+same custody key as one from signers 1 and 3, because both pairs hold shares of the same key.
+
+**Worked example: two signers offline.** Switch off Signer 3 as well. The note turns red: "with 1
+online, step 7 fails and no coins move." Press **Run the demo**. At step 7 the coordinator can ask
+only signer 2. Signer 2 checks the authorisation, which is valid, and then the FROST library
+refuses to sign: in the first round of signing each participant sends a commitment, and one
+commitment is fewer than the key's threshold of two. Step 7 turns red with:
+
+```
+RuntimeError: 1 of 3 signers online and 2 are required; FROST refused: signer 2:
+ValueError('IncorrectNumberOfCommitments')
+```
+
+Steps 8 and 9 stay PENDING. Nothing was broadcast, so the coins never left the custody address.
+Signer 2 reads "could not sign alone", and the Signers box in the top row is red.
+
+The same runs work from the command line: `uv run custody-lab run --offline 1` settles with
+signers 2 and 3, and `uv run custody-lab run --offline 1 --offline 3` stops at step 7 with the
+error above.
+
+**What it shows.** One signer down changes nothing a client would notice; two down stops payments
+and loses nothing. The threshold sets that balance: with 3 of 3, one signer down would stop
+payments, and with 1 of 3, one compromised signer could move the coins alone.
+[Chapter 9](chapters/09-capstone.md#safety-and-liveness) works out how likely each failure is for
+each choice.
+
+## Checking a client's balance
+
+**The problem.** Step 9 publishes a total and a root, and no client can see the other clients'
+balances. A custodian short of coins could count one client for less than it is owed, so that the
+published total matches the coins it holds. Only that client knows its true balance, so only that
+client can catch it, and it has to be able to check without relying on the custodian's software.
+
+**The idea.** Each client receives its own inclusion proof: its balance, its salt, and for each
+level of the tree the fingerprint and sum of the node beside its path. Starting from the balance it
+believes it is owed, the client recomputes its leaf's fingerprint, combines it with the first
+sibling to get their parent, combines that with the next sibling, and so on to the top. If the
+result equals the published root, the published total counts this client at exactly that balance.
+A balance different by one satoshi gives a different leaf fingerprint, and every fingerprint above
+it changes with it. The **salt**, random bytes hashed into the leaf, stops anyone who sees a proof
+from working out other clients' balances by guessing.
+
+The **Check a client's balance** tab does this calculation in the browser, in
+`web/src/reserves.ts`, using the browser's own SHA-256. It is a second implementation, written
+from the tree's published encoding: it shares no code with the Python that built the tree, and a
+test runs it on proofs the Python code produces and compares the roots. A client checking with
+software it did not get from the custodian is the point of the check. The page holds all four
+proofs because it plays each client in turn; a real client receives only its own.
+
+The counterpart is an auditor's balance confirmation, in which the auditor writes to a client to
+confirm the balance in the books. The comparison stops at who does the checking: here the client
+checks the published figure itself, and needs neither the auditor nor the custodian.
+
+**Worked example.** After a run, press the button in the green summary, or the link under step 9.
+alpha-capital is selected, and the balance field holds 1.1499969, its balance after the
+settlement. The tree orders the clients alphabetically, alpha-capital, beta-fund, delta-trading,
+gamma-treasury, and pairs them in that order, so alpha-capital's path has two levels below the
+root:
+
+- **Leaf**: alpha-capital's salt, name and 1.1499969 BTC, hashed. It is combined with the
+  right-hand sibling, beta-fund's leaf, holding 1.5 BTC.
+- **Level 1**: the two leaves with their sums, hashed: a total of 1.1499969 + 1.5 = 2.6499969 BTC.
+  It is combined with the right-hand sibling holding delta-trading and gamma-treasury,
+  0.5 + 1 = 1.5 BTC.
+- **Root**: 2.6499969 + 1.5 = 4.1499969 BTC, the liabilities step 9 published.
+
+The verdict below the path is green: "Included. The recomputed root equals the published root, so
+the snapshot commits to alpha-capital holding 1.1499969 BTC, within total liabilities of
+4.1499969 BTC (published: 4.1499969 BTC)." The published root at the foot of the page is step 9's
+`root`.
+
+Now choose beta-fund and press **+1 satoshi**. The field reads 1.50000001, the root's total reads
+4.14999691 BTC, one satoshi more than was published, and the verdict turns red: "Not included.
+With 1.50000001 BTC the path reaches a different root, so the published snapshot does not commit
+to that balance." Changing one satoshi in the leaf changed every fingerprint above it. **Reset**
+puts back the proof's own balance.
+
+**What breaks without it.** The attack "Publish a liabilities tree with a client's balance cut by
+0.5 BTC", in the next section, is this check catching a custodian: the published tree counts
+alpha-capital for 0.5 BTC less, and alpha-capital's recomputation from its true balance misses the
+published root. A client that never checks leaves that undetected, which is one of the limits
+listed under step 9.
+
+## Attacking the design
+
+**The problem.** A custody design is defined as much by what it refuses as by what it does. A run
+that settles shows that the approved path works. It does not show that a thief, a careless insider
+or a compromised server is stopped: each refusal has to be tried.
+
+**The idea.** The **Attack the design** tab sets up the demo's policy engine, approvers and a
+2-of-3 signing cluster, without a chain, and tries sixteen attacks against the real code. Each
+row names the component that stopped the attack and quotes that component's own refusal. An
+attack that got through would be marked ACCEPTED in red and the summary would say a defence is
+broken; a test breaks the policy engine on purpose to prove the panel shows it. The attacks need
+no Bitcoin node and take about a fifth of a second. `uv run custody-lab attacks` runs them in the
+terminal and exits with an error if any is accepted.
+
+Where an attack needs a transaction, a 32-byte fingerprint of the instruction stands in for its
+sighash. The signers check only that the authorisation names the exact message they are asked to
+sign, and a sighash is a 32-byte message like any other. The snapshot in the last group carries
+block height 0 for the same reason.
+
+A **replay** is the presentation, a second time, of a message or permission that was valid once,
+to get its effect again. Several attacks below are replays in some form.
+
+The counterpart is a penetration test's list of findings turned round: every row is an attack and
+the expected result is a refusal. The comparison stops at scope. These are attacks on the design's
+own rules, run inside one computer; they say nothing about the machines, networks and people around
+it, which [chapter 3](chapters/03-key-storage.md) and [chapter 9](chapters/09-capstone.md) cover.
+
+**Policy engine** ([chapter 4](chapters/04-policy.md)). The engine runs its seven checks in order,
+and the first failure decides.
+
+- *Pay an address that is not on the whitelist*: "denied: destination attacker-address is not
+  whitelisted". Two valid approvals do not help, because the whitelist is checked before the
+  approvals.
+- *Pay 0.85 BTC with one approval where the tier needs two*: "pending: 1 of 2 required approvals".
+- *Approve an instruction its own initiator raised*: bob raises the instruction and approves it,
+  and carol approves it. Under the four-eyes rule only carol's approval counts: "1 of 2".
+- *Approve with a key that is not on the approver list*: mallory signs a correct approval with a
+  key the policy does not list, so it does not count: "1 of 2".
+- *Raise the amount from 0.85 to 8.5 BTC after both approvals*: each approval signs the
+  instruction's exact contents, so after the change neither matches: "0 of 2".
+- *Submit an authorised instruction a second time*: "instruction already authorised". The engine
+  finds the earlier authorisation in its own audit log.
+- *Drain the account in 9.5 BTC payments, each fully approved*: each payment is within the tier
+  that two approvals allow, but a third would bring the day's total to 28.5 BTC, over the 20 BTC
+  velocity limit: "velocity limit 20 per 1 day, 0:00:00; 19.0 already authorised". The middle of
+  that message is how Python prints a period of 24 hours.
+
+**Signers** ([chapters 2](chapters/02-mpc-custody.md) and [4](chapters/04-policy.md)). Each
+signer process checks the authorisation itself, and each refusal is shown on its own line.
+
+- *Sign with an authorisation from an attacker's own authority key*: the attacker writes an
+  authorisation for a payment to its own address and signs it with a key it generated: "not signed
+  by the policy authority (Ed25519)".
+- *Forge an authorisation after breaking Ed25519, as a quantum computer could*: the attacker is
+  given the policy engine's real Ed25519 key, as a large quantum computer could compute it from
+  the public key, but not its ML-DSA-65 key. The Ed25519 signature is now valid and the ML-DSA-65
+  one is not: "not signed by the policy authority (ML-DSA-65)". This is why each authorisation
+  carries both signatures ([chapter 7](chapters/07-post-quantum.md)).
+- *Replay an authorisation that has already been used*: the authorisation is used once, for its
+  own payment, and then presented again. Each signer kept its identifier: "authorisation already
+  used".
+- *Swap in a different transaction after approval*: the authorisation names one sighash, and the
+  coordinator asks the signers to sign another: "signing package message differs from the
+  authorised message".
+- *Use an authorisation issued five minutes ago*: an authorisation is valid for 60 seconds:
+  "expired at" followed by the time it expired.
+- *Sign with one signer, as an insider holding one share would*: a valid authorisation, presented
+  to signer 2 alone: "IncorrectNumberOfCommitments", as in [Taking a signer
+  offline](#taking-a-signer-offline).
+
+**Published records** ([chapters 4](chapters/04-policy.md) and [6](chapters/06-reserves.md)).
+
+- *Lower the liabilities in a signed reserves snapshot*: the signature covers the snapshot's exact
+  contents and does not verify over the altered copy. This is the check on `var/altered.json`
+  after the run, done in code.
+- *Publish a liabilities tree with a client's balance cut by 0.5 BTC*: alpha-capital recomputes
+  the root from its own 1.1499969 BTC and misses it, as in [Checking a client's
+  balance](#checking-a-clients-balance).
+- *Edit an amount in the audit log*: the edited entry's fingerprint no longer matches its
+  contents: "entry 1: content does not match its hash".
+
+**On the screen.** Press **Run the attacks**. The rows arrive one after another under the three
+headings, each marked REFUSED in green, and the summary above them reads "16 of 16 attacks
+refused."
+
+## Replaying a recorded run
+
+**The problem.** A run needs Bitcoin Core, and a run's results leave the screen when the next one
+starts. Presenting the demo on a computer without Bitcoin Core, or looking again at a run that
+failed, needs the run's record.
+
+**The idea.** Every run writes its events to `var/demo/<run>/events.jsonl`, each stamped with the
+milliseconds since the run started. Once a run has finished, a list appears under **Run the
+demo** naming each recorded run, newest first: its start time in UTC, how it ended ("settled",
+"failed at step 7") and any signers that were offline. Choosing one and pressing **Replay** plays
+its events through the same screen, pausing between them as recorded, except that a pause longer
+than 700 milliseconds, such as Bitcoin Core starting, is shortened. A blue line above the steps
+names the file being replayed, and the step durations are the recorded ones. A replayed run that
+recorded its inclusion proofs can be checked on the balance tab. Runs recorded before events
+carried timestamps replay without durations.
+
+The server lists the 20 newest runs. It reads a run only by the name of a directory under
+`var/demo`, so a replay cannot be pointed at any other file. A replay needs the server but not
+Bitcoin Core.
+
+The counterpart is a FIX session's message log loaded into a viewer, and it holds: the record is
+shown as it was, and nothing is recomputed or signed again.
 
 ## Troubleshooting
 
@@ -623,6 +886,9 @@ Ctrl+C in terminal 1.
 | Step 1 turns red: `RuntimeError: bitcoind not found on PATH` | `which bitcoind` in terminal 1 | Install Bitcoin Core 31.1 (see the README), then restart the server from a shell where `which bitcoind` finds it |
 | A red line under the header: "The demo server is not reachable" | The page cannot reach the server's API: was it opened from `npm --prefix web run dev` with no `custody-lab serve` running? | Start the server in terminal 1 |
 | `curl` in terminal 2 works, but the Windows browser does not load the page | WSL's forwarding of `localhost` to Windows | Check the WSL networking settings, or open the page in a browser inside WSL |
+| A signer's switch does not move | Is a run going? | The switches unlock when the run ends; they set the next run |
+| The balance tab says to run the demo first | Has a run on this page reached step 9? A page reload clears the screen | Run the demo, or replay a recorded run that settled |
+| No list of recorded runs under **Run the demo** | `ls var/demo/*/events.jsonl` | A run has to finish before it is listed; the list refreshes when a run ends |
 | Any other step turns red | The `error` line under the step, the traceback in terminal 1, and the run's `events.jsonl` | The error names the failed check; the chapter for that step explains it |
 
 ## The nine steps at a glance
@@ -636,10 +902,10 @@ This table summarises what each step has already explained, as a list of what to
 | 3. Fund | amount 5.00 BTC; ledger of 2.00, 1.50, 1.00 and 0.50 BTC | [5](chapters/05-settlement.md) |
 | 4. Trade | four fills; 12 FIX messages, Logon carrying `1137=9` | [5](chapters/05-settlement.md) |
 | 5. Net | client delivers 0.85 BTC, receives 54,415.925 USD; instruction to the step 1 address | [5](chapters/05-settlement.md) |
-| 6. Policy | matches instruction yes; fee 310 sats under a 10,000 cap; one approval PENDING; bob and carol approve | [4](chapters/04-policy.md) |
-| 7. Sign | signers 1 and 3 signed, signer 2 not asked; verified yes | [2](chapters/02-mpc-custody.md) |
+| 6. Policy | spends step 3's coin; pays 0.85 BTC and 4.1499969 BTC change; matches instruction yes; fee 310 sats under a 10,000 cap; one approval PENDING; bob and carol approve | [4](chapters/04-policy.md) |
+| 7. Sign | signers 1 and 3 signed, signer 2 online and not asked; offline none; verified yes | [2](chapters/02-mpc-custody.md) |
 | 8. Broadcast | confirmations 1; fee 310 sats | [5](chapters/05-settlement.md) |
-| 9. Reserves | liabilities and assets 4.1499969 BTC; reserve ratio 1.00000; proofs and proof of control yes | [6](chapters/06-reserves.md) |
+| 9. Reserves | liabilities and assets 4.1499969 BTC; reserve ratio 1.00000; proofs and proof of control yes; four inclusion proofs to check | [6](chapters/06-reserves.md) |
 
 ## Recap
 
@@ -655,6 +921,13 @@ This table summarises what each step has already explained, as a list of what to
 6. The snapshot publishes liabilities, assets and a signature proving control, and fixes the
    audit history; its file can be checked by anyone, and a changed figure fails the check
    (step 9 and the checks after the run).
+7. Any two signers settle the payment. With one, step 7 fails and nothing moves: a liveness
+   failure, which can be retried, never a safety failure, which cannot (Taking a signer offline).
+8. Each client recomputes its own place in the published snapshot from the balance it expects,
+   with software independent of the custodian's, and a balance one satoshi off misses the root
+   (Checking a client's balance).
+9. Sixteen attacks on the design's rules are each refused, by the component the design assigns
+   to that rule and in that component's own words (Attacking the design).
 
 [Chapter 0](chapters/00-orientation.md) follows the same run with the arithmetic of each step,
 and the [contents page](README.md) lists the chapters that explain each mechanism in full.

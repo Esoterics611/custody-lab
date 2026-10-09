@@ -60,7 +60,7 @@ class BitcoinRPC:
 class RegtestNode:
     def __init__(self, datadir: Path) -> None:
         if shutil.which("bitcoind") is None:
-            raise RuntimeError("bitcoind not found on PATH (see CLAUDE.md, Toolchain)")
+            raise RuntimeError("bitcoind not found on PATH (see README.md, Prerequisites)")
         self.datadir = datadir
         self.rpc_port, self.p2p_port = _free_port(), _free_port()
         self._process: subprocess.Popen[bytes] | None = None
