@@ -108,6 +108,7 @@ Bitcoin node on free ports in its own directory, so no node has to be started fi
 uv sync                      # create the environment and compile the two Rust extensions
 uv run pytest                # all tests, including real settlements on regtest
 uv run custody-lab run       # one demo run, printed step by step
+uv run custody-lab day       # a day: deposits, a double spend, trading, withdrawals, refusals
 uv run custody-lab attacks   # sixteen attacks on the design, each refused; needs no Bitcoin node
 ```
 
@@ -115,7 +116,9 @@ uv run custody-lab attacks   # sixteen attacks on the design, each refused; need
 results of each step after it, and ends with the settlement's transaction id, `reserve_ratio:
 1.00000`, and the directory under `var/demo/` that holds the run's event log, policy audit log
 and reserves snapshot. `custody-lab run --offline 1` stops signer 1's process before signing, and
-signers 2 and 3 settle instead. `custody-lab attacks` lists each attack with the component that
+signers 2 and 3 settle instead. `custody-lab day` runs eleven steps, comparing the ledger with the
+coins on chain after each, and ends with `reserve_ratio: 1.00000`. `custody-lab attacks` lists each
+attack with the component that
 refused it and ends with `16 of 16 attacks refused`.
 
 To watch a run in the browser instead:

@@ -23,6 +23,7 @@ links to the sections that teach it.
 |-------|--------|
 | [Build plan](project/build-plan.md) | draft |
 | [Threshold signing: cb-mpc feasibility and recommended path](project/threshold-signing-feasibility.md) | draft |
+| [Ideas for the demo and the course](project/ideas.md) | current |
 | [Session log](project/session-log.md) | current |
 
 ## [1. Foundations](../manual/chapters/01-foundations.md)
