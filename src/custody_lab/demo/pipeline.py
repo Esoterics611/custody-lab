@@ -26,6 +26,7 @@ import json
 import os
 import shutil
 import tempfile
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -85,6 +86,7 @@ class Event:
     status: str  # "running" | "done" | "failed"
     title: str
     detail: dict[str, Any] = field(default_factory=dict)
+    at_ms: int = 0  # milliseconds since the run started, on the monotonic clock
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), default=str)
@@ -138,11 +140,13 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
         raise ValueError(f"offline signers must be among {SHARES}, not {offline}")
     events: list[Event] = []
     current = next(iter(STEPS))
+    started = time.monotonic()
 
     def report(step: str, status: str, **detail: Any) -> None:
         nonlocal current
         current = step
-        event = Event(step, status, STEPS[step], detail)
+        at_ms = round((time.monotonic() - started) * 1000)
+        event = Event(step, status, STEPS[step], detail, at_ms)
         events.append(event)
         emit(event)
 
@@ -248,7 +252,8 @@ def run(emit: Emit, workdir: Path, offline: Sequence[int] = ()) -> dict[str, Any
             report(
                 "policy",
                 "done",
-                spends=f"{bitcoin.to_btc(stx.spent.amount)} BTC, {spent.txid}:{spent.vout}",
+                spends=f"{bitcoin.to_btc(stx.spent.amount)} BTC, "
+                f"output {spent.vout} of {spent.txid}",
                 pays=[
                     {
                         "to": "exchange" if o.script_pubkey == destination else "custody (change)",

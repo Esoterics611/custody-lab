@@ -1,176 +1,70 @@
-import { Fragment, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
-
-// One event per line from POST /api/runs; see src/custody_lab/demo/server.py.
-type Status = 'pending' | 'running' | 'done' | 'failed'
-type Detail = Record<string, unknown>
-
-interface DemoEvent {
-  step: string
-  status: Exclude<Status, 'pending'>
-  title: string
-  detail: Detail
-}
-
-interface StepState {
-  status: Status
-  detail: Detail // the step's running and done details, merged
-}
-
-interface Holder {
-  share: number
-  pid: number
-}
+import { Attacks } from './Attacks'
+import { BalanceCheck } from './BalanceCheck'
+import { Fields, Text } from './fields'
+import { Flow } from './Flow'
+import { Signers } from './Signers'
+import { post, type DemoEvent, type StepState } from './stream'
 
 const PENDING: StepState = { status: 'pending', detail: {} }
+const TABS = { run: 'Settlement run', attacks: 'Attack the design', check: "Check a client's balance" }
+type Tab = keyof typeof TABS
 
-const NO_SHARES: Record<Status, string> = {
-  pending: 'Key generation has not run.',
-  running: 'Key generation is running.',
-  failed: 'Key generation failed.',
-  done: 'Key generation reported no signers.',
+function duration(state: StepState): string | null {
+  if (state.started === undefined || state.ended === undefined) return null
+  const ms = state.ended - state.started
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`
 }
 
-async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const complete = buffer.split('\n')
-    buffer = complete.pop() ?? ''
-    yield* complete.filter(Boolean)
-  }
-  if (buffer) yield buffer
-}
-
-function isRecord(value: unknown): value is Detail {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function label(key: string): string {
-  return key.replaceAll('_', ' ')
-}
-
-function Value({ value }: { value: unknown }) {
-  if (typeof value === 'boolean') return <>{value ? 'yes' : 'no'}</>
-  if (Array.isArray(value)) {
-    if (value.length > 0 && value.every(isRecord)) return <Table rows={value} />
-    return <>{value.map(String).join(', ')}</>
-  }
-  if (isRecord(value)) return <Fields detail={value} />
-  return <>{String(value)}</>
-}
-
-function Table({ rows }: { rows: Detail[] }) {
-  const columns = Object.keys(rows[0])
-  return (
-    <table>
-      <thead>
-        <tr>
-          {columns.map((c) => (
-            <th key={c}>{label(c)}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, i) => (
-          <tr key={i}>
-            {columns.map((c) => (
-              <td key={c}>
-                <Value value={row[c]} />
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
-
-function Fields({ detail }: { detail: Detail }) {
-  return (
-    <dl className="fields">
-      {Object.entries(detail).map(([key, value]) => (
-        <Fragment key={key}>
-          <dt>{label(key)}</dt>
-          <dd>
-            {key === 'transcript' && Array.isArray(value) ? (
-              <details>
-                <summary>{value.length} FIX messages</summary>
-                <pre>{value.join('\n')}</pre>
-              </details>
-            ) : (
-              <Value value={value} />
-            )}
-          </dd>
-        </Fragment>
-      ))}
-    </dl>
-  )
-}
-
-function Step({ n, title, state }: { n: number; title: string; state: StepState }) {
+function Step(props: { n: number; title: string; state: StepState; onCheck: () => void }) {
+  const { n, title, state, onCheck } = props
+  const { inclusion_proofs: proofs, ...detail } = state.detail
   return (
     <li className={`step ${state.status}`}>
       <div className="step-head">
         <span className="n">{n}</span>
         <h2>{title}</h2>
+        {duration(state) && <span className="time">{duration(state)}</span>}
         <span className="status">{state.status}</span>
       </div>
-      {Object.keys(state.detail).length > 0 && <Fields detail={state.detail} />}
+      {Object.keys(detail).length > 0 && <Fields detail={detail} />}
+      {Array.isArray(proofs) && (
+        <button type="button" className="link" onClick={onCheck}>
+          {proofs.length} inclusion proofs published: check one in this browser
+        </button>
+      )}
     </li>
   )
 }
 
-function signerRole(share: number, sign: StepState | undefined): string {
-  if (!sign) return 'idle'
-  const chosen = sign.detail.signers as number[] | undefined
-  if (!chosen?.includes(share)) return 'not asked'
-  if (sign.status === 'done') return 'signed'
-  return sign.status === 'failed' ? 'failed' : 'signing'
-}
-
-function Signers({ keys, sign }: { keys?: StepState; sign?: StepState }) {
-  const holders = (keys?.status === 'done' ? keys.detail.signers : []) as Holder[]
+function Summary({ state, onCheck }: { state: Record<string, StepState>; onCheck: () => void }) {
+  if (state.reserves?.status !== 'done') return null
+  const { net, broadcast, reserves, sign } = state
   return (
-    <section className="signers">
-      <h2>Key shares</h2>
-      {holders.length === 0 ? (
-        <p className="muted">{NO_SHARES[keys?.status ?? 'pending']}</p>
-      ) : (
-        <ul>
-          {holders.map(({ share, pid }) => {
-            const role = signerRole(share, sign)
-            return (
-              <li key={share} className={`signer ${role.replace(' ', '-')}`}>
-                <strong>Signer {share}</strong>
-                <span className="role">{role}</span>
-                <span>process {pid}</span>
-                <span>
-                  holds share {share} of {holders.length}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-      <p className="muted">
-        {keys?.status === 'done' && <>Threshold {String(keys.detail.threshold)}. </>}
-        The coordinator, which is the server's own process, relays protocol messages and holds no
-        share, so it cannot sign alone.
+    <div className="summary">
+      <p>
+        <strong>Settled.</strong> {String(net?.detail.client_delivers)} paid to the exchange,
+        signed by signers {(sign?.detail.signers as number[] | undefined)?.join(' and ')} in
+        transaction{' '}
+        <Text text={String(broadcast?.detail.txid)} />, confirmed on the regtest chain. Reserve
+        ratio {String(reserves.detail.reserve_ratio)}: assets {String(reserves.detail.assets)},
+        liabilities {String(reserves.detail.liabilities)}.
       </p>
-    </section>
+      <button type="button" className="secondary" onClick={onCheck}>
+        Check a client's balance
+      </button>
+    </div>
   )
 }
 
 export default function App() {
+  const [tab, setTab] = useState<Tab>('run')
   const [steps, setSteps] = useState<[string, string][]>([])
   const [state, setState] = useState<Record<string, StepState>>({})
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  const [offline, setOffline] = useState<number[]>([])
 
   useEffect(() => {
     fetch('/api/steps')
@@ -179,25 +73,33 @@ export default function App() {
       .catch(() => setProblem('The demo server is not reachable. Start it: uv run custody-lab serve'))
   }, [])
 
+  function toggle(share: number) {
+    setOffline((now) =>
+      now.includes(share) ? now.filter((s) => s !== share) : [...now, share].sort(),
+    )
+  }
+
   async function start() {
     setBusy(true)
     setState({})
     setProblem(null)
     let last: DemoEvent | undefined
     try {
-      const response = await fetch('/api/runs', { method: 'POST' })
-      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`)
-      for await (const line of lines(response.body)) {
-        const event = JSON.parse(line) as DemoEvent
+      await post<DemoEvent>('/api/runs', { offline }, (event) => {
         last = event
-        setState((previous) => ({
-          ...previous,
-          [event.step]: {
-            status: event.status,
-            detail: { ...previous[event.step]?.detail, ...event.detail },
-          },
-        }))
-      }
+        setState((previous) => {
+          const before = previous[event.step]
+          return {
+            ...previous,
+            [event.step]: {
+              status: event.status,
+              detail: { ...before?.detail, ...event.detail },
+              started: before?.started ?? event.at_ms,
+              ended: event.status === 'running' ? undefined : event.at_ms,
+            },
+          }
+        })
+      })
       if (last?.status === 'running') setProblem(`The stream ended during: ${last.title}`)
     } catch (error) {
       setProblem(`The run stream broke: ${String(error)}`)
@@ -206,6 +108,8 @@ export default function App() {
     }
   }
 
+  const done = steps.filter(([id]) => state[id]?.status === 'done').length
+  const check = () => setTab('check')
   return (
     <div className="page">
       <header>
@@ -216,24 +120,69 @@ export default function App() {
             signature from separate processes, and a proof-of-reserves snapshot.
           </p>
         </div>
-        <div className="controls">
-          <span className="banner">EDUCATIONAL, NOT PRODUCTION</span>
-          <button type="button" onClick={start} disabled={busy || steps.length === 0}>
-            {busy ? 'Running' : 'Run the demo'}
-          </button>
-        </div>
+        <span className="banner">EDUCATIONAL, NOT PRODUCTION</span>
       </header>
+
+      <Flow state={state} />
+
+      <nav className="tabs" role="tablist">
+        {(Object.keys(TABS) as Tab[]).map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            className={tab === id ? 'chosen' : ''}
+            onClick={() => setTab(id)}
+          >
+            {TABS[id]}
+          </button>
+        ))}
+      </nav>
+
       {problem && <p className="problem">{problem}</p>}
-      <main>
-        <ol className="steps">
-          {steps.map(([id, title], i) => (
-            <Step key={id} n={i + 1} title={title} state={state[id] ?? PENDING} />
-          ))}
-        </ol>
-        <aside>
-          <Signers keys={state.keys} sign={state.sign} />
-        </aside>
-      </main>
+
+      {tab === 'run' && (
+        <main>
+          <div>
+            <div className="toolbar card">
+              <button type="button" onClick={start} disabled={busy || steps.length === 0}>
+                {busy ? 'Running' : 'Run the demo'}
+              </button>
+              <div className="progress" aria-label={`${done} of ${steps.length} steps done`}>
+                <div style={{ width: `${(100 * done) / Math.max(steps.length, 1)}%` }} />
+              </div>
+              <span className="muted">
+                {done} of {steps.length} steps
+              </span>
+            </div>
+            <Summary state={state} onCheck={check} />
+            <ol className="steps">
+              {steps.map(([id, title], i) => (
+                <Step
+                  key={id}
+                  n={i + 1}
+                  title={title}
+                  state={state[id] ?? PENDING}
+                  onCheck={check}
+                />
+              ))}
+            </ol>
+          </div>
+          <aside>
+            <Signers
+              keys={state.keys}
+              sign={state.sign}
+              reserves={state.reserves}
+              offline={offline}
+              onToggle={toggle}
+              locked={busy}
+            />
+          </aside>
+        </main>
+      )}
+      {tab === 'attacks' && <Attacks />}
+      {tab === 'check' && <BalanceCheck reserves={state.reserves} />}
     </div>
   )
 }
