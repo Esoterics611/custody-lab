@@ -23,6 +23,7 @@ REFUSALS = {  # the refusing component's own words
     "sign_with_one_signer": "IncorrectNumberOfCommitments",
     "alter_a_signed_snapshot": "does not verify over the altered snapshot",
     "understate_a_client_balance": "it does not match",
+    "leave_a_client_out": "a root other than the published one",
     "edit_the_audit_log": "content does not match its hash",
 }
 

@@ -19,7 +19,7 @@ trading, netting across them, withdrawals and three refusals, with the books com
 after every step. [Key ceremonies](#key-ceremonies) shows a share stolen before a refresh failing to
 combine with one stolen after it, and a lost share rebuilt. [Red team](#red-team) runs a reorganised
 deposit and a misdirected withdrawal, each against a weak rule and then the defence. [Attacking the
-design](#attacking-the-design) tries sixteen attacks against the demo's own code and shows which
+design](#attacking-the-design) tries seventeen attacks against the demo's own code and shows which
 component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each client
 recompute its own place in the published snapshot. [Taking a signer
 offline](#taking-a-signer-offline) runs the demo with signers missing, and [Replaying a recorded
@@ -1154,7 +1154,7 @@ that settles shows that the approved path works. It does not show that a thief, 
 or a compromised server is stopped: each refusal has to be tried.
 
 **The idea.** The **Attack the design** tab sets up the demo's policy engine, approvers and a
-2-of-3 signing cluster, without a chain, and tries sixteen attacks against the real code. Each
+2-of-3 signing cluster, without a chain, and tries seventeen attacks against the real code. Each
 row names the component that stopped the attack and quotes that component's own refusal. An
 attack that got through would be marked ACCEPTED in red and the summary would say a defence is
 broken; a test breaks the policy engine on purpose to prove the panel shows it. The attacks need
@@ -1224,6 +1224,11 @@ signer process checks the authorisation itself, and each refusal is shown on its
 - *Publish a liabilities tree with a client's balance cut by 0.5 BTC*: alpha-capital recomputes
   the root from its own 1.1499969 BTC and misses it, as in [Checking a client's
   balance](#checking-a-clients-balance).
+- *Leave a client out of the liabilities tree*: the custodian publishes a tree without
+  delta-trading, and shows delta-trading a second tree that includes it. delta-trading finds no proof
+  for itself in the published tree, and its proof from the second tree reaches a root other than the
+  published, signed one. Only delta-trading can notice: a client that never asks for its proof is
+  never missed (the [attack-vector analysis](attack-vectors.md), 9.5).
 - *Edit an amount in the audit log*: the edited entry's fingerprint no longer matches its
   contents: "entry 1: content does not match its hash".
 
@@ -1231,7 +1236,7 @@ The [attack-vector analysis](attack-vectors.md) goes further: every vector it fo
 layer, with what stops each in the demo, where that is shown or tested, and what remains open.
 
 **On the screen.** Press **Run the attacks**. The rows arrive one after another under the three
-headings, each marked REFUSED in green, and the summary above them reads "16 of 16 attacks
+headings, each marked REFUSED in green, and the summary above them reads "17 of 17 attacks
 refused."
 
 ## Replaying a recorded run
@@ -1306,7 +1311,7 @@ This table summarises what each step has already explained, as a list of what to
 8. Each client recomputes its own place in the published snapshot from the balance it expects,
    with software independent of the custodian's, and a balance one satoshi off misses the root
    (Checking a client's balance).
-9. Sixteen attacks on the design's rules are each refused, by the component the design assigns
+9. Seventeen attacks on the design's rules are each refused, by the component the design assigns
    to that rule and in that component's own words (Attacking the design).
 10. A custodian's books and the chain must agree after every movement. A deposit counts once it
     confirms; netting across clients keeps part of the settlement off the chain; coins at one

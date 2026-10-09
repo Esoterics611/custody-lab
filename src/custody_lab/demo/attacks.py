@@ -1,7 +1,7 @@
 """Attacks on the custody design, each run against the real code and each expected to be refused.
 
 EDUCATIONAL, NOT PRODUCTION. ``run`` sets up the demo's policy engine, approvers and a 2-of-3
-signing cluster, then tries sixteen things an attacker or a careless insider would try. Each
+signing cluster, then tries seventeen things an attacker or a careless insider would try. Each
 attempt reports which component stopped it and that component's own words. An attempt that
 succeeds is reported as accepted: it means a defence is broken, and the tests fail.
 
@@ -265,6 +265,24 @@ def understate_a_client_balance(lab: _Lab) -> str:
     return f"{client} recomputes the root from its own {owed} BTC and it does not match"
 
 
+def leave_a_client_out(lab: _Lab) -> str:
+    """The custodian publishes a tree without delta-trading, and shows delta-trading a second tree
+    that includes it. Only delta-trading's own check can catch either."""
+    published = MerkleSumTree({c: b for c, b in LEDGER.items() if c != "delta-trading"})
+    try:
+        published.proof("delta-trading")
+        raise NotRefused("the published tree holds a proof for a client left out of it")
+    except ValueError:
+        pass  # no proof exists for a client the tree does not contain
+    private = MerkleSumTree(LEDGER)  # shown to delta-trading alone
+    if verify_inclusion(private.proof("delta-trading"), published.root):
+        raise NotRefused("delta-trading's proof from the second tree reaches the published root")
+    return (
+        "delta-trading finds no proof for itself in the published tree, and its proof from a "
+        "second tree reaches a root other than the published one"
+    )
+
+
 def edit_the_audit_log(lab: _Lab) -> str:
     engine, ins = lab.engine(), lab.instruction()
     engine.authorise(ins, lab.approve(ins, "bob", "carol"), _sighash(ins))
@@ -310,6 +328,8 @@ ATTACKS: list[tuple[str, str, str, Callable[[_Lab], str]]] = [
      alter_a_signed_snapshot),
     ("records", "Publish a liabilities tree with a client's balance cut by 0.5 BTC",
      "the client's own check", understate_a_client_balance),
+    ("records", "Leave a client out of the liabilities tree", "the client's own check",
+     leave_a_client_out),
     ("records", "Edit an amount in the audit log", "the audit chain check",
      edit_the_audit_log),
 ]  # fmt: skip
