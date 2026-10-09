@@ -196,10 +196,15 @@ the key is in the policy engine's own process, not in an HSM. Chapter 9's Exerci
 policy check into each signer.
 
 **4.4 An authorisation used late.** *Attack:* hold an approved transaction and send it later, the
-pattern of the Drift loss (chapter 10). *Stopped by:* a 60-second lifetime, checked by each
-signer. *Status:* refused, demonstrated (attack panel, "Use an authorisation issued five minutes
-ago"). Its limit: each signer checks expiry against its own clock, so a signer whose clock has
-been set back would accept an expired authorisation. *Open in the demo.*
+pattern of the Drift loss (chapter 10); where the signers check expiry against their own clocks, set
+those clocks back first. *Stopped by:* a 60-second lifetime, checked by each signer against a time
+it can trust: a time authority's signed time, bound to a nonce the signer drew
+(`custody_lab.policy.signed_time`). *Status:* refused, demonstrated (attack panel, "Use an
+authorisation issued five minutes ago"; Clocks, step 3). Signers that read their own clocks accept
+the expired authorisation once both asked signers' clocks are set back five minutes, and not while
+only one is (Clocks, steps 4 and 5). Signers on signed time refuse it whatever their clocks say, and
+refuse a signed time that answers another nonce (Clocks, steps 6 and 7). The settlement run, the day
+and the red team still start their signers without a time authority.
 
 **4.5 Replaying after a signer restarts.** *Attack:* the used-authorisation record is kept in each
 signer's memory; restart a threshold of signers and present a used authorisation again within its
@@ -229,6 +234,13 @@ fix their whitelists in code.
 **4.9 Losing the policy's memory.** *Attack:* the velocity window and the "authorised before"
 check read the audit log in the engine's memory; restart the engine and both reset. *Status:* open
 in the demo: the log is written to a file at the end of a run and not read back.
+
+**4.10 A time authority that lies.** *Attack:* the signers on signed time trust one time
+authority; whoever controls it can sign a time five minutes slow, and an expired authorisation is
+accepted again. *Stopped by:* in Roughtime (RFC 10049), asking several independent servers in a
+chain, each request's nonce derived from the previous answer, so that a server whose time
+contradicts the others can be proven to have lied (walkthrough, Clocks). *Status:* open in the
+demo, which has one time authority, in a process on the same computer.
 
 ### 5. Approvers and what they approve
 
@@ -411,22 +423,20 @@ This table summarises the statuses above.
 | Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 4.8, 5.1, 5.2, 5.3, 5.5, 5.7, 6.2, 7.1, 7.2, 8.1, 9.1, 9.2, 9.3, 9.7, 10.1, 10.2 |
 | Refused, tested or by construction | 1.2, 1.3, 2.2, 2.3, 3.4, 6.1, 6.3, 7.3, 9.4, 12.2 |
 | Contained | 1.8, 2.5, 2.6, 3.3, 4.7, 5.4, 5.6, 9.6, 11.1 |
-| Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.4 (signer clock), 4.5 (no gain), 4.9, 7.4, 12.1, 13.1 |
+| Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.5 (no gain), 4.9, 4.10, 7.4, 12.1, 13.1 |
 | Open | 8.2, 9.5, 10.3, 14.1 |
 
 ## Future demos
 
 Each of these open vectors could be shown as an attack that succeeds, then a defence that stops
-it. The first two would mean writing tools that extract key material, so they stay as analysis
-here: the defences they call for, separate machines and keys provisioned out of band, are
-chapter 3's subject. The third is planned.
+it. Both would mean writing tools that extract key material, so they stay as analysis here: the
+defences they call for, separate machines and keys provisioned out of band, are chapter 3's
+subject. The third planned demo, setting the signers' clocks back (4.4), is now the Clocks tab.
 
 1. **Substitute a channel key** (1.4): a coordinator that swaps the keys at start-up reads the
    sub-shares; pinned, provisioned keys stop it.
 2. **Read the shares from memory** (1.5, 1.6): an administrator of one machine reads all three
    signer processes, which is why chapter 3 separates them.
-3. **Set a signer's clock back** (4.4): an expired authorisation accepted; a monotonic or attested
-   time source refuses it.
 
 ## Recap
 

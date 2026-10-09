@@ -288,7 +288,7 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Node.** A computer that keeps a full copy of the Bitcoin ledger and checks every transaction and block against the rules. A transaction that breaks a rule is rejected by every node independently. *Taught in:* [0, A ledger that nobody operates](../manual/chapters/00-orientation.md#a-ledger-that-nobody-operates).
 
-**Nonce.** In a signature: a secret random number used once. If it is reused, or even partly predictable, the private key can be computed from the signatures: two signatures with one nonce give two equations in two unknowns. On an exchange API the word means something else, a public number that must increase with every request. *Taught in:* [1 FP, What a signature proves](../manual/chapters/01-foundations.md#what-a-signature-proves).
+**Nonce.** In a signature: a secret random number used once. If it is reused, or even partly predictable, the private key can be computed from the signatures: two signatures with one nonce give two equations in two unknowns. On an exchange API the word means something else, a public number that must increase with every request. In signed time it is a third thing: a public random number the asker sends with its request, so that the answer is bound to that request and cannot be presented again. *Taught in:* [1 FP, What a signature proves](../manual/chapters/01-foundations.md#what-a-signature-proves); [Walkthrough, Clocks](../manual/demo-walkthrough.md#clocks).
 
 ## O
 
@@ -424,6 +424,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Sighash.** The 32-byte hash of a transaction's fields that a signature actually signs, with the witness left out. It commits to every input's amount and script and every output, so one sighash authorises exactly one transaction. *Taught in:* [5 FP, What the signature covers: the sighash](../manual/chapters/05-settlement.md#what-the-signature-covers-the-sighash).
 
+**Signed time.** The time, signed by a time authority together with a nonce the asker drew. A signer that checks an authorisation's expiry against signed time instead of its own clock cannot be fooled by a clock set back, and the nonce stops a signed time recorded earlier from being presented again. It is the core of Roughtime (RFC 10049). *Taught in:* [Walkthrough, Clocks](../manual/demo-walkthrough.md#clocks).
+
 **Signing quorum.** The machines holding key shares, $t$ of which must take part in a signature: in the demo, any two of three signer processes. It is separate from the approval quorum of people. *Taught in:* [0, Two quorums](../manual/chapters/00-orientation.md#two-quorums); [2, What this chapter is for](../manual/chapters/02-mpc-custody.md#what-this-chapter-is-for).
 
 **Slashing.** The loss of part of a staked balance as a penalty, because a validator's key signed two conflicting messages. A staking key run on two machines at once can do it by accident, which is why staking keys need their own custody rules. *Taught in:* [10 FP, What each asset asks of a custodian](../manual/chapters/10-practice.md#what-each-asset-asks-of-a-custodian).
@@ -459,6 +461,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 **Threshold ($t$-of-$n$).** A scheme in which any $t$ of $n$ share holders can act together, and $t - 1$ learn nothing and cannot act. A 2-of-3 threshold across independent sites raises availability and lowers the chance of compromise at the same time. *Taught in:* [2 FP, What the attacker is assumed to do](../manual/chapters/02-mpc-custody.md#what-the-attacker-is-assumed-to-do).
 
 **Threshold signing.** Producing one ordinary signature from the partial signatures of $t$ share holders, without the key ever being rebuilt anywhere. FROST does it for Schnorr; Lindell 2017 and CGGMP for ECDSA. *Taught in:* [0, Signing with pieces: threshold signing](../manual/chapters/00-orientation.md#signing-with-pieces-threshold-signing); [2, FROST](../manual/chapters/02-mpc-custody.md#frost).
+
+**Time authority.** A server outside the custodian that signs the time on request. Signers given its public key when they start check authorisations' expiry against its signed time, so whoever sets the signer machines' clocks cannot revive an expired authorisation. Trust moves to the time authority, which is why Roughtime asks several and can prove which one lied. *Taught in:* [Walkthrough, Clocks](../manual/demo-walkthrough.md#clocks).
 
 **Token.** A balance on a ledger that moves when its holder's key signs. Whoever controls the key controls the balance. *Taught in:* [8 FP, Registers and tokens](../manual/chapters/08-industry.md#registers-and-tokens).
 

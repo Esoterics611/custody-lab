@@ -3,6 +3,7 @@ import './App.css'
 import { Attacks } from './Attacks'
 import { BalanceCheck } from './BalanceCheck'
 import { Ceremonies } from './Ceremonies'
+import { Clocks } from './Clocks'
 import { Day } from './Day'
 import { Text } from './fields'
 import { Flow } from './Flow'
@@ -25,6 +26,7 @@ const TABS = {
   run: 'Settlement run',
   day: 'A day at the custodian',
   ceremonies: 'Key ceremonies',
+  clocks: 'Clocks',
   redteam: 'Red team',
   attacks: 'Attack the design',
   check: "Check a client's balance",
@@ -253,6 +255,9 @@ export default function App() {
       </div>
       <div hidden={tab !== 'ceremonies'}>
         <Ceremonies />
+      </div>
+      <div hidden={tab !== 'clocks'}>
+        <Clocks />
       </div>
       <div hidden={tab !== 'redteam'}>
         <RedTeam />

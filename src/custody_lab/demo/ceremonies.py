@@ -82,17 +82,23 @@ def thief_sign(message: bytes, shares: dict[int, bytes], public_key_package: byt
     return cf.aggregate(package, parts, public_key_package, True)
 
 
+def reason(refused: Exception) -> str:
+    """A refusal from the signing cluster in words: each signer's own message without its
+    exception class, and FROST's culprit identifiers given as participant numbers."""
+    text = str(refused)
+    culprits = [int(h, 16) for h in re.findall(r'Identifier\("([0-9a-f]+)"\)', text)]
+    if culprits:
+        who = " and ".join(str(c) for c in culprits)
+        return f"the share from participant {who} does not fit (InvalidSignatureShare)"
+    return re.sub(r"(signer \d+): \w+\('(.*?)'\)", r"\1: \2", text)
+
+
 def _refused(attempt: Callable[[], object]) -> str:
-    """The refusal of ``attempt``, with FROST's culprit identifiers given as participant numbers."""
+    """The refusal of ``attempt``, in words."""
     try:
         attempt()
     except (RuntimeError, ValueError) as refused:
-        reason = str(refused)
-        culprits = [int(h, 16) for h in re.findall(r'Identifier\("([0-9a-f]+)"\)', reason)]
-        if culprits:
-            who = " and ".join(str(c) for c in culprits)
-            return f"the share from participant {who} does not fit (InvalidSignatureShare)"
-        return re.sub(r"(signer \d+): \w+\('(.*?)'\)", r"\1: \2", reason)
+        return reason(refused)
     raise RuntimeError("the attempt produced a signature")
 
 

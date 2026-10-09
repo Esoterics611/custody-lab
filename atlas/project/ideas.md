@@ -48,6 +48,13 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   statement refuses it (`trade_session`, `reconcile`).
 - **Leave a client out** (2026-10-09). A seventeenth attack in the panel: the omitted client finds no
   proof in the published tree, and a proof from a second tree misses the published, signed root.
+- **Set a signer's clock back, and an authorisation countdown** (2026-10-09), vector 4.4 and the
+  countdown idea together. The Clocks tab: an authorisation used at once (59.98 s of 60 s left), one
+  held back five minutes and refused, one clock set back (still refused), both set back (signed),
+  signers on a time authority's signed time refusing it, and a signed time for another nonce
+  refused. Each step draws the authorisation's life as a bar. The settlement run's step 7 shows the
+  time left. `custody_lab.policy.signed_time` (Roughtime's core, RFC 10049), `TimeService`,
+  `custody-lab clocks`, the walkthrough section.
 
 ## Next
 
@@ -65,16 +72,12 @@ in `manual/attack-vectors.md`.
 - **Substitute a channel key** (1.4), **read the shares from memory** (1.5, 1.6): not to be built.
   Each would mean writing a tool that extracts key material; they stay as analysis, and chapter 3
   covers the defences (separate machines, keys provisioned out of band).
-- **Set a signer's clock back** (4.4). An expired authorisation accepted; a trusted time source
-  refuses it.
 
 ### Other ideas
 
 - **A second chain.** The teaching two-party ECDSA (`mpc/lindell17`) signing an account-model
   transfer, to show chapter 10's point that each chain's signature rule needs its own threshold
   protocol.
-- **An authorisation countdown.** Show each authorisation's 60-second life on the dashboard, and a
-  signing that starts too late being refused (chapter 10, Drift).
 - **A client portal.** One client's view: its balance, its inclusion proof and the custodian's
   signature, all checked in the browser.
 - **A live audit-log timeline**, with a switch that edits one entry and shows where the hash chain

@@ -13,11 +13,13 @@ The reader is assumed to know trading infrastructure: FIX sessions, signed excha
 maker-checker approval, clearing and netting. Where one of those has a counterpart in the demo,
 the walkthrough names it and says where the comparison stops holding.
 
-The dashboard has five more tabs, explained after the run. [A day at the
+The dashboard has six more tabs, explained after the run. [A day at the
 custodian](#a-day-at-the-custodian) runs a busier day: deposits, a double spend, two clients
 trading, netting across them, withdrawals and three refusals, with the books compared to the chain
 after every step. [Key ceremonies](#key-ceremonies) shows a share stolen before a refresh failing to
-combine with one stolen after it, and a lost share rebuilt. [Red team](#red-team) runs a reorganised
+combine with one stolen after it, and a lost share rebuilt. [Clocks](#clocks) shows an
+authorisation's 60-second life, signers whose clocks are set back accepting an expired one, and
+signers on a time authority's signed time refusing it. [Red team](#red-team) runs a reorganised
 deposit, coins borrowed for a snapshot, a misdirected withdrawal and a forged fill, each against a
 weak rule and then the defence. [Attacking the
 design](#attacking-the-design) tries twenty attacks against the demo's own code and shows which
@@ -143,7 +145,7 @@ browser at the same address; if the page does not load there while the `curl` ch
 **The page before a run.** The header holds the title, a one-line summary and the red banner.
 Under it, a row of six boxes traces a settlement's path through the design: Exchange, Netting,
 Policy, Signers, Bitcoin and Reserves. During a run each box turns amber while one of its steps is
-running and green once all of them are done. Below the row are three tabs, and the page opens on
+running and green once all of them are done. Below the row are seven tabs, and the page opens on
 **Settlement run**. That tab has a blue **Run the demo** button beside a progress bar reading
 "0 of 9 steps", and under them the nine numbered steps, each marked PENDING. On the right, the
 **Key shares** panel shows Signer 1, Signer 2 and Signer 3, each "not started" and each with a
@@ -456,7 +458,9 @@ Two of three is a deliberate choice. One signer can be offline, broken or lost a
 still move; one signer that is compromised cannot move them alone.
 
 **On the screen.** `signers 1, 3`; `offline none`; `signature`, 128 hexadecimal characters
-(64 bytes); `verified yes`. In the **Key shares** panel, Signer 1 and Signer 3 read "signing the
+(64 bytes); `verified yes`; `authorisation time left`, about 59.9 s of its 60 s: how much of the
+authorisation's life remained once the signature was made. The signers checked the expiry against
+their own clocks; [Clocks](#clocks) shows what happens when those clocks are set back. In the **Key shares** panel, Signer 1 and Signer 3 read "signing the
 payment" and then "signed the payment", with a green background, and Signer 2 reads "online, not
 asked".
 
@@ -932,6 +936,111 @@ of the key, and a patient thief needs only to wait. Without repair, each lost sh
 custodian one step closer to frozen coins, and the only cure is a full move to a new key. Both
 ceremonies need the signers to be online together, refresh all three of them, which is why a
 custodian schedules them like any other change, with the same approvals.
+
+## Clocks
+
+**The problem.** The policy engine issues every authorisation with a life of 60 seconds, and each
+signer refuses one it checks after that. The life exists because an approval is given for a moment:
+a payment approved this morning and not sent should not still be sendable next week. At Drift in
+April 2026 approvals that never expired were collected, held and used later, and at least $280
+million was lost ([chapter 10, Approved, but wrong](chapters/10-practice.md#approved-but-wrong)).
+But an expiry is checked against a clock, and each signer reads the clock of its own machine.
+Whoever can set that clock decides whether an expired authorisation still counts: an administrator
+of the machine, or an attacker who answers the machine's requests for the time. Machines usually set
+their clocks from a time server over NTP, the Network Time Protocol; without an authentication
+extension such as Network Time Security (RFC 8915), nothing proves that an answer came from that
+server. Set two signers' clocks back five minutes and an authorisation that expired four minutes ago
+is accepted again.
+
+**The idea in plain words.** Two things make the life hold. The first the demo already has: the
+expiry is written inside the authorisation and covered by the policy engine's two signatures, so
+nobody can extend it by editing it. The second is a time the attacker cannot set. A **time
+authority** is a server outside the custodian that signs the time. A signer that relies on it
+draws a fresh random number, a nonce (a number used once, as in step 7, but this one goes to the
+time authority), sends it out, and receives the time signed together with that nonce: a **signed
+time**. The signer checks the signature with the time authority's public key, which it was given
+when it started, checks that the nonce is the one it drew, and compares the expiry with the signed
+time. It never reads its own clock.
+
+The nonce is what makes the signed time trustworthy. Without it, a signed time is a reusable
+document: one signed while an authorisation was still valid, recorded and presented after the
+authorisation expired, turns the signer's time back as surely as setting its clock. With the
+nonce, a signed time answers one request only, and the signer knows it was signed after the nonce
+was drawn, so after the moment the signer asked.
+
+This exchange is the core of Roughtime, published by the IETF as RFC 10049 (Experimental, October
+2026; **verify current**). Roughtime adds an uncertainty, the radius, to each answer, lets one
+signature answer many requests, and has clients chain their requests across several servers, so
+that a server that lies about the time can be proven to have lied. The demo has one time authority
+and the core exchange only.
+
+The counterpart is a signed exchange API request. Each request carries a timestamp, and the
+exchange refuses one whose timestamp falls outside its window, so a captured request cannot be
+sent again later. There the checker is the exchange, and the clock it checks against is its own,
+out of the client's reach. Here the checker is the signer, and its clock is exactly what an
+attacker of the custodian's machines can reach; so the signer takes its time from outside, as the
+exchange's clock is outside the client's. The comparison stops at who keeps the clock: an exchange
+is one party that decides the time for all its clients, while a custodian must choose which
+outside time authorities to trust, and how many must agree.
+
+**Worked example.** Press **Run the clocks** on the **Clocks** tab; `uv run custody-lab clocks`
+runs the same in the terminal. It needs no chain and takes under two seconds. As in the attack
+panel, a 32-byte hash of each instruction stands in for a transaction's sighash: the signers check
+only that the authorisation names the message they sign. The demo does not wait five minutes: an
+authorisation "held back for five minutes" is issued by a policy engine whose clock reads five
+minutes earlier, and every other clock reads the true time.
+
+1. *Two sets of signers and a time authority.* Six signer processes start, each set of three
+   holding its own 2-of-3 key. The first set reads its machines' clocks. The second was given the
+   time authority's public key when it started and reads only signed time. The time authority runs
+   in a process of its own, holding its signing key.
+2. *An authorisation used at once.* Issued, approved by bob and carol, and signed by signers 1
+   and 3: `time left 59.98 s of 60 s, once signed`. This is the normal case, and the figure the
+   settlement run also shows at its step 7.
+3. *An authorisation held back for five minutes.* The coordinator held it back, as at Drift. It
+   expired four minutes ago, and both signers refuse it: `signer 1: expired at ...; signer 3:
+   expired at ...`.
+4. *Signer 1's clock set back.* The attacker sets signer 1's machine five minutes slow. Signer 1
+   now believes the authorisation is seconds old and accepts it; signer 3 refuses, and with one
+   signer there is no signature. A threshold of two needs two clocks set back.
+5. *Both clocks set back.* The attacker sets signer 3's clock back too, as one false time server
+   answering both machines would. Both accept, and the signature is valid: broadcast, it would
+   pay a transaction whose authorisation expired four minutes ago.
+6. *Signers on signed time.* The same attack against the second set, whose machines' clocks are
+   also set back five minutes. Each signer asks the time authority, through the coordinator, for
+   the time signed with its own nonce, and refuses: `expired at ...`. The step shows the signed
+   times, which agree with the true time.
+7. *A signed time for another nonce.* The coordinator asks the time authority to sign the time for
+   a nonce of its own choosing, and presents that signed time with a fresh authorisation in place
+   of fresh signed times. Each signer refuses: `the signed time answers another request: its nonce
+   is not this one`. The step also shows what a signer that checked only the signature would have
+   concluded: the signature verifies and the time is inside the authorisation's life, so it would
+   have accepted it. Recorded while an authorisation was valid and presented after it expired, the
+   same signed time would turn the signer's time back.
+
+Each step uses its own authorisation, because a signer records an authorisation as used once it has
+accepted it, even when the other signer refused and no signature resulted: in step 4, signer 1
+did.
+
+Under steps 2 to 6 a bar shows the authorisation's life. The green band is its 60 seconds from
+issue; the black line is the true time; each numbered mark is where that signer's time put it,
+blue inside the life (the signer accepts) and grey after it (the signer refuses). In step 5 both
+marks sit inside the band and the line is far to its right: the signers believe it is the minute
+of issue, and it is four minutes past the expiry. The **Where each signer reads the time** panel
+shows which signers read their own clocks, which of those clocks the attacker has set back, and
+that the second set reads signed time.
+
+**What breaks without it.** Without a life, an approval is a standing permission, which is what
+Drift's held transactions were. With a life checked on the signers' own clocks, the custodian's
+safety rests on the clock of every signer machine, and the threshold helps only while the clocks
+are independent: signers that take their time from one server are set back together by one false
+server (step 5). Network Time Security would stop false answers on the network, but not an
+administrator of the machine, who sets its clock directly; a signed time that the signer checks
+itself stops both. With signed time, the trust moves to the time authority, which is why Roughtime
+asks several servers and can prove which one lied; the demo's time authority is one process on
+the same computer as the signers. And in the demo the coordinator relays the signed time, where in
+the design each signer would ask the time authority itself; the relay gains nothing, because it
+can neither change a signed time nor substitute an earlier one (step 7).
 
 ## Red team
 
