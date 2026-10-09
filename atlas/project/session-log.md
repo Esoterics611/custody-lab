@@ -2,6 +2,68 @@
 
 Newest first.
 
+## 2026-10-09: Operator QA pass over the rebuilt dashboard
+
+The owner asked for work to continue until the demo is very good. Another session had already
+delivered the previous entry's open items and added offline signers, the attack panel, the
+browser balance check and replay (the entry below). This session took that state through as an
+operator: every tab and mode driven headless at 1280 and 390 px and in dark mode, every
+walkthrough section read against the screenshots, and every walkthrough command run as written.
+
+**Found and fixed.**
+- At 390 px the page was 547 px wide from the first load. The `.replay` row kept its default
+  `min-width: auto`, so the longest recorded run's name (423 px) set the page width. It now has
+  `min-width: 0`; the page measured 390 px on load, after a run, with the FIX transcript open,
+  after replaying a failed run, and on the balance and attack tabs.
+- `custody-lab run --offline 1 --offline 3`, which the walkthrough presents as the expected way to
+  see a liveness failure, cut the step 7 error at the terminal width ("FROST re...") and then
+  printed an 80-line traceback (103 lines in all). The error line is now printed whole, followed
+  by one line naming the run's `events.jsonl`, and the command exits 1. The server still logs
+  tracebacks of failed dashboard runs. The test runs at 40 columns and fails on the old code.
+- The balance check showed `Error: not an amount: abc`; it now shows `not an amount: abc`.
+- The walkthrough's command-line sentence now describes the exit; two paragraphs left ragged by
+  edits were rewrapped (a word diff shows whitespace changes only).
+- `tests/policy/test_authorisation.py` formatted (the previous entry's open item).
+
+**Checked, no change needed.**
+- With all three signers stopped, the FROST crate raises `ValueError('IncorrectNumberOfShares')`,
+  which `pipeline.run` turns into "0 of 3 signers online and 2 are required".
+- Each attack's refusal comes from the component named: `tests/demo/test_attacks.py` pins the
+  text of all sixteen.
+- The copy button put the full 64-character value on the clipboard and showed "copied".
+- A recording made before events carried `at_ms` replays all nine steps without durations, as the
+  walkthrough says.
+- From the Windows side, `curl.exe` (through WSL interop) fetched `/api/steps` at 127.0.0.1 and the
+  page at localhost with status 200 (observed): a Windows browser on this machine reaches the
+  server inside WSL2. This closes the open item carried by both previous entries.
+
+**Verified.** `uv run pytest`: 226 passed. `ruff check`, `ruff format --check src tests`, `mypy`
+(strict) and `oxlint` clean; `npm --prefix web run build` succeeded. The walkthrough's
+after-the-run commands, run as written against a new settled run, printed every Expect block.
+`tests/test_docs_links.py` passes. No console messages in any headless session.
+
+**Open.**
+- The three browser libraries are still not installed system-wide; the scratchpad copy lasts one
+  session.
+- `ruff format --check` with no path also reports Python blocks inside the generated
+  `manual/chapters/*.md`, which Quarto writes and which are not edited by hand.
+- Step 6's `spends` prints "5 BTC" where step 3 prints "5.00 BTC".
+- The six-stage strip shows a partly finished stage as pending: Bitcoin turns amber at step 1,
+  back to white until step 3, and stays white from step 4 to step 7.
+- `var/demo/` holds the QA runs of both sessions, failed ones included; they fill the replay list.
+
+### Deliverables
+
+- The dashboard was taken through as an operator would use it, on a desktop screen, a phone screen
+  and in dark mode, and every statement in the operator's walkthrough was checked against it.
+- The dashboard no longer scrolls sideways on a phone once runs have been recorded.
+- A failed run on the command line now ends with its error in full and a pointer to the run's
+  record, instead of a long technical trace.
+- The demo was confirmed reachable from a Windows browser while it runs inside WSL2 on this
+  machine.
+- The full test suite of 226 tests passes, and every check command in the walkthrough produces
+  the output the walkthrough promises.
+
 ## 2026-10-09: Offline signers, attack panel, browser balance check, replay
 
 The owner asked for more in the demo, to make it more useful and better to look at, and to keep
