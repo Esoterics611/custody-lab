@@ -13,9 +13,11 @@ The reader is assumed to know trading infrastructure: FIX sessions, signed excha
 maker-checker approval, clearing and netting. Where one of those has a counterpart in the demo,
 the walkthrough names it and says where the comparison stops holding.
 
-The dashboard has two more tabs, explained after the run. [Attacking the
-design](#attacking-the-design) tries sixteen attacks against the demo's own code and shows which
-component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each
+The dashboard has three more tabs, explained after the run. [A day at the
+custodian](#a-day-at-the-custodian) runs a busier day: deposits, a double spend, two clients
+trading, netting across them, withdrawals and three refusals, with the books compared to the chain
+after every step. [Attacking the design](#attacking-the-design) tries sixteen attacks against the
+demo's own code and shows which component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each
 client recompute its own place in the published snapshot. [Taking a signer
 offline](#taking-a-signer-offline) runs the demo with signers missing, and [Replaying a recorded
 run](#replaying-a-recorded-run) shows a past run again without a Bitcoin node.
@@ -650,6 +652,211 @@ The same run can be watched in the terminal instead of the browser with `uv run 
 which prints each step and its details and writes the same files. To stop the server, press
 Ctrl+C in terminal 1.
 
+## A day at the custodian
+
+The settlement run follows one payment. A custodian's day holds many: clients deposit and
+withdraw, several clients trade, payments go out at different sizes, a machine is taken down for
+maintenance, and some requests must be refused. The **A day at the custodian** tab runs such a
+day on the same private chain, with the same policy engine and the same 2-of-3 signing processes,
+and adds four ideas the single payment cannot show: a deposit that never arrives, netting across
+clients, choosing which coin to spend, and refusals by three different layers. Press **Run the
+day**; the day takes about seven seconds, and `uv run custody-lab day` runs it in the terminal.
+
+### Two records that must agree
+
+**The problem.** The custodian keeps two records of the same money. The **ledger** says how much
+it owes each client. The chain says which coins sit at the custody address. Neither can be
+trusted alone: the ledger is the custodian's own entry, which a bug or a fraud can change, and
+the chain knows nothing about clients. If the two drift apart, either the custodian owes more
+than it holds, or it holds coins it cannot account for.
+
+**The idea.** After every event the custodian compares the two totals. This is
+**reconciliation**: the ledger's total, summed over every client, must equal the total of the
+coins at the custody address, to the satoshi. The counterpart is a bank's daily reconciliation of
+its own books against its account statement at another bank (a nostro reconciliation), and it
+holds; the difference is that here the statement is the public chain, which the custodian cannot
+edit and anyone can read.
+
+**On the screen.** The **Books and chain** panel beside the steps shows, after each step that can
+move coins, the ledger (one row per client), the coins at the custody address (each with where it
+came from) and one line comparing the totals: green with "=" when they agree, red with "≠" when
+they do not. Rows and coins that changed in the last step are marked. Seven steps report the
+books, and every one of them reconciles; the day's test fails if any does not.
+
+### Deposits: credit only what has confirmed
+
+**The problem.** A client sends coins to the custody address. The custodian sees the payment
+within a second, in the **mempool**, the pool of transactions waiting to be put in a block. If it
+credits the client then, the client can trade or withdraw against coins that have not arrived.
+Until a payment is in a block, the payer can still send the same coins somewhere else.
+
+**The idea.** A coin can be spent only once, and the chain records which spend happened first.
+A payment waiting in the mempool has not happened yet: its sender can broadcast a second
+transaction spending the same coins with a higher fee, and nodes then drop the first one. This is
+**RBF**, replace-by-fee, and used against a payee it is a **double spend**: the same coins promised
+twice, delivered once. The defence is to credit a deposit only once it is in a block. Each
+further block makes the payment harder to undo, and on the public network a custodian waits for
+several before crediting; the demo, on a chain it controls, credits at one.
+
+The counterpart is a cheque. A bank gives provisional credit for a cheque and makes it final only
+when the cheque clears; a cheque that bounces is returned and the credit reversed. The comparison
+stops at the reversal. If the custodian credited a deposit that was then replaced, there would be
+no one to return it from: the coins went back to the sender, the ledger would owe the client
+0.50 BTC that the custody address never received, and reconciliation would fail.
+
+**Worked example.** Each client starts with 3.00 BTC in a wallet of its own (step 1). In step 3
+all four send their deposits: alpha-capital 2.00 BTC, beta-fund 1.50, gamma-treasury 1.00 and
+delta-trading 0.50. All four are seen in the mempool and none is credited. delta-trading then
+broadcasts a second transaction spending the same coins as its deposit, paying them back to its
+own wallet with a fee of 0.001 BTC, higher than its deposit's. Bitcoin Core accepts the
+replacement and drops the deposit (observed: the replaced transaction is no longer known to the
+node at all). One block is mined. Three deposits have one confirmation and are credited; the
+fourth does not exist any more, and delta-trading is credited nothing. The books read 4.50 BTC,
+and the custody address holds three coins: 2.00 + 1.50 + 1.00 = 4.50 BTC.
+
+**On the screen.** `seen unconfirmed: 4 deposits in the mempool, none credited yet`; a table of
+the four deposits with each status ("credited at 1 confirmation", or for delta-trading "replaced
+before it confirmed: not credited"); `replacement` naming the transaction that paid delta-trading
+back; and the credit rule. In the day's transaction log, delta-trading's deposit is marked red.
+
+**A simplification.** The demo has one custody address, so it learns whose deposit is whose from
+the transaction id the client reports. A real custodian gives each client a deposit address of
+its own, derived from the custody key, so that the chain itself says whose a deposit is.
+
+### Netting across clients
+
+**The problem.** Two of the custodian's clients trade with the same exchange on the same day:
+alpha-capital sells, beta-fund buys. Settled separately, alpha-capital's coins leave the custody
+address for the exchange, and the exchange sends coins back to the same address for beta-fund:
+two on-chain payments, two fees and two rounds of signing, where part of the movement cancels out.
+
+**The idea.** The custodian nets twice. First each client's own fills, as in the settlement run.
+Then, acting for all its clients towards the one exchange, it nets their positions against each
+other: only the difference moves on chain, and the rest moves between clients in its ledger. That
+second step is **internalised settlement**. The counterpart is a settlement agent netting its
+clients' deliveries towards one clearing house, and it holds. It stops at what the client owns
+in between: until the ledger entry is made, beta-fund's coins are only a claim on the custodian,
+which is why MiCA requires a custodian to keep a register of positions for each client, with
+every movement recorded ([chapter 8](chapters/08-industry.md#regulation-in-the-eu-mica)).
+
+**Worked example.** In step 4 each client trades in its own FIX session, logged on under its own
+SenderCompID, `ALPHA-CAPITAL` or `BETA-FUND`:
+
+| Client | Order | Side | Quantity (BTC) | Price (USD) |
+|--------|-------|------|----------------|-------------|
+| alpha-capital | A1 | Sell | 0.80 | 64,000 |
+| alpha-capital | A2 | Sell | 0.40 | 64,050 |
+| beta-fund | B1 | Buy | 0.45 | 63,980 |
+
+Per client (step 5): alpha-capital delivers 0.80 + 0.40 = 1.20 BTC and receives
+0.80 × 64,000 + 0.40 × 64,050 = 51,200 + 25,620 = 76,820.00 USD. beta-fund receives 0.45 BTC
+and pays 0.45 × 63,980 = 28,791.00 USD.
+
+Across clients: the custodian delivers 1.20 − 0.45 = 0.75 BTC to the exchange on chain and
+receives 76,820.00 − 28,791.00 = 48,029.00 USD. The other 0.45 BTC moves from alpha-capital to
+beta-fund in the custodian's books only. The settlement instruction `settle-day-1` is for
+0.75 BTC.
+
+### Which coin to spend
+
+**The problem.** The custody address now holds three coins, deposited by three different
+clients. The settlement of 0.75 BTC is alpha-capital's obligation. Must it spend alpha-capital's
+coin?
+
+**The idea.** No. Coins at one address are interchangeable: the chain does not know whose they
+are, and the ledger does. Which coin to spend is a separate decision, **coin selection**, made on
+cost. Every coin a transaction spends needs its own signature, so one coin means one signing
+session, one authorisation and the smallest transaction. The demo picks the smallest single coin
+that covers the payment and its fee, which keeps the larger coins for larger payments; if no
+single coin is large enough, it refuses rather than spend several. The difference comes back to
+the custody address as change, and the fee is charged to the client the payment is for.
+
+**Worked example.** Step 6 pays 0.75 BTC plus a 310-satoshi fee. The coins are 2.00, 1.50 and
+1.00 BTC; the smallest that covers 0.7500031 BTC is the 1.00 BTC coin, which gamma-treasury
+deposited. The transaction pays 0.75 BTC to the exchange and returns 1.00 − 0.75 − 0.0000031 =
+0.2499969 BTC to the custody address. bob and carol approve, signers 1 and 3 sign, and one block
+confirms it. In the books, alpha-capital's 2.00 BTC falls by the 1.20 BTC it sold and the fee, to
+0.7999969 BTC; beta-fund's rises by the 0.45 BTC it bought, to 1.95 BTC; gamma-treasury still
+has 1.00 BTC, although its coin was spent. Ledger and coins both total 3.7499969 BTC.
+
+**On the screen.** `coin spent: 1.00 BTC, deposit from gamma-treasury`, `pays 0.75 BTC`,
+`change 0.2499969 BTC`, `fee 310 sats`, `fee charged to: alpha-capital, the delivering client`.
+In the books panel, gamma-treasury's coin disappears and a new coin appears: "change from
+settle-day-1".
+
+### A signer goes down
+
+At noon (step 7) signer 3's process is stopped, as for maintenance. Its share cannot be used until
+it returns. The custody key is 2-of-3, so for the rest of the day the coordinator asks signers 1
+and 2, and every later signature, including the end-of-day snapshot's, is theirs. This is
+[Taking a signer offline](#taking-a-signer-offline) inside an ordinary day: nothing a client sees
+changes.
+
+### Withdrawals and approval tiers
+
+**The problem.** A withdrawal sends coins out of custody for good. It must go only where the
+client has said in advance it may go, and the effort spent approving it should match what is at
+stake: two people for a large payment, one for a small one.
+
+**The idea.** Each client registers its withdrawal address with the custodian before the day
+(step 1 shows the four registered addresses), and the registered addresses are the policy's
+whitelist, beside the exchange's. A request names an amount; the policy's tiers set the number of
+approvals: up to 0.1 BTC one, up to 10 BTC two.
+
+**Worked example.** In step 8 gamma-treasury withdraws 0.60 BTC, tier two: bob and carol approve.
+Coin selection skips the 0.2499969 BTC change coin, which is too small, and spends beta-fund's
+1.50 BTC deposit; 0.8999969 BTC returns as change. gamma-treasury's balance falls by the
+withdrawal and its fee to 1.00 − 0.60 − 0.0000031 = 0.3999969 BTC. In step 9 beta-fund withdraws
+0.05 BTC, tier one: bob's approval alone is enough. The smallest sufficient coin is now the
+0.2499969 BTC change, which leaves 0.1999938 BTC; beta-fund's balance becomes
+1.95 − 0.05 − 0.0000031 = 1.8999969 BTC. Both are signed by signers 1 and 2. After each, ledger
+and coins agree: 3.1499938 BTC, then 3.0999907 BTC.
+
+### Three refusals, three layers
+
+**The problem.** Most of what protects client coins is a payment that does not happen. Each rule
+belongs to a particular layer, and a refusal should come from the layer that owns the rule.
+
+**The idea.** Three requests in step 10, each stopped by a different layer:
+
+1. **The ledger.** delta-trading asks to withdraw 0.20 BTC. Its deposit never arrived, so it is
+   owed nothing: "delta-trading holds 0.00 BTC". The request is refused before any transaction is
+   built and before the policy engine sees it, because whether a client has the money is a
+   question for the books.
+2. **The whitelist.** alpha-capital asks for 0.30 BTC to an address it never registered. Both
+   approvers sign, and the policy engine still refuses: "denied: destination … is not
+   whitelisted". An approval cannot add an address; registering one is a separate act, done in
+   advance. A custodian can also hold a newly registered address back for a set period before it
+   may be paid, so that a registration made by an attacker can be noticed first.
+3. **The velocity limit.** alpha-capital retries the same 0.30 BTC to its registered address. The
+   day's limit is 1.50 BTC, and 0.75 + 0.60 + 0.05 = 1.40 BTC has already been authorised;
+   1.40 + 0.30 = 1.70 BTC is over it: "denied: velocity limit 1.50 BTC per 24 hours; 1.40 BTC
+   already authorised". The limit bounds what can leave in a day even if every approver were
+   compromised; the request can be made again tomorrow, or raised with more scrutiny.
+
+No transaction is built or signed for any of the three, so nothing reaches the chain, and the
+books still equal the coins. The two refusals by the policy engine are in its audit log; the
+ledger's refusal is the custodian's own record.
+
+### The end of the day
+
+Step 11 publishes the proof of reserves, as step 9 of the settlement run does. The ledger reads
+alpha-capital 0.7999969, beta-fund 1.8999969, gamma-treasury 0.3999969 and delta-trading 0.00 BTC:
+liabilities of 3.0999907 BTC. The custody address holds three coins: alpha-capital's 2.00 BTC
+deposit, never spent, and the two changes, 0.8999969 and 0.1999938 BTC: assets of
+2.00 + 0.8999969 + 0.1999938 = 3.0999907 BTC. The reserve ratio is 1, and signers 1 and 2 sign
+the snapshot. The audit log holds nine entries: an evaluation and an authorisation for each of the
+three payments, the two refused evaluations, and the snapshot's authorisation. The snapshot is
+`var/day/<run>/reserves/snapshot-106.json`: block 106 is the 102nd block of step 1 plus one block
+each for the deposits, the settlement and the two withdrawals.
+
+**What the day shows.** Every movement of client money is either on the chain or in the ledger,
+and the two are compared after each one. A deposit counts when it confirms, not when it is seen.
+Netting can keep a client's purchase off the chain entirely, which makes the ledger the only
+record of it. Coins at one address are interchangeable, so the ledger, not the coin, says whose
+they are. And each refusal comes from the layer that owns the rule: the books for balances, the
+policy for destinations and limits.
+
 ## Taking a signer offline
 
 **The problem.** A 2-of-3 key exists so that the coins can still move when one signer cannot take
@@ -926,6 +1133,10 @@ This table summarises what each step has already explained, as a list of what to
    (Checking a client's balance).
 9. Sixteen attacks on the design's rules are each refused, by the component the design assigns
    to that rule and in that component's own words (Attacking the design).
+10. A custodian's books and the chain must agree after every movement. A deposit counts once it
+    confirms; netting across clients keeps part of the settlement off the chain; coins at one
+    address are interchangeable and the ledger says whose they are; and each refusal comes from
+    the layer that owns the rule (A day at the custodian).
 
 [Chapter 0](chapters/00-orientation.md) follows the same run with the arithmetic of each step,
 and the [contents page](README.md) lists the chapters that explain each mechanism in full.

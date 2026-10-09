@@ -68,6 +68,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Checksum (Winternitz).** An extra signed value equal to the sum of $(w - 1 - a_i)$ over the message digits $a_i$. Anyone can step a hash chain forwards to raise a digit, but raising a digit lowers the checksum, which would need some chain stepped backwards: inverting the hash. That stops the forgery. *Taught in:* [7 FP, Winternitz chains and the checksum](../manual/chapters/07-post-quantum.md#winternitz-chains-and-the-checksum).
 
+**Coin selection.** Choosing which coins at the custody address a payment spends. Coins at one address are interchangeable, so the choice is made on cost, not on whose coins they are: every coin spent needs its own signature. The demo spends the smallest single coin that covers the payment and its fee. *Taught in:* [the demo walkthrough, Which coin to spend](../manual/demo-walkthrough.md#which-coin-to-spend).
+
 **Cold storage.** Holdings whose signing needs at least one share kept on a device that is never connected to a network, reached through an air gap in a scheduled ceremony. It holds most of a custodian's assets and trades signing speed for safety. *Taught in:* [9, Deep dives](../manual/chapters/09-capstone.md#deep-dives).
 
 **Commitment.** A value published now that fixes a choice before information that could bias it arrives, and that is opened later. A sealed bid is the physical version. Schnorr's $R = kG$ commits to the nonce before the challenge, and FROST's first round commits to each signer's nonces. *Taught in:* [1 FP, What a signature proves](../manual/chapters/01-foundations.md#what-a-signature-proves); [2 FP, Commitments](../manual/chapters/02-mpc-custody.md#commitments).
@@ -101,6 +103,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 **DKG.** Distributed key generation: each party deals a Shamir sharing of its own random secret, each party's share is the sum of what it receives, and the key is the sum of everyone's secrets, which no party ever holds. A proof of knowledge from each party stops a rogue-key attack. *Taught in:* [2, Distributed key generation](../manual/chapters/02-mpc-custody.md#distributed-key-generation).
 
 **Domain separation.** Hashing each class of message under its own tag, so that a value computed for one purpose can never equal one computed for another. A reserves attestation hashed with its own tag can never be a valid transaction sighash, which uses the tag `TapSighash`. *Taught in:* [1, Hash functions](../manual/chapters/01-foundations.md#hash-functions); [6 FP, Proof of control](../manual/chapters/06-reserves.md#proof-of-control).
+
+**Double spend.** Promising the same coins to two payees, of whom only one can receive them. A payment still in the mempool can be replaced by another spending the same coins (RBF), so a custodian credits a deposit only once it is in a block. The demo's day shows a client replacing its deposit before it confirms. *Taught in:* [the demo walkthrough, Deposits: credit only what has confirmed](../manual/demo-walkthrough.md#deposits-credit-only-what-has-confirmed).
 
 **Double-and-add.** Computing $dG$ by repeated doubling ($2G$, $4G$, $8G$, ...) and adding the doublings that make up $d$: $13G = 8G + 4G + G$. A 256-bit key needs about 256 doublings and at most 256 additions. The teaching version branches on secret bits, which leaks them through timing. *Taught in:* [1 FP, Easy forwards, infeasible backwards](../manual/chapters/01-foundations.md#easy-forwards-infeasible-backwards).
 
@@ -185,6 +189,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 **Inclusion proof.** The sibling at each level of a hash tree on the path from one leaf to the root. Its holder recomputes each parent in turn and compares the result with the published root. A tree over a million clients needs 20 siblings per proof. *Taught in:* [6 FP, Hash trees](../manual/chapters/06-reserves.md#hash-trees).
 
 **Input, output.** A transaction's inputs name the UTXOs it spends, each by its outpoint; its outputs are the new UTXOs it creates, each an amount and a locking script. An input spends its UTXO whole. *Taught in:* [5 FP, Coins are outputs, not balances](../manual/chapters/05-settlement.md#coins-are-outputs-not-balances).
+
+**Internalised settlement.** Settling part of clients' trades by moving balances between them in the custodian's ledger, so that only the net difference moves on chain. In the demo's day, alpha-capital sells 1.20 BTC and beta-fund buys 0.45 BTC: 0.75 BTC goes to the exchange, and 0.45 BTC moves between the two clients in the books only. *Taught in:* [the demo walkthrough, Netting across clients](../manual/demo-walkthrough.md#netting-across-clients).
 
 **Interposer.** A small circuit board placed between a processor and a memory module that reads or alters the memory traffic. Attacks using one against TEE memory encryption were published from late 2025, and processor vendors place them outside their threat models. *Taught in:* [3, Trusted execution environments](../manual/chapters/03-key-storage.md#trusted-execution-environments).
 
@@ -337,6 +343,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 **Range proof.** A zero-knowledge proof that a committed value lies in a stated range, such as $[0, 2^{64})$, without revealing it. In a proof of liabilities with hidden sums it replaces the check for negative balances. *Taught in:* [6, Zero-knowledge proofs of liabilities](../manual/chapters/06-reserves.md#zero-knowledge-proofs-of-liabilities).
 
 **RBF.** Replace-by-fee: rebroadcasting a transaction that spends the same inputs with a higher fee, so miners prefer it. The demo's inputs signal that replacement is allowed. *Taught in:* [9, Failure modes](../manual/chapters/09-capstone.md#failure-modes).
+
+**Reconciliation.** Comparing two records of the same money and explaining every difference. A custodian reconciles its ledger, what it owes each client, against the coins at its custody address on the chain. The demo's day compares the two totals after every step, to the satoshi. *Taught in:* [the demo walkthrough, Two records that must agree](../manual/demo-walkthrough.md#two-records-that-must-agree).
 
 **Register.** The record of who owns what that an institution keeps, such as a central securities depository's or a bank's books. The institution can correct it; tokenisation moves it onto a ledger where keys control balances. *Taught in:* [8 FP, Registers and tokens](../manual/chapters/08-industry.md#registers-and-tokens).
 
