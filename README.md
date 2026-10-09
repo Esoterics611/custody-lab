@@ -108,12 +108,15 @@ Bitcoin node on free ports in its own directory, so no node has to be started fi
 uv sync                      # create the environment and compile the two Rust extensions
 uv run pytest                # all tests, including real settlements on regtest
 uv run custody-lab run       # one demo run, printed step by step
+uv run custody-lab attacks   # sixteen attacks on the design, each refused; needs no Bitcoin node
 ```
 
 **Expect:** `custody-lab run` prints `[1/9] Start a private Bitcoin Core regtest chain` and the
 results of each step after it, and ends with the settlement's transaction id, `reserve_ratio:
 1.00000`, and the directory under `var/demo/` that holds the run's event log, policy audit log
-and reserves snapshot.
+and reserves snapshot. `custody-lab run --offline 1` stops signer 1's process before signing, and
+signers 2 and 3 settle instead. `custody-lab attacks` lists each attack with the component that
+refused it and ends with `16 of 16 attacks refused`.
 
 To watch a run in the browser instead:
 
@@ -123,9 +126,11 @@ npm --prefix web run build   # build the dashboard into web/dist
 uv run custody-lab serve     # then open http://127.0.0.1:8000 and press "Run the demo"
 ```
 
-**Expect:** nine numbered steps that turn from pending to running to done as the events arrive,
-and a key-shares panel listing signers 1, 2 and 3 with their process ids, two of them marked as
-having signed. [The demo walkthrough](manual/demo-walkthrough.md) takes one run through the
+**Expect:** three tabs. On **Settlement run**, nine numbered steps turn from pending to running
+to done as the events arrive, and a key-shares panel lists signers 1, 2 and 3 with their process
+ids and a switch that takes each offline for the next run. **Attack the design** runs the sixteen
+attacks. **Check a client's balance** recomputes a client's inclusion proof in the browser after a
+run. [The demo walkthrough](manual/demo-walkthrough.md) takes one run through the
 dashboard step by step: what each value on the screen means, and how to check the run's files
 afterwards.
 

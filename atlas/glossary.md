@@ -344,6 +344,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Remote attestation.** Hardware's signed statement of which code runs in an enclave: an attestation report checked by a verifier against expected values. It differs from a reserves attestation, which is the custodian's statement about its holdings. *Taught in:* [3 FP, Remote attestation](../manual/chapters/03-key-storage.md#remote-attestation).
 
+**Replay.** Presenting a message or permission that was valid once a second time, to get its effect again. The demo's signers record each authorisation's identifier and refuse one they have seen, and the policy engine refuses an instruction it has already authorised. It is the custody counterpart of a resent exchange API request that a nonce or timestamp check rejects. *Taught in:* [9, Any two of three, and a replay](../manual/chapters/09-capstone.md#any-two-of-three-and-a-replay); [the demo walkthrough, Attacking the design](../manual/demo-walkthrough.md#attacking-the-design).
+
 **Repo.** A short-term loan in which one party sells securities and agrees to buy them back, usually the next day. *Taught in:* [8, Institutional ledgers: Canton and Kinexys](../manual/chapters/08-industry.md#institutional-ledgers-canton-and-kinexys).
 
 **Report data.** Up to 64 bytes chosen by an enclave's code and signed into its attestation report, typically the hash of a public key generated inside the enclave. Checking it stops a genuine report from being relayed with an attacker's key. *Taught in:* [3 FP, Remote attestation](../manual/chapters/03-key-storage.md#remote-attestation).
