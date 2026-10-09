@@ -2,6 +2,54 @@
 
 Newest first.
 
+## 2026-10-09: Attack-vector analysis; private channels; a split server; a red team
+
+The owner asked for a thorough analysis of attack vectors, added to the future-demos list and the
+documentation.
+
+**Analysis.** `manual/attack-vectors.md`: fourteen layers, each vector with what stops it, where it
+is shown or tested, and a status (refused and demonstrated, refused and tested, contained, open in
+the demo, open). Linked from the README, the manual's contents page and the walkthrough. Two
+findings, both now fixed:
+- *Sub-shares in clear.* Chapter 2 said the coordinator "learns nothing secret from the messages it
+  relays", but the demo relayed every DKG sub-share, refresh package and repair value in clear. They
+  are now sealed signer to signer (`custody_lab.mpc.channel`: static X25519, HKDF-SHA256 bound to
+  both identifiers and the step, ChaCha20-Poly1305). A recording coordinator cannot open any of them
+  (test). The channel keys still pass through the coordinator at start-up; stated where the claim is
+  made (cluster.py, chapter 2 re-rendered, the dashboard).
+- *One process for coordinator, policy and approvers.* Chapter 0 said a compromised coordinator "can
+  only obtain signatures for transactions that people approved"; in the demo the server process
+  also held the authority key and both approvers' keys. `custody_lab.demo.parties` runs the policy
+  engine and each approver's key in processes of their own; a test checks that this engine's
+  authority key is not in the coordinator's process. Chapter 0 re-rendered to say what the split
+  does and does not protect.
+
+**Red team** (`custody_lab.demo.redteam`, dashboard tab, `custody-lab redteam`). A deposit credited
+at one confirmation is reorganised away on regtest (`invalidateblock`, observed: the deposit drops
+to 0 confirmations and the double spend has 2); the books owe 1.50 BTC against 1.00 held; at three
+confirmations nothing is credited. A new vector, 5.7: the global whitelist does not bind a
+destination to its client, so a withdrawal sent to another client's registered address passes blind
+approver devices, and the books still agree with the chain; devices with their own address book
+refuse it.
+
+**Verified.** Full suite: 255 passed. `ruff`, `mypy` strict, `oxlint` clean. Red team and key
+ceremonies tabs driven headless at 1280 and 390 px, no console messages, no horizontal scroll.
+
+**Open.** Nine future demos remain in the analysis and in `atlas/project/ideas.md`.
+
+### Deliverables
+
+- An attack-vector analysis now covers the whole design layer by layer, with the status of every
+  vector and the evidence for it.
+- The analysis found two gaps between the demo and its own documents; both are fixed: secret
+  key-generation messages are now encrypted end to end, and the policy engine and approvers run apart
+  from the coordinator.
+- A new red-team demo shows two attacks succeeding against weak rules and failing against the
+  defences: a deposit taken back by a reorganised chain, and a withdrawal sent to the wrong
+  client's address.
+- The red team uncovered a further weakness, a whitelist that does not tie an address to its
+  client, and shows the approver-device check that closes it.
+
 ## 2026-10-09: A day at the custodian, the client's signature check, chapter 10, key ceremonies
 
 The owner asked for work to continue autonomously, keeping a running list of ideas
