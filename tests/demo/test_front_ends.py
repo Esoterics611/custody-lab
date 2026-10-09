@@ -118,11 +118,13 @@ def test_run_prints_each_step_its_details_and_the_summary(tmp_path: Path) -> Non
 
 @pytest.mark.usefixtures("failing_run")
 def test_run_prints_the_failure_and_exits_non_zero(tmp_path: Path) -> None:
-    result = CliRunner().invoke(cli.app, ["run", "--runs", str(tmp_path)])
+    narrow = {"COLUMNS": "40"}  # other details are cut to the terminal; the error is not
+    result = CliRunner().invoke(cli.app, ["run", "--runs", str(tmp_path)], env=narrow)
 
     assert result.exit_code == 1
     assert "      error: RuntimeError: aggregated signature does not verify" in result.output
-    assert isinstance(result.exception, RuntimeError)
+    assert "Traceback" not in result.output
+    assert result.output.rstrip().endswith("/events.jsonl")
 
 
 @pytest.mark.usefixtures("succeeding_run")
