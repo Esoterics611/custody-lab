@@ -185,7 +185,7 @@ assert not verifies(someone_else, signature, message)
 print("another person's key:      signature rejected")
 ```
 
-    signature: 64 bytes, beginning 896f5bf4d45df2d2
+    signature: 64 bytes, beginning 6ed35c2f1df2e002
     original message:          signature accepted
     amount altered:            signature rejected
     another person's key:      signature rejected
@@ -734,11 +734,11 @@ coordinator is the program that passes messages between the signers and
 asks them to sign. If it were compromised, it could ask them to sign
 anything. Because each signer checks for itself, a compromised
 coordinator can only obtain signatures for transactions that people
-approved. That holds when the coordinator, the policy engine and the
-approvers are separate parties, as [chapter 9](09-capstone.md) designs
-them. The demo runs all three in one process for convenience, so in the
-demo as packaged it does not; the [attack-vector
-analysis](../attack-vectors.md) lists this and every other gap.
+approved. That holds because the coordinator, the policy engine and the
+approvers are separate parties. In the demo each runs as a process of
+its own, holding its own keys, though all on one computer; the
+[attack-vector analysis](../attack-vectors.md) lists what that does and
+does not protect.
 
 <a id="two-quorums"></a>
 

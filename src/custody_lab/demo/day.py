@@ -40,14 +40,14 @@ import json
 import os
 import shutil
 import time
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
+from custody_lab.demo.parties import ApproverDevice, PolicyService, PolicySpec
 from custody_lab.demo.pipeline import (
     FEE_CAP_SATS,
     Emit,
@@ -57,10 +57,9 @@ from custody_lab.demo.pipeline import (
 )
 from custody_lab.foundations import schnorr
 from custody_lab.mpc.cluster import SigningCluster
-from custody_lab.policy.audit import AuditLog, verify_chain
-from custody_lab.policy.authorisation import AuthorityKey
-from custody_lab.policy.engine import AssetPolicy, Policy, PolicyDenied, PolicyEngine, Tier
-from custody_lab.policy.model import Approval, SettlementInstruction
+from custody_lab.policy.audit import verify_chain
+from custody_lab.policy.engine import AssetPolicy, PolicyDenied, Tier
+from custody_lab.policy.model import SettlementInstruction
 from custody_lab.reserves.merkle_sum import MerkleSumTree
 from custody_lab.reserves.merkle_sum import verify as verify_inclusion
 from custody_lab.reserves.snapshot import Snapshot, publish
@@ -184,7 +183,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
         events.append(event)
         emit(event)
 
-    approvers = {n: Ed25519PrivateKey.generate() for n in ("bob", "carol")}
+    parties = ExitStack()  # the policy engine and the approvers' devices, each a process
     ledger = {client: Decimal(0) for client in CLIENTS}  # BTC the custodian owes each client
     origins: dict[str, str] = {}  # "txid:vout" of a custody coin -> where it came from
     node: RegtestNode | None = None
@@ -216,7 +215,8 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
             exchange_address=settle_to,
         )
 
-        policy = Policy(
+        devices = {n: parties.enter_context(ApproverDevice(n)) for n in ("bob", "carol")}
+        spec = PolicySpec(
             {
                 "BTC": AssetPolicy(
                     tiers=(Tier(Decimal("0.1"), 1), Tier(Decimal("10"), 2)),
@@ -225,9 +225,9 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                     velocity_limit=DAILY_LIMIT,
                 )
             },
-            {n: k.public_key() for n, k in approvers.items()},
+            {n: d.public_key for n, d in devices.items()},
         )
-        engine = PolicyEngine(policy, AuthorityKey.generate(), AuditLog(_now), _now)
+        engine = parties.enter_context(PolicyService(spec))
 
         report("keys", "running")
         with SigningCluster(2, 3, authority=engine.authority_public_key) as cluster:
@@ -359,7 +359,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 stx = transfer.build(coins, amount, destination, custody_script)
                 transfer.check_matches(stx, amount, destination, custody_script, FEE_CAP_SATS)
                 spent = stx.tx.inputs[0]
-                approvals = [Approval.create(ins, n, approvers[n]) for n in names]
+                approvals = [devices[n].approve(ins) for n in names]
                 token = engine.authorise(ins, approvals, stx.sighash())
                 signature = cluster.sign(stx.sighash(), signers, token.to_bytes(), taproot=True)
                 if not schnorr.verify(stx.sighash(), output_key, signature):
@@ -447,7 +447,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                         "ops-desk",
                         _now(),
                     )
-                    approvals = [Approval.create(ins, n, approvers[n]) for n in request.approvers]
+                    approvals = [devices[n].approve(ins) for n in request.approvers]
                     try:
                         engine.authorise(ins, approvals, bytes(32))
                         raise RuntimeError(f"{request.instruction_id} was authorised")
@@ -472,7 +472,8 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
             tree = MerkleSumTree(ledger)
             proofs_ok = all(verify_inclusion(tree.proof(c), tree.root) for c in ledger)
             assets = bitcoin.to_btc(sum(u.amount for u in chain.custody_utxos(rpc, output_key)))
-            verify_chain(engine.audit.entries)
+            entries, head = engine.audit()
+            verify_chain(entries)
             snapshot = Snapshot(
                 taken_at=_now(),
                 block_height=rpc.call("getblockcount"),
@@ -482,7 +483,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 clients=len(ledger),
                 assets=assets,
                 custody_output_key=output_key.hex(),
-                audit_head=engine.audit.head,
+                audit_head=head,
             )
             attest = engine.authorise_attestation(snapshot.statement())
             message = snapshot.attestation_message()
@@ -501,7 +502,7 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
                 root=snapshot.liabilities_root,
                 inclusion_proofs_verify=proofs_ok,
                 proof_of_control=f"signed by signers {' and '.join(map(str, AFTERNOON_SIGNERS))}",
-                audit_entries=len(engine.audit.entries),
+                audit_entries=len(engine.audit()[0]),
                 audit_head=snapshot.audit_head,
                 snapshot=os.path.relpath(path),
                 snapshot_document=json.loads(path.read_text()),  # as a client downloads it
@@ -516,11 +517,12 @@ def run(emit: Emit, workdir: Path) -> dict[str, Any]:
             node.stop()
         shutil.rmtree(workdir / "node", ignore_errors=True)
         (workdir / "audit.jsonl").write_text(
-            "".join(json.dumps(asdict(e), default=str) + "\n" for e in engine.audit.entries)
+            "".join(json.dumps(asdict(e), default=str) + "\n" for e in engine.audit()[0])
             if "engine" in locals()
             else ""
         )
         (workdir / "events.jsonl").write_text("".join(e.to_json() + "\n" for e in events))
+        parties.close()
     return {
         "liabilities": snapshot.liabilities,
         "assets": snapshot.assets,

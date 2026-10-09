@@ -255,6 +255,9 @@ a key nobody holds, permanently.
 - `output key`: the group key after the tweak.
 - `address`: the custody address, starting `bcrt1p`.
 - `implementations agree yes`: the three derivations matched.
+- `other keys`: the processes holding the policy engine's authority key and each approver's key,
+  and the coordinator, this server, holding none. Whoever controls the server cannot approve or
+  authorise a payment (the [attack-vector analysis](attack-vectors.md), Finding 2).
 
 In the **Key shares** panel, each signer now reads "holds its share" and shows its process
 number, for example "process 780714, share 1 of 3".
