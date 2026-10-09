@@ -4,10 +4,11 @@ from datetime import UTC, datetime, timedelta
 from itertools import combinations
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from custody_lab.foundations import schnorr
 from custody_lab.mpc.cluster import SigningCluster
-from custody_lab.policy import authorisation
+from custody_lab.policy import authorisation, signed_time
 
 AUTHORITY_KEY = authorisation.AuthorityKey.generate()
 MSG = bytes.fromhex("6a" * 32)  # stands in for a 32-byte BIP341 sighash
@@ -132,3 +133,50 @@ def test_a_lost_share_is_repaired_by_two_helpers() -> None:
         assert c.public_key_package == public
         for pair in ((1, 2), (2, 3)):
             assert schnorr.verify(MSG, group_key, c.sign(MSG, pair, token()))
+
+
+class _TimeAuthority:
+    """A time authority in this process, answering every nonce with the true time."""
+
+    def __init__(self) -> None:
+        self._key = Ed25519PrivateKey.generate()
+        self.public_key = self._key.public_key().public_bytes_raw()
+        self.replay: bytes | None = None  # a recorded answer to pass on instead
+
+    def stamp(self, nonce: bytes) -> bytes:
+        if self.replay is not None:
+            return self.replay
+        return signed_time.stamp(self._key, nonce, datetime.now(UTC)).to_bytes()
+
+
+def test_signers_whose_clocks_are_set_back_accept_an_expired_token(
+    cluster: tuple[SigningCluster, bytes],
+) -> None:
+    c, group_key = cluster
+    expired = token(ttl=timedelta(minutes=-4))
+    c.set_clock(1, -timedelta(minutes=5))
+    try:
+        with pytest.raises(RuntimeError, match="signer 3: AuthorisationRejected..expired"):
+            c.sign(MSG, [1, 3], expired)  # one clock set back: signer 3 still refuses
+        c.set_clock(3, -timedelta(minutes=5))
+        assert schnorr.verify(MSG, group_key, c.sign(MSG, [1, 3], token(ttl=timedelta(minutes=-4))))
+    finally:
+        for i in (1, 3):
+            c.set_clock(i, timedelta(0))
+
+
+def test_signers_on_signed_time_ignore_their_clocks_and_refuse_a_replayed_time() -> None:
+    time_authority = _TimeAuthority()
+    with SigningCluster(2, 3, AUTHORITY_KEY.public_bytes(), time_authority) as c:
+        group_key = c.dkg()
+        assert schnorr.verify(MSG, group_key, c.sign(MSG, [1, 3], token()))
+        for i in (1, 3):
+            c.set_clock(i, -timedelta(minutes=5))
+        with pytest.raises(RuntimeError, match="signer 1: AuthorisationRejected..expired"):
+            c.sign(MSG, [1, 3], token(ttl=timedelta(minutes=-4)))
+
+        time_authority.replay = time_authority.stamp(signed_time.new_nonce())
+        with pytest.raises(RuntimeError, match="answers another request"):
+            c.sign(MSG, [1, 3], token())
+        time_authority.replay = None
+        assert schnorr.verify(MSG, group_key, c.sign(MSG, [1, 3], token()))
