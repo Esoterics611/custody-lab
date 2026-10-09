@@ -35,10 +35,38 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
 
 ## Open
 
-- **What the approver's own device shows.** Chapter 10's Bitget case: approvers sign an
-  instruction built by a system they trust. Simulate a compromised instruction builder, and an
-  approver device that decodes the destination against the registered-address book on its own, so
-  the spoofed instruction is refused before any approval.
+### From the attack-vector analysis
+
+Each shows an attack that succeeds, then the defence that stops it. Numbers refer to the vectors
+in `manual/attack-vectors.md`.
+
+- **Split the server** (Finding 2; 3.4, 4.3). Run the policy engine and each approver in a process
+  of its own, and show a compromised coordinator unable to authorise anything.
+- **Substitute a channel key** (1.4). A coordinator that swaps the signers' channel keys at start-up
+  reads the sub-shares; keys pinned at provisioning stop it.
+- **Read the shares from memory** (1.5, 1.6). An administrator of the one machine reads all three
+  signer processes: why chapter 3 puts shares on separate machines.
+- **Set a signer's clock back** (4.4). An expired authorisation accepted; a trusted time source
+  refuses it.
+- **Restart a signer and replay** (4.5). A used authorisation accepted after a restart within its
+  60 seconds; a persisted record refuses it.
+- **Register an attacker's address** (4.8). An unprotected whitelist change, then registration as
+  an approved instruction with a delay before first payment.
+- **Spoof the instruction** (5.5; chapter 10's Bitget case). A compromised instruction builder fools
+  approvers who sign blind; an approver device that decodes the destination against registered
+  addresses refuses.
+- **Reorganise the chain** (7.2). On regtest, invalidate the block holding a credited deposit and
+  double-spend it; a confirmation threshold by amount refuses to credit too early.
+- **Inject a fill** (8.1). A false execution report in the unauthenticated FIX session changes the
+  settlement; reconciliation against the exchange's statement catches it.
+- **Borrow for the snapshot** (9.6). Coins borrowed for one snapshot; an unannounced second snapshot
+  shows the gap.
+- **Leave a client out** (9.5). The omitted client asks for its proof and finds none.
+- **Rewrite the log between snapshots** (10.2). Entries after the last anchored head rewritten
+  unnoticed until the next snapshot.
+
+### Other ideas
+
 - **A second chain.** The teaching two-party ECDSA (`mpc/lindell17`) signing an account-model
   transfer, to show chapter 10's point that each chain's signature rule needs its own threshold
   protocol.

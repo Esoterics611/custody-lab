@@ -148,6 +148,10 @@ scripts/render-manual.sh           # every chapter to PDF and to the Markdown sh
 
 ## What is real and what is a toy
 
+[The attack-vector analysis](manual/attack-vectors.md) lists every way found to attack the design,
+what stops each in the demo, and what remains open, including two gaps between the demo as
+packaged and the design it shows.
+
 Five components are third-party software. Everything else is written for this project.
 
 | Component | Used for | Status |
