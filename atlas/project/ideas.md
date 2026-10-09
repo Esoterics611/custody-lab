@@ -33,6 +33,8 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   BTC short, and nothing is credited under a three-confirmation rule; a withdrawal sent to another
   client's registered address passes blind approver devices and is refused by checking ones (a new
   vector, 5.7: the global whitelist does not bind a destination to its client).
+- **Leave a client out** (2026-10-09). A seventeenth attack in the panel: the omitted client finds no
+  proof in the published tree, and a proof from a second tree misses the published, signed root.
 
 ## Next
 
@@ -61,7 +63,6 @@ in `manual/attack-vectors.md`.
   settlement; reconciliation against the exchange's statement catches it.
 - **Borrow for the snapshot** (9.6). Coins borrowed for one snapshot; an unannounced second snapshot
   shows the gap.
-- **Leave a client out** (9.5). The omitted client asks for its proof and finds none.
 - **Rewrite the log between snapshots** (10.2). Entries after the last anchored head rewritten
   unnoticed until the next snapshot.
 

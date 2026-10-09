@@ -6,7 +6,7 @@ A custody system is judged by the payments it refuses. This document goes throug
 demo's design can be attacked, layer by layer, from the moment the key is generated to the
 published proof of reserves, and says for each what stops it, where that defence lives in the
 code or the tests, and what remains open. It is a companion to the walkthrough's [Attacking the
-design](demo-walkthrough.md#attacking-the-design), which runs sixteen of these attacks, and to
+design](demo-walkthrough.md#attacking-the-design), which runs seventeen of these attacks, and to
 [chapter 9](chapters/09-capstone.md#failure-modes), whose failure table sets out the same design
 from the defender's side.
 
@@ -327,8 +327,10 @@ expects. *Status:* refused, demonstrated (attack panel; the balance check's "+1 
 *Stopped by:* the verifier rejects any negative sibling sum (`merkle_sum.verify`). *Status:* refused,
 tested.
 
-**9.5 A client left out.** *Attack:* omit a client from the tree. *Stopped by:* only that client,
-when it asks for its proof and gets none. *Status:* open: a client that never checks is never
+**9.5 A client left out.** *Attack:* omit a client from the tree, and show that client a second
+tree that includes it. *Stopped by:* only that client: it finds no proof in the published tree, and
+its proof from the second tree reaches a root other than the published, signed one (attack panel,
+"Leave a client out of the liabilities tree"). *Status:* open: a client that never checks is never
 missed (chapter 0, What a proof of reserves does not show).
 
 **9.6 Borrowed coins.** *Attack:* borrow coins for the moment of the snapshot and return them after.
@@ -415,8 +417,7 @@ Each open vector can be shown as an attack that succeeds, then a defence that st
    settlement; reconciliation against the exchange's statement catches it.
 7. **Borrow for the snapshot** (9.6): a custodian borrows coins for one snapshot; an unannounced
    second snapshot shows the gap.
-8. **Leave a client out** (9.5): the omitted client asks for its proof and finds none.
-9. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
+8. **Rewrite the log between snapshots** (10.2): entries after the last anchor rewritten unnoticed
    until the next snapshot.
 
 ## Recap
