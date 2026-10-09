@@ -18,7 +18,7 @@ build, so the manual is tested in the same way as the code.
 
 ## Chapters
 
-**Status.** Chapters 0 to 9 follow the manual's writing standard (explanation at length, concept by
+**Status.** Chapters 0 to 10 follow the manual's writing standard (explanation at length, concept by
 concept). The rewrite is complete.
 
 | Chapter | The question it answers |
@@ -33,6 +33,7 @@ concept). The rewrite is complete.
 | [7. Post-quantum cryptography](chapters/07-post-quantum.md) | What would a quantum computer break, and what replaces it? Hash-based signatures (Lamport, WOTS+, SLH-DSA), ML-DSA and ML-KEM, why they are hard to use for threshold signing, and the order in which a custodian should migrate. |
 | [8. Industry and regulation](chapters/08-industry.md) | Where does this sit in finance today? Money issued as tokens, delivery versus payment, institutional ledgers and central bank projects, the EU and US custody rules, and the Israeli landscape. |
 | [9. Capstone](chapters/09-capstone.md) | How would the whole system be designed for production? A design review: the architecture, what each component's compromise gives an attacker, fourteen failure modes, and the trade-offs. |
+| [10. Custody in practice](chapters/10-practice.md) | How do leading custodians keep keys today, what does each large asset ask of a custodian, what did the large losses of 2025 and 2026 have in common, and what is being standardised? From public sources read on 2026-10-09, each tied to the chapter that explains the mechanism. |
 
 ## Reference
 

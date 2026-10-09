@@ -3,7 +3,8 @@
 2026-10-08
 
 Previous: [Chapter 8, Industry and Regulation](08-industry.md) \| [All
-chapters](../README.md)
+chapters](../README.md) \| Next: [Chapter 10, Custody in
+Practice](10-practice.md)
 
 > [!WARNING]
 >
@@ -635,4 +636,5 @@ assert math.comb(5, 2) == 10 and math.comb(3, 2) == 3
 ------------------------------------------------------------------------
 
 Previous: [Chapter 8, Industry and Regulation](08-industry.md) \| [All
-chapters](../README.md)
+chapters](../README.md) \| Next: [Chapter 10, Custody in
+Practice](10-practice.md)
