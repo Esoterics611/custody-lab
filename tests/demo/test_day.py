@@ -75,7 +75,7 @@ def test_each_refusal_comes_from_the_layer_that_owns_the_rule(
     the_day: tuple[dict[str, Any], dict[str, Any]],
 ) -> None:
     _, done = the_day
-    refused = {r["request"]: r for r in done["refused"]["requests"]}
+    refused = done["refused"]["requests"]
     assert refused["withdraw-delta-1"]["refused_by"] == "the ledger"
     assert refused["withdraw-delta-1"]["reason"] == "delta-trading holds 0.00 BTC"
     assert refused["withdraw-alpha-1"]["reason"].endswith("is not whitelisted")
