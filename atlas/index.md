@@ -50,6 +50,7 @@ links to the sections that teach it.
 | [`mpc/dkg.md`](mpc/dkg.md) — Pedersen DKG, no trusted dealer | draft |
 | [`mpc/proactive-refresh.md`](mpc/proactive-refresh.md) — same key, new shares | draft |
 | [`mpc/backup-recovery.md`](mpc/backup-recovery.md) — verifiable backup, recovery ceremonies | draft |
+| [`mpc/protocol-messages.md`](mpc/protocol-messages.md) — what the signing cluster sends, byte by byte | draft |
 
 ## [3. Key storage](../manual/chapters/03-key-storage.md)
 

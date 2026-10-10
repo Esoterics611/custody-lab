@@ -336,6 +336,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Prover.** The party in a proof or identification protocol that holds the secret, here the private key $d$, and convinces a verifier without revealing it. *Taught in:* [1 FP, What a signature proves](../manual/chapters/01-foundations.md#what-a-signature-proves).
 
+**Public key package.** The public record that key generation produces and every signer holds: each signer's identifier and verifying share, the group public key, and the threshold. In the demo it is 236 bytes, and the three signers return identical copies, which is how the coordinator checks that they agree. A refresh replaces the verifying shares in it and keeps the group key. *Taught in:* [Walkthrough, Watching the protocol](../manual/demo-walkthrough.md#watching-the-protocol).
+
 **Public ledger.** A ledger on which anyone can run a node and submit transactions, and every transaction is visible to everyone. Bitcoin and Ethereum are public ledgers. *Taught in:* [8 FP, Public and permissioned ledgers](../manual/chapters/08-industry.md#public-and-permissioned-ledgers).
 
 **Publicly verifiable encryption.** Encryption of a share that anyone can check matches a known public share without decrypting it, so a custodian can show an auditor that its share backups would work. *Taught in:* [2, Backup, recovery and repair](../manual/chapters/02-mpc-custody.md#backup-recovery-and-repair).
@@ -380,6 +382,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **ROS attack.** Forging a threshold Schnorr signature by opening many signing sessions at once, seeing the honest signers' commitments, and choosing how to combine them. It runs in polynomial time once the number of sessions exceeds the group order's bit length; FROST's binding factor removes the freedom it needs. *Taught in:* [2 FP, Many sessions at once](../manual/chapters/02-mpc-custody.md#many-sessions-at-once).
 
+**Round-1 package.** What each signer broadcasts in the first round of key generation or refresh: Feldman commitments to its line's coefficients and a proof of knowledge of its starting value. In the demo it is 137 bytes for key generation and 104 for a refresh, whose lines start at zero and so need one commitment fewer. It is public by design. *Taught in:* [2, Distributed key generation](../manual/chapters/02-mpc-custody.md#distributed-key-generation); [Walkthrough, Watching the protocol](../manual/demo-walkthrough.md#watching-the-protocol).
+
 **Round.** One exchange of messages in which every party sends and then waits for all the others before its next step. Each round costs at least one network round trip, so the number of rounds sets a protocol's latency. *Taught in:* [2 FP, Parties, rounds and a coordinator](../manual/chapters/02-mpc-custody.md#parties-rounds-and-a-coordinator).
 
 ## S
@@ -408,6 +412,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Sensitive key.** A key an HSM never reveals in plaintext; if it leaves at all, it leaves wrapped. *Taught in:* [3 FP, Key wrapping](../manual/chapters/03-key-storage.md#key-wrapping).
 
+**Serialization.** The rule that turns a data structure into a row of bytes for a network or a file, and back. Two programs exchange messages only if they serialize them the same way. The Zcash Foundation FROST crate begins every message with a 5-byte header, a format version and four bytes computed from the ciphersuite's name, then writes each number in 32 bytes and each point in 33. *Taught in:* [Walkthrough, Watching the protocol](../manual/demo-walkthrough.md#watching-the-protocol).
+
 **Settlement finality.** The legally defined point after which a settlement cannot be unwound, fixed by a system's rules and protected in insolvency. A blockchain's confirmations give a finality that only grows with each block; it becomes legal finality only where a rulebook or statute says so. *Taught in:* [8 FP, Settlement finality](../manual/chapters/08-industry.md#settlement-finality).
 
 **Settlement risk.** The risk that one side of a trade delivers and the other does not. Delivery versus payment removes it; the demo carries it, because it settles only the bitcoin leg. *Taught in:* [8 FP, Delivery versus payment](../manual/chapters/08-industry.md#delivery-versus-payment).
@@ -424,7 +430,11 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 
 **Sighash.** The 32-byte hash of a transaction's fields that a signature actually signs, with the witness left out. It commits to every input's amount and script and every output, so one sighash authorises exactly one transaction. *Taught in:* [5 FP, What the signature covers: the sighash](../manual/chapters/05-settlement.md#what-the-signature-covers-the-sighash).
 
+**Signature share.** FROST's name for a partial signature: the 32-byte number one signer computes from its share, its nonces and the signing package. The coordinator adds the shares of a threshold of signers into one 64-byte signature, and a wrong share is traced to its signer with that signer's verifying share. *Taught in:* [2, FROST](../manual/chapters/02-mpc-custody.md#frost); [Walkthrough, Watching the protocol](../manual/demo-walkthrough.md#watching-the-protocol).
+
 **Signed time.** The time, signed by a time authority together with a nonce the asker drew. A signer that checks an authorisation's expiry against signed time instead of its own clock cannot be fooled by a clock set back, and the nonce stops a signed time recorded earlier from being presented again. It is the core of Roughtime (RFC 10049). *Taught in:* [Walkthrough, Clocks](../manual/demo-walkthrough.md#clocks).
+
+**Signing package.** What the FROST coordinator sends each signer in the second round: every participating signer's nonce commitments and the message to sign. Each signer computes its binding factor from it, so every signer signs against the same list. In the demo, with two signers, it is 245 bytes. *Taught in:* [2, FROST](../manual/chapters/02-mpc-custody.md#frost); [Walkthrough, Watching the protocol](../manual/demo-walkthrough.md#watching-the-protocol).
 
 **Signing quorum.** The machines holding key shares, $t$ of which must take part in a signature: in the demo, any two of three signer processes. It is separate from the approval quorum of people. *Taught in:* [0, Two quorums](../manual/chapters/00-orientation.md#two-quorums); [2, What this chapter is for](../manual/chapters/02-mpc-custody.md#what-this-chapter-is-for).
 
@@ -441,6 +451,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 **Stateful signature.** A scheme, such as XMSS or LMS, whose signer must record which one-time leaves it has used and never use one twice. Restoring a stateful signer from a backup can bring back a used leaf. *Taught in:* [7 FP, A Merkle tree of one-time keys](../manual/chapters/07-post-quantum.md#a-merkle-tree-of-one-time-keys).
 
 **Statement.** The canonical JSON of a reserves snapshot's fields. Its tagged hash is the message the custody key signs as proof of control. *Taught in:* [6, Snapshot and attestation](../manual/chapters/06-reserves.md#snapshot-and-attestation).
+
+**Sub-share.** In distributed key generation, the value one participant sends another: the height of the sender's secret line at the receiver's number. Each receiver's share is the sum of the sub-shares it receives and its own. Anyone who reads enough sub-shares can rebuild every line and so the key, which is why they travel over private channels; in the demo each is sealed to its recipient in 65 bytes. *Taught in:* [2, Distributed key generation](../manual/chapters/02-mpc-custody.md#distributed-key-generation); [Walkthrough, Watching the protocol](../manual/demo-walkthrough.md#watching-the-protocol).
 
 **Sweep.** Moving every coin from an old key to a new one: the only way to rotate a custody key. It is itself a settlement through the full policy path. *Taught in:* [9, Deep dives](../manual/chapters/09-capstone.md#deep-dives).
 
@@ -495,6 +507,8 @@ Abbreviations such as HSM, KEM and TEE are listed under the abbreviation.
 **Velocity limit.** A cap on the total authorised in a rolling time window, such as 20 BTC in any 24 hours in the demo. It bounds what a compromise that gets past every other control can move before someone notices. *Taught in:* [4, The decision function](../manual/chapters/04-policy.md#the-decision-function).
 
 **Verifier.** The party that checks a proof or signature using only public values, here the public key $Q$. In Schnorr's identification protocol it sends the challenge; in a signature a hash plays its part. *Taught in:* [1 FP, What a signature proves](../manual/chapters/01-foundations.md#what-a-signature-proves).
+
+**Verifying share.** A signer's share times G: public, recorded in the public key package. It lets anyone check that signer's signature share, so a wrong share can be traced to the signer that sent it, and it changes whenever the share does. *Taught in:* [Walkthrough, Watching the protocol](../manual/demo-walkthrough.md#watching-the-protocol).
 
 ## W
 

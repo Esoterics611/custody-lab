@@ -38,6 +38,9 @@ commitment built to cancel the others' and make the group key one it alone contr
 - Signing path: `SigningCluster.dkg()` runs the ZF crate's `dkg::part1` to `part3` across three
   processes, in the demo's step 2.
 - Teaching code: `src/custody_lab/mpc/dkg.py` (`Dealer`, `check_round1`, `combine`, `run`).
+- The protocol tab (`custody_lab.demo.protocol`) shows the three rounds' messages: 137-byte
+  round-1 packages forwarded unchanged, 65-byte sub-shares sealed to their recipients, and
+  identical 236-byte public key packages ([message formats](protocol-messages.md)).
 
 ## In the manual
 

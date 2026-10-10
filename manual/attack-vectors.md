@@ -61,7 +61,8 @@ who sees all of them can compute every share. Chapter 2 said these travel over p
 and the refresh and repair values, passed through the coordinator in plain form. They are now
 sealed from signer to signer (`custody_lab.mpc.channel`: X25519 between the two signers,
 HKDF-SHA256, ChaCha20-Poly1305), and a test records everything the coordinator relays and shows it
-cannot open any of it (`tests/mpc/test_channel.py`). One trust remains: the signers' channel
+cannot open any of it (`tests/mpc/test_channel.py`). The walkthrough's [Watching the
+protocol](demo-walkthrough.md#watching-the-protocol) shows that record message by message. One trust remains: the signers' channel
 public keys pass through the coordinator when the processes start (vector 1.4).
 
 **Finding 2, fixed: one process held the coordinator, the policy engine and the approvers.**
@@ -94,14 +95,17 @@ generation). *Status:* refused by the crate; not demonstrated separately.
 
 **1.3 Reading the sub-shares in transit.** *Attack:* a coordinator, or anyone on the path between
 signers, records the key-generation sub-shares and computes every share. *Stopped by:* sealing
-each sub-share to its recipient (Finding 1). *Status:* refused, tested
-(`test_the_coordinator_relays_sub_shares_it_cannot_open`).
+each sub-share to its recipient (Finding 1). *Status:* refused, demonstrated (Watching the
+protocol: the tab is a recording coordinator, and every sub-share, refresh point, delta and sigma it
+records is sealed); tested (`test_the_coordinator_relays_sub_shares_it_cannot_open`, and
+`test_no_share_of_any_period_passes_through_the_coordinator`, which searches every byte the
+coordinator relays for every signer's share of each period).
 
 **1.4 Substituting the channel keys.** *Attack:* the process that starts the signers hands each
 signer the coordinator's own channel key in place of its peers', then opens and re-seals every
 sub-share in passing. *Stopped by:* in the design, channel keys are provisioned out of band, for
 example as attested enclave keys or HSM certificates (chapter 3). *Status:* open in the demo,
-where the keys pass through the coordinator at start-up.
+where the keys pass through the coordinator at start-up (Watching the protocol, rounds 1 and 2).
 
 **1.5 All shares on one machine.** *Attack:* an administrator of the computer reads the memory of
 all three signer processes. *Stopped by:* in the design, separate machines under separate
@@ -420,8 +424,8 @@ This table summarises the statuses above.
 
 | Status | Vectors |
 |--------|---------|
-| Refused, demonstrated | 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 4.8, 5.1, 5.2, 5.3, 5.5, 5.7, 6.2, 7.1, 7.2, 8.1, 9.1, 9.2, 9.3, 9.7, 10.1, 10.2 |
-| Refused, tested or by construction | 1.2, 1.3, 2.2, 2.3, 3.4, 6.1, 6.3, 7.3, 9.4, 12.2 |
+| Refused, demonstrated | 1.3, 1.7, 2.1, 2.4, 3.1, 3.2, 4.1, 4.2, 4.4, 4.6, 4.8, 5.1, 5.2, 5.3, 5.5, 5.7, 6.2, 7.1, 7.2, 8.1, 9.1, 9.2, 9.3, 9.7, 10.1, 10.2 |
+| Refused, tested or by construction | 1.2, 2.2, 2.3, 3.4, 6.1, 6.3, 7.3, 9.4, 12.2 |
 | Contained | 1.8, 2.5, 2.6, 3.3, 4.7, 5.4, 5.6, 9.6, 11.1 |
 | Open in the demo | 1.4, 1.5, 1.6, 4.3, 4.5 (no gain), 4.9, 4.10, 7.4, 12.1, 13.1 |
 | Open | 8.2, 9.5, 10.3, 14.1 |
