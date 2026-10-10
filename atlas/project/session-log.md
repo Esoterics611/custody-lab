@@ -2,6 +2,126 @@
 
 Newest first.
 
+## 2026-10-10: Watching the protocol: every message through the coordinator, field by field
+
+The owner asked to continue with the next idea, to make it a showcase, and to update the course and
+documents to match. The ideas list's next item was watching the signing protocol.
+
+**Cluster.** `SigningCluster(watch=...)` calls the watch with each round's requests as they are
+sent and again with the replies. Without a watch nothing changes.
+
+**Protocol demo** (`custody_lab.demo.protocol`, `custody-lab protocol`, `POST /api/protocol`,
+`GET /api/protocol/steps` and `/api/protocol/ceremonies`). A fresh 2-of-3 cluster plays private
+channels, key generation, signing, refresh, repair, and signing with the repaired share: sixteen
+rounds and two aggregations. Each round's event lists every message both ways: hop, what it
+carries, origin, destination, kind (instruction, clear, sealed, authorisation), bytes, fields and a
+SHA-256 fingerprint. The fields follow the crate's serialization, read in the `frost-core` 3.0.0
+and `frost-secp256k1-tr` 3.0.0 sources (observed): a 5-byte header holding version 0 and the CRC-32
+of `FROST-secp256k1-SHA256-TR-v1` (`230f8ab3`, recomputed here), 32-byte scalars, 33-byte points,
+and proofs as a length byte, an x-only R and z. A refresh's round-1 package drops the commitment to
+its zero constant term (`keys/refresh.rs`). Every message's fields are checked against its length
+as it passes.
+
+Measured (observed): round-1 package 137 B, refresh round-1 package 104 B, sealed sub-share 65 B
+(nonce 12, ciphertext 37, tag 16), public key package 236 B, nonce commitments 71 B, signing
+package 245 B, authorisation 7,047 B (ML-DSA-65 signature in hex 6,618 B), signature share 32 B,
+delta and sigma 60 B. One run: 113 messages; 6,305 B clear, 2,280 B sealed, 28,188 B of
+authorisations.
+
+Dropped: a coordinator-side sweep that tried every 32-byte window of the relayed bytes as a share
+against the verifying shares. OpenSSL took 18.3 s for 20,000 windows (observed), too slow for a
+demo step. It is replaced by a direct test.
+
+**Dashboard.** A **Watch the protocol** tab: an SVG stage with the coordinator and three signers;
+each round's requests and replies travel the spokes as packets coloured by kind (sealed ones
+padlocked, stacked when a hop carries several), signers turn amber while they work and dim when not
+involved, and each shows its share's period and verifying share. The round card explains the
+round, lists its messages, and splits the chosen one into its fields as a bar. A panel counts the
+bytes the coordinator has relayed, by kind; a timeline groups the rounds by ceremony. Play, pause,
+previous, next and four speeds; reduced motion honoured.
+
+**Course and documents.**
+- Walkthrough: a section, "Watching the protocol", written to the writing standard: the problem,
+  the idea with a FIX message log as the counterpart, the six ceremonies with the measured sizes,
+  and what breaks: chapter 2's toy sub-shares in clear give the key 9 to a coordinator that only
+  records them; the channel keys' trust and their lack of forward secrecy. Intro, tab count,
+  troubleshooting row, recap item.
+- Chapter 2: a cell that runs key generation and signing under a watch and prints each round's
+  bytes by kind, with a sentence on each printed line; re-rendered (30 pages).
+- Glossary: public key package, round-1 package, serialization, signature share, signing package,
+  sub-share, verifying share.
+- Atlas: `mpc/protocol-messages.md` (the formats and sizes); `frost.md` and `dkg.md` point at the
+  tab; `proactive-refresh.md` and `backup-recovery.md` corrected, since both said refresh and repair
+  were not on the signing path, which the key ceremonies have used since 2026-10-09.
+- Attack vectors: 1.3 is now refused and demonstrated; 1.4 names rounds 1 and 2.
+- README: it said the dashboard had three tabs (it had seven; now eight); the new command.
+- CLAUDE.md: layout, commands, module status, and a Proposed decision on the watch.
+
+**Verified.** Full suite: 287 passed (64 s; one starlette deprecation warning, present before this
+change). `ruff check`, `ruff format --check src tests`, `mypy` strict (84 files), `oxlint` and `npm
+--prefix web run build` clean; `tests/test_docs_links.py` passes. New tests:
+`tests/demo/test_protocol.py` (fields add up, sealed messages delivered unchanged, round-1 packages
+forwarded unchanged, refresh and repair, signatures, a format change stops the run),
+`test_no_share_of_any_period_passes_through_the_coordinator` (each share read from its key package
+and checked against OpenSSL's share times G, then searched for in every relayed byte: none found),
+and the CLI and stream test. Dashboard driven headless (Playwright 1.63.0, headless shell 1243, the
+three libraries unpacked into the scratchpad) at 1280 and 390 px and in dark mode; rounds 1, 4, 7, 8
+and 13 inspected in screenshots; no console messages; no horizontal scroll. Three defects found that
+way and fixed: the padlock's body took the packet's colour (CSS specificity), a dimmed signer's
+spoke showed through its box, and at phone width the round list sat above the stage.
+
+**Open.** The time authority's round is not on the tab (ideas list). At 390 px the stage's labels
+render at about 9 to 10 px.
+
+### Deliverables
+
+- The dashboard has a new tab that animates every message between the coordinator and the signers
+  through key generation, signing, refresh and repair, on the real signing processes.
+- Each message is split into its fields byte by byte, following the FROST library's own format,
+  and that format is checked against every message as it passes.
+- The tab shows that the coordinator reads only public values and authorisations: every value that
+  could reveal a share travels sealed, and a new test searches every relayed byte for every share
+  and finds none.
+- Measured: the post-quantum signatures on authorisations are about three quarters of all traffic
+  through the coordinator; the threshold protocol's own messages are tens to hundreds of bytes.
+- The walkthrough, chapter 2, the glossary, the atlas and the attack-vector analysis now teach the
+  protocol's messages, and two stale atlas entries and the README's tab list were corrected.
+
+## 2026-10-09: Clocks: an authorisation's life against signers' clocks, and signed time
+
+Logged on 2026-10-10: the session that made these two commits (`e2cde5c`, `4b9a4f4`) did not log
+them. Vector 4.4 and the countdown idea, done together.
+
+**Signed time.** `custody_lab.policy.signed_time` is the core of Roughtime (RFC 10049): the signer
+draws a 32-byte nonce, the time authority signs the time together with it (Ed25519), and the signer
+accepts the time only if the signature verifies and the nonce is its own. `SigningCluster` takes an
+optional time source: its public key is given to every signer at start, the coordinator fetches a
+signed time for each signer's nonce and relays it, and the signer never reads its own clock.
+`set_clock(i, offset)` is the educational attack. `TimeService` runs the time authority's key in a
+process of its own.
+
+**Clocks demo** (`custody_lab.demo.clocks`, the Clocks tab, `custody-lab clocks`). Seven steps
+with no chain: an authorisation used at once, one held back five minutes and refused, one clock set
+back (still refused), both set back (signed), signers on signed time refusing it, and a signed time
+for another nonce refused. Each step draws the authorisation's life as a bar; the settlement run's
+step 7 shows the time left. A new vector, 4.10 (a lying time authority), is open in the demo.
+Walkthrough section, glossary entries, ideas list.
+
+**Verified (2026-10-10).** `custody-lab clocks`: "59.98 s of 60 s, once signed"; the held-back
+authorisation refused by both signers; with signer 1's clock set back, refused by signer 3 only;
+with both set back, signed; on signed time, refused by both; a signed time for another nonce
+refused by both; `signed: ["in_time","both_clocks"]`. `tests/demo/test_clocks.py` and the cluster's
+clock tests pass in the 2026-10-10 suite. The session that made the commits recorded no
+verification.
+
+### Deliverables
+
+- Signers can take the time from a time authority's signed answer instead of their own machines'
+  clocks, so setting a clock back no longer revives an expired authorisation.
+- A Clocks tab shows an authorisation refused after its 60 seconds, accepted again once both
+  signers' clocks are set back, and refused by signers on signed time.
+- A recorded signed time cannot be replayed: each answer is bound to a fresh number the signer drew.
+
 ## 2026-10-09: Five more vectors demonstrated: borrowed coins, a forged fill, address registration, a re-hashed log, an omitted client
 
 Continuing down the attack-vector analysis's future demos.
