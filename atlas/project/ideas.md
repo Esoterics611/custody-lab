@@ -56,11 +56,18 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   time left. `custody_lab.policy.signed_time` (Roughtime's core, RFC 10049), `TimeService`,
   `custody-lab clocks`, the walkthrough section.
 
+- **Watch the signing protocol** (2026-10-10). Every message between the coordinator and the
+  signers through private channels, key generation, signing, refresh and repair, animated round by
+  round on the real processes, each split into its fields (the crate's serialization, checked
+  against every message's length), with what the coordinator relayed in clear, sealed and as
+  authorisations. `SigningCluster(watch=...)`, `custody_lab.demo.protocol`, the dashboard tab,
+  `custody-lab protocol`, the walkthrough section, a new cell in chapter 2 and the atlas entry
+  `mpc/protocol-messages.md`. A test searches every relayed byte for every signer's share of each
+  period and finds none.
+
 ## Next
 
-- **Watch the signing protocol.** An animated sequence of the actual messages between the
-  coordinator and the signers during key generation, refresh, repair and signing: who sends what to
-  whom in each round, with sizes. Needs the cluster to report its messages as events.
+None started.
 
 ## Open
 
@@ -83,4 +90,7 @@ in `manual/attack-vectors.md`.
 - **A live audit-log timeline**, with a switch that edits one entry and shows where the hash chain
   breaks.
 - **Replay a day.** Recorded days in `var/day` can be listed and replayed like runs.
+- **The time authority on the protocol tab.** Signing with signed time adds a round: each signer's
+  nonce out, the time authority's signed time back. Showing it needs the time authority's exchange
+  reported to the watch, since the coordinator fetches it outside the signers' pipes.
 - **Several days in a row.** The velocity window rolling over, and snapshots compared across days.

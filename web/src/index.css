@@ -13,6 +13,10 @@
   --run-bg: #fff4dc;
   --err: #b42318;
   --err-bg: #fdecea;
+  --sealed: #6d3fd1;
+  --sealed-bg: #f0eafd;
+  --auth: #0b7285;
+  --auth-bg: #e2f3f6;
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, 'SF Mono', Consolas, monospace;
 
@@ -38,6 +42,10 @@
     --run-bg: #33270f;
     --err: #ff7b72;
     --err-bg: #3a1614;
+    --sealed: #b69cff;
+    --sealed-bg: #2a2045;
+    --auth: #5ccbe0;
+    --auth-bg: #0f2f37;
   }
 }
 

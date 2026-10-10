@@ -10,7 +10,17 @@ import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from custody_lab.demo import attacks, ceremonies, cli, clocks, day, pipeline, redteam, server
+from custody_lab.demo import (
+    attacks,
+    ceremonies,
+    cli,
+    clocks,
+    day,
+    pipeline,
+    protocol,
+    redteam,
+    server,
+)
 
 GROUP_KEY = "02" + "ab" * 32
 
@@ -317,6 +327,36 @@ def test_the_clocks_stream_and_print_refusals_whole(
     assert result.exit_code == 0, result.output
     assert f"      refusal: {REFUSAL}" in result.output.splitlines()
     assert "lifetime" not in result.output
+
+
+def _a_short_protocol(emit: pipeline.Emit) -> dict[str, Any]:
+    emit(pipeline.Event("dkg1", "running", protocol.STEPS["dkg1"], {"explanation": "Each..."}))
+    out = {"leg": "out", "signer": 1, "carries": "start key generation", "kind": "instruction"}
+    back = {"leg": "back", "signer": 1, "carries": "its round-1 package", "kind": "clear"}
+    messages = [out | {"bytes": 0, "parts": []}, back | {"bytes": 137, "parts": [["h", 137]]}]
+    emit(pipeline.Event("dkg1", "done", protocol.STEPS["dkg1"], {"messages": messages}))
+    return {"rounds": 1}
+
+
+def test_the_protocol_streams_and_prints_one_line_per_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(protocol, "run", _a_short_protocol)
+    client = TestClient(server.create_app(tmp_path, tmp_path / "no-dashboard", tmp_path))
+
+    events = _events(client.post("/api/protocol"))
+    result = CliRunner().invoke(cli.app, ["protocol"])
+
+    assert [(e["step"], e["status"]) for e in events] == [("dkg1", "running"), ("dkg1", "done")]
+    assert events[-1]["detail"]["messages"][1]["parts"] == [["h", 137]]  # for the dashboard
+    assert list(client.get("/api/protocol/steps").json()) == list(protocol.STEPS)
+    ceremonies_ = client.get("/api/protocol/ceremonies").json()
+    assert [s for steps in ceremonies_.values() for s in steps] == list(protocol.STEPS)
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert "      coordinator -> signer 1           instruction   start key generation" in lines
+    assert "      signer 1 -> coordinator    137 B  clear         its round-1 package" in lines
+    assert "explanation" not in result.output
 
 
 def _a_short_red_team(emit: pipeline.Emit, workdir: Path) -> dict[str, Any]:

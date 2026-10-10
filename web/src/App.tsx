@@ -7,6 +7,7 @@ import { Clocks } from './Clocks'
 import { Day } from './Day'
 import { Text } from './fields'
 import { Flow } from './Flow'
+import { Protocol } from './Protocol'
 import { RedTeam } from './RedTeam'
 import { Signers } from './Signers'
 import { Step } from './steps'
@@ -26,6 +27,7 @@ const TABS = {
   run: 'Settlement run',
   day: 'A day at the custodian',
   ceremonies: 'Key ceremonies',
+  protocol: 'Watch the protocol',
   clocks: 'Clocks',
   redteam: 'Red team',
   attacks: 'Attack the design',
@@ -255,6 +257,9 @@ export default function App() {
       </div>
       <div hidden={tab !== 'ceremonies'}>
         <Ceremonies />
+      </div>
+      <div hidden={tab !== 'protocol'}>
+        <Protocol />
       </div>
       <div hidden={tab !== 'clocks'}>
         <Clocks />

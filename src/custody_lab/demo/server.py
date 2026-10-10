@@ -21,6 +21,10 @@ lists their steps.
 life, signers whose clocks are set back, and signers on a time authority's signed time) the same
 way, with no chain; ``GET /api/clocks/steps`` lists its steps.
 
+``POST /api/protocol`` plays every ceremony on a watched signing cluster (``protocol.run``) and
+streams one event per round, listing every message that passed through the coordinator; ``GET
+/api/protocol/steps`` lists the rounds and ``GET /api/protocol/ceremonies`` groups them.
+
 ``POST /api/redteam`` plays the red team on regtest (``redteam.run``: a reorganised deposit, coins
 borrowed for a snapshot, a misdirected withdrawal and a forged FIX fill, each against a weak rule
 and then the defence) in a fresh directory under ``var/redteam``; ``GET /api/redteam/steps``
@@ -52,7 +56,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from custody_lab.demo import attacks, ceremonies, clocks, day, pipeline, redteam
+from custody_lab.demo import attacks, ceremonies, clocks, day, pipeline, protocol, redteam
 
 DASHBOARD = Path("web/dist")
 RECENT = 20  # recorded runs listed
@@ -171,6 +175,18 @@ def create_app(
     @app.post("/api/clocks")
     def clock() -> StreamingResponse:
         return _stream("clocks", clocks.run)
+
+    @app.get("/api/protocol/steps")
+    def protocol_steps() -> dict[str, str]:
+        return protocol.STEPS
+
+    @app.get("/api/protocol/ceremonies")
+    def protocol_ceremonies() -> dict[str, list[str]]:
+        return protocol.CEREMONIES
+
+    @app.post("/api/protocol")
+    def watch_protocol() -> StreamingResponse:
+        return _stream("protocol", protocol.run)
 
     @app.get("/api/redteam/steps")
     def redteam_steps() -> dict[str, str]:
