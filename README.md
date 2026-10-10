@@ -111,6 +111,7 @@ uv run pytest                # all tests, including real settlements on regtest
 uv run custody-lab run       # one demo run, printed step by step
 uv run custody-lab day       # a day: deposits, a double spend, trading, withdrawals, refusals
 uv run custody-lab ceremonies  # share refresh against a thief, and a lost share repaired; no chain
+uv run custody-lab protocol    # every message between coordinator and signers, split into fields; no chain
 uv run custody-lab clocks      # signers' clocks set back, and signed time from a time authority; no chain
 uv run custody-lab redteam     # a reorganised deposit and a misdirected withdrawal, weak rule then defence
 uv run custody-lab attacks   # twenty attacks on the design, each refused; needs no Bitcoin node
@@ -133,11 +134,14 @@ npm --prefix web run build   # build the dashboard into web/dist
 uv run custody-lab serve     # then open http://127.0.0.1:8000 and press "Run the demo"
 ```
 
-**Expect:** three tabs. On **Settlement run**, nine numbered steps turn from pending to running
+**Expect:** eight tabs. On **Settlement run**, nine numbered steps turn from pending to running
 to done as the events arrive, and a key-shares panel lists signers 1, 2 and 3 with their process
-ids and a switch that takes each offline for the next run. **Attack the design** runs the twenty
-attacks. **Check a client's balance** recomputes a client's inclusion proof in the browser after a
-run. [The demo walkthrough](manual/demo-walkthrough.md) takes one run through the
+ids and a switch that takes each offline for the next run. **A day at the custodian**, **Key
+ceremonies**, **Clocks** and **Red team** each play one scenario. **Watch the protocol** animates
+every message between the coordinator and the signers through key generation, signing, refresh and
+repair, splits each into its fields, and counts what the coordinator could not open. **Attack the
+design** runs the twenty attacks. **Check a client's balance** recomputes a client's inclusion
+proof in the browser after a run. [The demo walkthrough](manual/demo-walkthrough.md) takes one run through the
 dashboard step by step: what each value on the screen means, and how to check the run's files
 afterwards.
 

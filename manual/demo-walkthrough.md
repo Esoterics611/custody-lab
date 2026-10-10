@@ -13,11 +13,13 @@ The reader is assumed to know trading infrastructure: FIX sessions, signed excha
 maker-checker approval, clearing and netting. Where one of those has a counterpart in the demo,
 the walkthrough names it and says where the comparison stops holding.
 
-The dashboard has six more tabs, explained after the run. [A day at the
+The dashboard has seven more tabs, explained after the run. [A day at the
 custodian](#a-day-at-the-custodian) runs a busier day: deposits, a double spend, two clients
 trading, netting across them, withdrawals and three refusals, with the books compared to the chain
 after every step. [Key ceremonies](#key-ceremonies) shows a share stolen before a refresh failing to
-combine with one stolen after it, and a lost share rebuilt. [Clocks](#clocks) shows an
+combine with one stolen after it, and a lost share rebuilt. [Watching the
+protocol](#watching-the-protocol) shows every message of every ceremony as it passes through the
+coordinator, split into its fields, and which of them the coordinator cannot open. [Clocks](#clocks) shows an
 authorisation's 60-second life, signers whose clocks are set back accepting an expired one, and
 signers on a time authority's signed time refusing it. [Red team](#red-team) runs a reorganised
 deposit, coins borrowed for a snapshot, a misdirected withdrawal and a forged fill, each against a
@@ -145,7 +147,7 @@ browser at the same address; if the page does not load there while the `curl` ch
 **The page before a run.** The header holds the title, a one-line summary and the red banner.
 Under it, a row of six boxes traces a settlement's path through the design: Exchange, Netting,
 Policy, Signers, Bitcoin and Reserves. During a run each box turns amber while one of its steps is
-running and green once all of them are done. Below the row are seven tabs, and the page opens on
+running and green once all of them are done. Below the row are eight tabs, and the page opens on
 **Settlement run**. That tab has a blue **Run the demo** button beside a progress bar reading
 "0 of 9 steps", and under them the nine numbered steps, each marked PENDING. On the right, the
 **Key shares** panel shows Signer 1, Signer 2 and Signer 3, each "not started" and each with a
@@ -937,6 +939,140 @@ custodian one step closer to frozen coins, and the only cure is a full move to a
 ceremonies need the signers to be online together, refresh all three of them, which is why a
 custodian schedules them like any other change, with the same approvals.
 
+## Watching the protocol
+
+**The problem.** The tabs before this one say what the coordinator cannot do: it holds no share,
+it cannot open a sub-share, it cannot sign alone. Each of those is a claim about messages, and a
+claim about messages is settled by reading the messages. The demo's own attack-vector analysis
+found one such claim false: until 9 October 2026 the coordinator relayed every key-generation
+sub-share in clear, while chapter 2 said it learned nothing secret from what it relayed ([attack
+vectors, Finding 1](attack-vectors.md#two-findings-about-the-demo-as-packaged)). Anyone assessing a
+threshold-signing system, a custodian choosing a product, an auditor or a client, faces the same
+question: what crosses the network, and who can read it.
+
+**The idea in plain words.** The **Watch the protocol** tab records every message that passes
+through the coordinator, in both directions, on the real signing processes, and shows each one:
+whom it came from, whom it is for, how many bytes it is, and whether the coordinator can read it.
+The recording is taken where an attacker who controlled the coordinator would sit. Every message
+is one of four kinds:
+
+- An *instruction* tells a signer which step to run, or answers that it has. It carries no
+  protocol bytes.
+- A *clear* message is public by design: a channel public key, a commitment, a proof, a verifying
+  share, a signature share. Reading it gives the coordinator nothing it could sign with.
+- A *sealed* message is encrypted to one signer, under a key that only the sender and that signer
+  can compute ([chapter 2, The demo's signing
+  path](chapters/02-mpc-custody.md#the-demos-signing-path-zf-frost-in-three-processes)). The
+  coordinator relays it and cannot open it.
+- An *authorisation* is the policy engine's signed token from step 6. The coordinator can read it
+  but not alter it, because every signer checks its two signatures.
+
+Each message is also split into its fields. A message on a network is a row of bytes, and the rule
+that turns a data structure into bytes, and back, is its **serialization**. The Zcash Foundation
+crate begins every FROST message with a 5-byte header: a format version, 0, and four bytes computed
+from the name of the ciphersuite, `FROST-secp256k1-SHA256-TR-v1`, so that a message from another
+curve or hash is refused on arrival. The rest of a message is the protocol's numbers and points. A
+number modulo the group order takes 32 bytes. A point takes 33: its x coordinate, and one byte
+saying which of the two points with that x coordinate it is.
+
+The counterpart is a FIX engine's message log, which records every message on a session in both
+directions and is where an integration engineer settles any disagreement about what was sent. The
+comparison stops at who can read the messages. On a FIX session both ends read everything, and
+encryption hides the messages only from the network between them. Here the process in the middle,
+the coordinator, is itself a party to the protocol, and the design keeps some messages unreadable
+to it.
+
+**Worked example.** Press **Run the protocol** on the **Watch the protocol** tab;
+`uv run custody-lab protocol` prints the same messages in the terminal, one line each. It needs no
+chain. Three new signer processes play six ceremonies, sixteen rounds of messages and two
+aggregations, in about a quarter of a second, most of it spent starting the processes. The tab then
+plays the rounds back at a pace a reader can follow: **Previous**, **Pause** and **Next** step
+through them, the speed runs from 0.5× to 4×, and any round can be chosen in the **Rounds** list on
+the right, which shows each round's total bytes.
+
+The stage shows the coordinator in the middle, with a spoke to each signer. A round plays in up to
+three movements: the coordinator's requests travel out along the spokes, the signers work (their
+boxes turn amber), and their replies travel back. A packet is everything one hop carries in that
+round: blue for clear, purple with a padlock for sealed, teal for an authorisation, and a grey dot
+for an instruction alone. A stacked packet carries more than one message, and its label is their
+total size. A signer that takes no part in a round is dimmed. Under each signer is the state of its
+share and **V**, the first ten hex digits of its **verifying share**: its share times G. A
+verifying share is public; it lets anyone check that signer's signature share, and so name the
+signer whose share is wrong. Before the first share exists, the line shows the signer's process
+id, and the coordinator's box shows its own.
+
+Under the stage, the round's card explains the round and lists every message: the hop (`C → 1` is
+the coordinator to signer 1), what it carries, whom it is from and for, its size and its kind. The
+rows in flight are highlighted. Below the list, one message is split into its fields as a bar, each
+field's width in proportion to its bytes, with the fields listed under it; choosing another row
+splits that one. On the right, **What passed through the coordinator** adds up the bytes of each
+kind as they land.
+
+1. *Private channels* (rounds 1 and 2). Each signer sends its 32-byte X25519 channel public key,
+   and the coordinator hands every signer all three. This is the one trust left in the
+   coordinator: had it handed out keys of its own here, it could open every sealed message that
+   follows. In production these keys are provisioned out of band.
+2. *Key generation* (rounds 3 to 5). Each signer returns a **round-1 package** of 137 bytes: the
+   header, one byte giving the number of commitments, two Feldman commitments of 33 bytes each (to
+   its line's starting value and to its slope), and a 65-byte proof of knowledge of the starting
+   value (one length byte, R and z). In round 4 the coordinator forwards each package to the other
+   two signers unchanged: the SHA-256 fingerprint printed with each message, its first twelve hex
+   digits, is the same on the way in and on the way out. Each signer then returns two
+   **sub-shares**, the height of its line at each other signer's number, each sealed to its
+   recipient: 65 bytes, made of a 12-byte nonce, 37 bytes of ciphertext with the header and the
+   32-byte sub-share inside, and a 16-byte authentication tag. After round 4 the coordinator's
+   box reads "holds 6 sealed, unopened", and in round 5 it delivers each to its recipient. Each
+   signer adds its sub-shares into its share and returns the **public key package**, 236 bytes:
+   every signer's identifier and verifying share, the group public key, and the threshold. The
+   three copies have one fingerprint: the signers agree.
+3. *Signing* (rounds 6 to 8). Signers 1 and 3 send 71-byte nonce commitments, the hiding
+   commitment D and the binding commitment E ([chapter 2, Many sessions at
+   once](chapters/02-mpc-custody.md#many-sessions-at-once)). The coordinator sends each of them
+   the **signing package**, 245 bytes, both signers' commitments and the 32 bytes to sign, with
+   the authorisation, 7,047 bytes. The authorisation's bar is almost all one field: its ML-DSA-65
+   signature, 3,309 bytes sent as 6,618 hex characters ([chapter 7, The demo's hybrid
+   authorisation](chapters/07-post-quantum.md#the-demos-hybrid-authorisation)). Each signer
+   returns a **signature share** of 32 bytes. In round 8 the coordinator adds the two shares into
+   a 64-byte BIP340 signature without sending anything, and chapter 1's verifier accepts it under
+   the custody key.
+4. *Refresh* (rounds 9 to 11). The same three rounds as key generation, with lines that start at
+   zero. A line through zero needs no commitment to its starting value, so each round-1 package is
+   104 bytes, 33 fewer. After round 11 every signer's V has changed, and the group public key has
+   not.
+5. *Repair* (rounds 12 to 15). The demo tells signer 2 to erase its share: an instruction that is
+   the demo's, not the protocol's. Helpers 1 and 3 each split their help into two sealed 60-byte
+   deltas, one per helper, themselves included: a delta a helper keeps for itself still travels
+   through the coordinator, so it too is sealed. Each helper adds the deltas it receives into one
+   sealed sigma for signer 2, which adds the two sigmas into its rebuilt share. Its V is the one it
+   had after the refresh.
+6. *Signing with the repaired share* (rounds 16 to 18). Signers 2 and 3 sign under a new
+   authorisation, since an authorisation is good for one signing, and the signature verifies under
+   the same custody key as in round 8.
+
+The run ends with 113 messages through the coordinator: 6,305 bytes in clear, 2,280 bytes sealed,
+and 28,188 bytes of authorisations, about three quarters of the total. The threshold protocol is
+small; the post-quantum signature on the permission to use it is not.
+
+**What breaks without it.** Before the sub-shares were sealed, the six sub-shares of round 4
+crossed the coordinator in clear. Take chapter 2's toy key generation ([Distributed key generation
+on the toy curve](chapters/02-mpc-custody.md#distributed-key-generation-on-the-toy-curve)).
+Participant 1's line is 3 + x modulo 31, and it sends 5 to participant 2 and 6 to participant 3. A
+coordinator that read those two values knows two points on the line, (2, 5) and (3, 6), and two
+points fix a line: its slope is 6 − 5 = 1, and its starting value is 5 − 2 × 1 = 3. The same
+arithmetic on participant 2's sub-shares for participants 1 and 3, 7 and 17, gives the slope
+(17 − 7) / 2 = 5 and the starting value 7 − 5 = 2; on participant 3's sub-shares for participants 1
+and 2, 3 and 2, it gives the slope −1 and the starting value 3 + 1 = 4. The key is the sum of the
+starting values, 3 + 2 + 4 = 9: a coordinator that only recorded the traffic would hold the key that
+no participant ever held. This holds for any key whose threshold t is below the number of signers
+n: each line needs t points to fix it, and the coordinator sees n − 1 of them. Sealed, the same
+round shows six purple packets that the coordinator relays unopened, and a test searches every byte
+it relays, through all six ceremonies, for every signer's share of each period, and finds none
+(`test_no_share_of_any_period_passes_through_the_coordinator`). Sealing is only as good as the
+channel keys. Rounds 1 and 2 show those keys passing through the coordinator, which is vector 1.4
+in the attack-vector analysis, open in the demo. And the keys are static, so a signer's channel key
+stolen later opens the sealed messages to and from that signer that were recorded earlier: a
+recording of this traffic stays sensitive for as long as the channel keys are in use.
+
 ## Clocks
 
 **The problem.** The policy engine issues every authorisation with a life of 60 seconds, and each
@@ -1439,6 +1575,7 @@ shown as it was, and nothing is recomputed or signed again.
 | `curl` in terminal 2 works, but the Windows browser does not load the page | WSL's forwarding of `localhost` to Windows | Check the WSL networking settings, or open the page in a browser inside WSL |
 | A signer's switch does not move | Is a run going? | The switches unlock when the run ends; they set the next run |
 | The balance tab says to run the demo first | Has a run on this page reached step 9? A page reload clears the screen | Run the demo, or replay a recorded run that settled |
+| On **Watch the protocol** the packets jump from end to end instead of travelling | The operating system's setting to reduce motion (`prefers-reduced-motion`) | None needed: the tab honours that setting; **Pause** and **Next** step through the rounds at any pace |
 | No list of recorded runs under **Run the demo** | `ls var/demo/*/events.jsonl` | A run has to finish before it is listed; the list refreshes when a run ends |
 | Any other step turns red | The `error` line under the step, the traceback in terminal 1, and the run's `events.jsonl` | The error names the failed check; the chapter for that step explains it |
 
@@ -1486,7 +1623,11 @@ This table summarises what each step has already explained, as a list of what to
 11. A refresh renews every share without changing the key, so a thief must collect two shares
     within one period; it does not undo a theft of two. A lost share is rebuilt by two others
     without either revealing its own (Key ceremonies).
-12. A deposit counts once it can no longer be cheaply undone, and books that agree with the chain
+12. Everything the coordinator relays is an instruction, public by design, sealed to one signer,
+    or a signed authorisation. It holds no share and opens no sub-share; only the channel keys at
+    start-up are trusted to it. The authorisations, not the threshold protocol, are most of the
+    bytes (Watching the protocol).
+13. A deposit counts once it can no longer be cheaply undone, and books that agree with the chain
     can still hide a payment to the wrong client: only a check of the destination against the
     client catches it (Red team).
 

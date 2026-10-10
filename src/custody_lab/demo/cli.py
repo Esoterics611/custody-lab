@@ -2,8 +2,9 @@
 
 ``custody-lab run`` runs the demo once and prints each step as it happens. ``custody-lab day``
 runs a busier day (``custody_lab.demo.day``) the same way, ``custody-lab ceremonies`` the key
-ceremonies (``custody_lab.demo.ceremonies``) and ``custody-lab clocks`` the signers' clocks
-(``custody_lab.demo.clocks``).
+ceremonies (``custody_lab.demo.ceremonies``), ``custody-lab clocks`` the signers' clocks
+(``custody_lab.demo.clocks``) and ``custody-lab protocol`` every message of every ceremony
+(``custody_lab.demo.protocol``).
 ``custody-lab attacks`` tries every attack in ``custody_lab.demo.attacks`` and prints who refused
 each. ``custody-lab serve`` starts the HTTP server (``custody_lab.demo.server``), which also serves
 the dashboard once ``npm --prefix web run build`` has produced ``web/dist``.
@@ -26,6 +27,7 @@ from custody_lab.demo import ceremonies as key_ceremonies
 from custody_lab.demo import clocks as signer_clocks
 from custody_lab.demo import day as day_scenario
 from custody_lab.demo import pipeline, redteam, server
+from custody_lab.demo import protocol as watched
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 Runs = Annotated[Path, typer.Option(help="Directory that receives one subdirectory per run.")]
@@ -35,6 +37,17 @@ def _show(value: Any) -> str:
     if isinstance(value, str | Decimal):
         return str(value)
     return json.dumps(value, default=str, separators=(",", ":"))
+
+
+def _message(m: dict[str, Any]) -> str:
+    """One protocol message: its hop, size, kind and what it carries."""
+    hop = (
+        f"coordinator -> signer {m['signer']}"
+        if m["leg"] == "out"
+        else f"signer {m['signer']} -> coordinator"
+    )
+    size = f"{m['bytes']:>5,} B" if m["bytes"] else ""
+    return f"{hop:<24}{size:>8}  {m['kind']:<13} {m['carries']}"
 
 
 def _print(event: pipeline.Event, steps: dict[str, str] = pipeline.STEPS) -> None:
@@ -52,6 +65,8 @@ def _print(event: pipeline.Event, steps: dict[str, str] = pipeline.STEPS) -> Non
             lines = [f"      inclusion_proofs: {len(value)} published"]
         elif key == "lifetime":  # the dashboard's bar; the times are printed beside it
             lines = []
+        elif key == "messages":  # the protocol's, one line each
+            lines = [f"      {_message(m)}" for m in value]
         elif isinstance(value, list) and value and all(isinstance(v, dict) for v in value):
             lines = [f"      {key}:"] + [
                 "        - " + ", ".join(f"{k}: {_show(v)}" for k, v in row.items())
@@ -120,6 +135,18 @@ def clocks() -> None:
     """Play the clocks: an expired authorisation, signers' clocks set back, and signed time."""
     try:
         summary = signer_clocks.run(lambda e: _print(e, signer_clocks.STEPS))
+    except Exception:  # printed above as the failed step's error; no traceback
+        raise typer.Exit(1) from None
+    typer.echo("")
+    for key, value in summary.items():
+        typer.echo(f"{key}: {_show(value)}")
+
+
+@app.command()
+def protocol() -> None:
+    """Show every message between the coordinator and the signers, ceremony by ceremony."""
+    try:
+        summary = watched.run(lambda e: _print(e, watched.STEPS))
     except Exception:  # printed above as the failed step's error; no traceback
         raise typer.Exit(1) from None
     typer.echo("")
