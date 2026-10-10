@@ -36,7 +36,7 @@ nonce.
 from __future__ import annotations
 
 import multiprocessing as mp
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime, timedelta
 from multiprocessing.connection import Connection
 from types import TracebackType
@@ -197,19 +197,35 @@ class TimeSource(Protocol):
     def stamp(self, nonce: bytes) -> bytes: ...  # a serialized ``signed_time.SignedTime``
 
 
+Calls = dict[int, tuple[str, tuple[Any, ...]]]  # signer -> (method, arguments)
+Watch = Callable[[Calls, dict[int, Any] | None], None]
+
+
 class SigningCluster:
     def __init__(
-        self, threshold: int, count: int, authority: bytes, time_source: TimeSource | None = None
+        self,
+        threshold: int,
+        count: int,
+        authority: bytes,
+        time_source: TimeSource | None = None,
+        watch: Watch | None = None,
     ) -> None:
         """``authority`` is the policy engine's hybrid public key, ``AuthorityKey.public_bytes``.
 
         With ``time_source``, every signer is given its public key and checks expiry against the
         time authority's signed time only; ``time_source`` is how this process fetches it, and
         replacing it later changes nothing the signers accept.
+
+        ``watch`` sees every round that passes through this process, from the channel keys at
+        start-up on: it is called with a round's requests as they are sent, ``watch(calls,
+        None)``, and again with the signers' replies, ``watch(calls, replies)``. A round a signer
+        refuses is not reported answered. ``custody_lab.demo.protocol`` uses it to show the
+        messages.
         """
         self.threshold, self.count = threshold, count
         self.public_key_package = b""
         self.time_source = time_source
+        self._watch = watch
         time_authority = time_source.public_key if time_source else None
         ctx = mp.get_context("spawn")
         self._conns: dict[int, Connection] = {}
@@ -226,19 +242,24 @@ class SigningCluster:
         self.channel_keys = self._request({i: ("channel_key", ()) for i in self._conns})
         self._request({i: ("set_peers", (self.channel_keys,)) for i in self._conns})
 
-    def _request(self, calls: dict[int, tuple[str, tuple[Any, ...]]]) -> dict[int, Any]:
+    def _request(self, calls: Calls) -> dict[int, Any]:
         """Send every call first, then collect replies, so signers compute in parallel.
 
         Every reply is read before any error is raised; an unread reply would otherwise be taken
         as the answer to the next request.
         """
+        if self._watch:
+            self._watch(calls, None)
         for i, call in calls.items():
             self._conns[i].send(call)
         results = {i: self._conns[i].recv() for i in calls}
         errors = [f"signer {i}: {value}" for i, (ok, value) in results.items() if not ok]
         if errors:
             raise RuntimeError("; ".join(errors))
-        return {i: value for i, (_, value) in results.items()}
+        replies = {i: value for i, (_, value) in results.items()}
+        if self._watch:
+            self._watch(calls, replies)
+        return replies
 
     def dkg(self) -> bytes:
         """Run distributed key generation; return the 32-byte x-only group public key."""

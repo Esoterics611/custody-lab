@@ -2,12 +2,15 @@ import os
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from itertools import combinations
+from typing import Any
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from custody_lab.foundations import schnorr
-from custody_lab.mpc.cluster import SigningCluster
+from custody_lab.mpc.cluster import Calls, SigningCluster
 from custody_lab.policy import authorisation, signed_time
 
 AUTHORITY_KEY = authorisation.AuthorityKey.generate()
@@ -180,3 +183,61 @@ def test_signers_on_signed_time_ignore_their_clocks_and_refuse_a_replayed_time()
             c.sign(MSG, [1, 3], token())
         time_authority.replay = None
         assert schnorr.verify(MSG, group_key, c.sign(MSG, [1, 3], token()))
+
+
+def _payloads(value: object) -> Iterator[bytes]:
+    """Every byte string inside a round's requests or replies."""
+    if isinstance(value, bytes):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _payloads(item)
+    elif isinstance(value, list | tuple):
+        for item in value:
+            yield from _payloads(item)
+
+
+def _verifying_share(share: bytes) -> bytes:
+    """share x G, compressed, computed by OpenSSL rather than by the FROST crate."""
+    key = ec.derive_private_key(int.from_bytes(share, "big"), ec.SECP256K1())
+    return key.public_key().public_bytes(Encoding.X962, PublicFormat.CompressedPoint)
+
+
+def test_no_share_of_any_period_passes_through_the_coordinator() -> None:
+    """Every byte the coordinator relays through key generation, signing, refresh and repair,
+    searched for every signer's 32-byte signing share of each period."""
+    relayed: list[bytes] = []
+    recording = True
+
+    def watch(calls: Calls, replies: dict[int, Any] | None) -> None:
+        if recording and replies is not None:
+            relayed.extend(_payloads(calls))
+            relayed.extend(_payloads(replies))
+
+    shares: set[bytes] = set()
+
+    def copy_shares(c: SigningCluster) -> None:
+        """EDUCATIONAL: take each signer's share out of its process, unrecorded, to search for."""
+        nonlocal recording
+        recording = False
+        for i in (1, 2, 3):
+            package = c.export_share(i)  # header 5, identifier 32, signing share 32, ...
+            share = package[37:69]
+            assert _verifying_share(share) in c.public_key_package  # the layout is right
+            shares.add(share)
+        recording = True
+
+    with SigningCluster(2, 3, AUTHORITY_KEY.public_bytes(), watch=watch) as c:
+        c.dkg()
+        copy_shares(c)
+        c.sign(MSG, [1, 3], token())
+        c.refresh()
+        copy_shares(c)
+        c.wipe(2)
+        c.repair(2, [1, 3])
+        copy_shares(c)
+        c.sign(MSG, [2, 3], token())
+
+    assert len(shares) == 6  # three per period; the repaired share is signer 2's period-2 share
+    assert sum(map(len, relayed)) > 30_000
+    assert not [s for s in shares for blob in relayed if s in blob]
