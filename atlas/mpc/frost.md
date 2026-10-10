@@ -41,6 +41,9 @@ $\lambda_i s_i$.
   `frost-secp256k1-tr` 3.0.0, outside the NCC Group audit scope).
 - Teaching code: `src/custody_lab/mpc/frost.py`, matching the RFC 9591 vectors for
   FROST(secp256k1, SHA-256) in `tests/mpc/test_frost.py`.
+- The protocol tab (`custody_lab.demo.protocol`) shows both signing rounds' messages as the
+  coordinator relays them: 71-byte nonce commitments, a 245-byte signing package with a 7,047-byte
+  authorisation, and 32-byte signature shares ([message formats](protocol-messages.md)).
 
 ## In the manual
 

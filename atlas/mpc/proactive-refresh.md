@@ -30,15 +30,21 @@ $17 \times 14 + 15 \times 26 \equiv 8$: the wrong key.
 
 ## In the demo
 
-Teaching code: `src/custody_lab/mpc/dkg.py` (`refresh`). The ZF crate provides `keys::refresh` for
-the signing path; the demo does not call it yet.
+- Signing path: `SigningCluster.refresh()` runs the ZF crate's `refresh_dkg_part1` to `part3`
+  across the three signer processes, with each point sealed to its recipient. The key ceremonies
+  (`custody_lab.demo.ceremonies`) show a share stolen before a refresh failing to combine with one
+  stolen after it; the protocol tab (`custody_lab.demo.protocol`) shows the three rounds' messages,
+  whose round-1 packages carry one commitment fewer than key generation's (104 bytes, not 137).
+- Teaching code: `src/custody_lab/mpc/dkg.py` (`refresh`).
 
 ## In the manual
 
 [Chapter 2](../../manual/chapters/02-mpc-custody.md):
 "[Proactive refresh](../../manual/chapters/02-mpc-custody.md#proactive-refresh)",
 "[Proactive refresh on the toy curve](../../manual/chapters/02-mpc-custody.md#proactive-refresh-on-the-toy-curve)",
-and the DKG walkthrough, which shows an old and a new share failing to sign together.
+and the DKG walkthrough, which shows an old and a new share failing to sign together; the
+demo walkthrough's "[Key ceremonies](../../manual/demo-walkthrough.md#key-ceremonies)" and "[Watching the
+protocol](../../manual/demo-walkthrough.md#watching-the-protocol)".
 
 ## Sources
 

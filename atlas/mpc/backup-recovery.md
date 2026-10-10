@@ -34,16 +34,22 @@ because a copy taken today can be decrypted whenever one exists (chapter 7).
 
 ## In the demo
 
-Not on the signing path. Chapter 7 encrypts a teaching DKG share to an ML-KEM recovery key. cb-mpc
-provides PVE (`docs/spec/publicly-verifiable-encryption-spec.pdf`). ZF FROST provides
-`keys::repairable::repair_share_part1` to `part3` (observed in the crate source).
+- Share repair is on the signing path: `SigningCluster.repair()` runs ZF FROST's
+  `keys::repairable::repair_share_part1` to `part3` across the signer processes, with every delta
+  and sigma sealed to its recipient. The key ceremonies (`custody_lab.demo.ceremonies`) rebuild a
+  wiped share, and the protocol tab (`custody_lab.demo.protocol`) shows the four 60-byte sealed
+  deltas and two sealed sigmas that do it.
+- Backups are not on the signing path. Chapter 7 encrypts a teaching DKG share to an ML-KEM
+  recovery key. cb-mpc provides PVE (`docs/spec/publicly-verifiable-encryption-spec.pdf`).
 
 ## In the manual
 
 [Chapter 2](../../manual/chapters/02-mpc-custody.md),
 "[Backup, recovery and repair](../../manual/chapters/02-mpc-custody.md#backup-recovery-and-repair)";
 [chapter 7](../../manual/chapters/07-post-quantum.md),
-"[A share backup under ML-KEM](../../manual/chapters/07-post-quantum.md#a-share-backup-under-ml-kem)".
+"[A share backup under ML-KEM](../../manual/chapters/07-post-quantum.md#a-share-backup-under-ml-kem)";
+the walkthrough's "[Key ceremonies](../../manual/demo-walkthrough.md#key-ceremonies)" and "[Watching the
+protocol](../../manual/demo-walkthrough.md#watching-the-protocol)".
 
 ## Sources
 

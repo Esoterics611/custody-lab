@@ -1,6 +1,6 @@
 # Module 2: MPC Custody
 
-2026-10-09
+2026-10-10
 
 Previous: [Chapter 1, Foundations](01-foundations.md) \| [All
 chapters](../README.md) \| Next: [Chapter 3, Key
@@ -1022,16 +1022,78 @@ assert schnorr.verify(sighash, x_only_key, signature)
 print("BIP340 signature from shares 1 and 3 verifies; key", x_only_key.hex()[:16], "...")
 ```
 
-    coordinator pid: 836843
-      share 1 held by pid 836889
-      share 2 held by pid 836890
-      share 3 held by pid 836891
-    BIP340 signature from shares 1 and 3 verifies; key 0a70300549fb0d1a ...
+    coordinator pid: 873155
+      share 1 held by pid 873188
+      share 2 held by pid 873189
+      share 3 held by pid 873190
+    BIP340 signature from shares 1 and 3 verifies; key bad0458078f69b47 ...
 
 The printed process identifiers show four different processes: the
 coordinator and one per share. The last line shows that signers 1 and 3
 together produced a BIP340 signature for the group key, which signer 2
 took no part in.
+
+**What the coordinator saw.** `SigningCluster` accepts a `watch`: a
+function it calls with every round’s requests as they leave the
+coordinator and again with the signers’ replies. The cell below runs the
+same key generation and signing under a watch, and prints for each round
+how many messages passed through the coordinator and how many of their
+bytes were public by design (`clear`), sealed to one signer (`sealed`),
+or the policy engine’s authorisation (`auth`).
+
+``` python
+from custody_lab.demo.protocol import messages
+
+rounds = []
+
+
+def watch(calls, replies):
+    if replies is not None:  # a round answered: what passed, both ways
+        method = next(iter(calls.values()))[0]
+        rounds.append((method, messages(method, calls, replies)))
+
+
+with SigningCluster(2, 3, authority=authority_public, watch=watch) as cluster:
+    cluster.dkg()
+    expires = datetime.now(UTC) + timedelta(seconds=60)
+    fresh = authorisation.issue(authority, b"\x00" * 32, sighash, expires)
+    cluster.sign(sighash, signers=[1, 3], token=fresh.to_bytes())
+
+kinds = ("clear", "sealed", "authorisation")
+print(f"{'round':12} {'messages':>8} {'clear':>6} {'sealed':>6} {'auth':>6}")
+for method, sent in rounds:
+    size = [sum(m["bytes"] for m in sent if m["kind"] == k) for k in kinds]
+    print(f"{method:12} {len(sent):8} {size[0]:6} {size[1]:6} {size[2]:6}")
+sub_shares = [m for method, sent in rounds if method == "dkg2" for m in sent
+              if m["leg"] == "back"]
+assert len(sub_shares) == 6 and all(m["kind"] == "sealed" for m in sub_shares)
+```
+
+    round        messages  clear sealed   auth
+    channel_key         6     96      0      0
+    set_peers          12    288      0      0
+    dkg1                6    411      0      0
+    dkg2               12    822    390      0
+    dkg3                9    708    390      0
+    commit              4    142      0      0
+    sign                6    554      0  14094
+
+The first two lines are the private channels: each signer’s 32-byte
+public key sent to the coordinator, then all three keys handed to each
+signer. `dkg1` is each signer’s 137-byte round-1 package, its Feldman
+commitments and its proof of knowledge. In `dkg2` the coordinator
+forwards those packages to the other signers, 822 bytes in clear, and
+receives six sub-shares, 390 bytes sealed; in `dkg3` it delivers the
+same sealed bytes and receives the three signers’ public key packages.
+`commit` is the two signers’ nonce commitments. In `sign`, the two
+copies of the authorisation are 14,094 bytes, against 554 bytes of FROST
+messages: the post-quantum signature on the permission is larger than
+the threshold protocol it permits ([chapter 7](07-post-quantum.md)).
+Nothing in the `clear` column is secret: commitments, proofs, public
+keys and signature shares are public by design, and every value that
+would reveal a share is in the `sealed` column. The walkthrough’s
+[Watching the protocol](../demo-walkthrough.md#watching-the-protocol)
+splits each of these messages into its fields.
 
 <a id="production-ecdsa-libraries-listings-not-executed"></a>
 
