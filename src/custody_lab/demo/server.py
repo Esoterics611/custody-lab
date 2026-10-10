@@ -25,6 +25,11 @@ way, with no chain; ``GET /api/clocks/steps`` lists its steps.
 streams one event per round, listing every message that passed through the coordinator; ``GET
 /api/protocol/steps`` lists the rounds and ``GET /api/protocol/ceremonies`` groups them.
 
+``POST /api/audit`` plays two settlements through the policy engine and streams one event per
+step with the audit entries it added, then a forger's copy of the log checked against the heads
+the signed snapshots anchored (``audit_trail.run``), with no chain; ``GET /api/audit/steps`` lists
+its steps.
+
 ``POST /api/redteam`` plays the red team on regtest (``redteam.run``: a reorganised deposit, coins
 borrowed for a snapshot, a misdirected withdrawal and a forged FIX fill, each against a weak rule
 and then the defence) in a fresh directory under ``var/redteam``; ``GET /api/redteam/steps``
@@ -56,7 +61,16 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from custody_lab.demo import attacks, ceremonies, clocks, day, pipeline, protocol, redteam
+from custody_lab.demo import (
+    attacks,
+    audit_trail,
+    ceremonies,
+    clocks,
+    day,
+    pipeline,
+    protocol,
+    redteam,
+)
 
 DASHBOARD = Path("web/dist")
 RECENT = 20  # recorded runs listed
@@ -187,6 +201,14 @@ def create_app(
     @app.post("/api/protocol")
     def watch_protocol() -> StreamingResponse:
         return _stream("protocol", protocol.run)
+
+    @app.get("/api/audit/steps")
+    def audit_steps() -> dict[str, str]:
+        return audit_trail.STEPS
+
+    @app.post("/api/audit")
+    def audit_log() -> StreamingResponse:
+        return _stream("audit log", audit_trail.run)
 
     @app.get("/api/redteam/steps")
     def redteam_steps() -> dict[str, str]:

@@ -3,8 +3,9 @@
 ``custody-lab run`` runs the demo once and prints each step as it happens. ``custody-lab day``
 runs a busier day (``custody_lab.demo.day``) the same way, ``custody-lab ceremonies`` the key
 ceremonies (``custody_lab.demo.ceremonies``), ``custody-lab clocks`` the signers' clocks
-(``custody_lab.demo.clocks``) and ``custody-lab protocol`` every message of every ceremony
-(``custody_lab.demo.protocol``).
+(``custody_lab.demo.clocks``), ``custody-lab protocol`` every message of every ceremony
+(``custody_lab.demo.protocol``) and ``custody-lab audit`` the policy engine's audit log through two
+settlements, then a forger's copy of it (``custody_lab.demo.audit_trail``).
 ``custody-lab attacks`` tries every attack in ``custody_lab.demo.attacks`` and prints who refused
 each. ``custody-lab serve`` starts the HTTP server (``custody_lab.demo.server``), which also serves
 the dashboard once ``npm --prefix web run build`` has produced ``web/dist``.
@@ -23,10 +24,10 @@ import typer
 import uvicorn
 
 from custody_lab.demo import attacks as attack_panel
+from custody_lab.demo import audit_trail, pipeline, redteam, server
 from custody_lab.demo import ceremonies as key_ceremonies
 from custody_lab.demo import clocks as signer_clocks
 from custody_lab.demo import day as day_scenario
-from custody_lab.demo import pipeline, redteam, server
 from custody_lab.demo import protocol as watched
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -50,6 +51,12 @@ def _message(m: dict[str, Any]) -> str:
     return f"{hop:<24}{size:>8}  {m['kind']:<13} {m['carries']}"
 
 
+def _entry(e: dict[str, Any]) -> str:
+    """One audit entry: its sequence number, event, link, hash and what it records."""
+    link = f"{e['prev_hash'][:10]} -> {e['hash'][:10]}"
+    return f"entry {e['seq']}  {e['event']:<22} {link}  {e['about']}"
+
+
 def _print(event: pipeline.Event, steps: dict[str, str] = pipeline.STEPS) -> None:
     order = list(steps)
     if event.status == "running":
@@ -63,10 +70,14 @@ def _print(event: pipeline.Event, steps: dict[str, str] = pipeline.STEPS) -> Non
             lines = [f"      books: ledger {value['owed']}, coins {value['held']}: {agree}"]
         elif key == "inclusion_proofs":  # for the dashboard's balance check
             lines = [f"      inclusion_proofs: {len(value)} published"]
-        elif key == "lifetime":  # the dashboard's bar; the times are printed beside it
+        elif key in ("lifetime", "shown"):  # for the dashboard only
             lines = []
         elif key == "messages":  # the protocol's, one line each
             lines = [f"      {_message(m)}" for m in value]
+        elif key == "entries":  # the audit log's, one line each
+            lines = [f"      {_entry(e)}" for e in value]
+        elif key == "forgeries":  # one line per entry the forger edited
+            lines = [f"      {row['says']}" for row in value]
         elif isinstance(value, list) and value and all(isinstance(v, dict) for v in value):
             lines = [f"      {key}:"] + [
                 "        - " + ", ".join(f"{k}: {_show(v)}" for k, v in row.items())
@@ -147,6 +158,18 @@ def protocol() -> None:
     """Show every message between the coordinator and the signers, ceremony by ceremony."""
     try:
         summary = watched.run(lambda e: _print(e, watched.STEPS))
+    except Exception:  # printed above as the failed step's error; no traceback
+        raise typer.Exit(1) from None
+    typer.echo("")
+    for key, value in summary.items():
+        typer.echo(f"{key}: {_show(value)}")
+
+
+@app.command()
+def audit() -> None:
+    """Show every audit entry through two settlements, then a forger's copy against the anchors."""
+    try:
+        summary = audit_trail.run(lambda e: _print(e, audit_trail.STEPS))
     except Exception:  # printed above as the failed step's error; no traceback
         raise typer.Exit(1) from None
     typer.echo("")

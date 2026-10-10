@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 import { Attacks } from './Attacks'
+import { AuditTrail } from './AuditTrail'
 import { BalanceCheck } from './BalanceCheck'
 import { Ceremonies } from './Ceremonies'
 import { Clocks } from './Clocks'
@@ -29,6 +30,7 @@ const TABS = {
   ceremonies: 'Key ceremonies',
   protocol: 'Watch the protocol',
   clocks: 'Clocks',
+  audit: 'The audit log',
   redteam: 'Red team',
   attacks: 'Attack the design',
   check: "Check a client's balance",
@@ -263,6 +265,9 @@ export default function App() {
       </div>
       <div hidden={tab !== 'clocks'}>
         <Clocks />
+      </div>
+      <div hidden={tab !== 'audit'}>
+        <AuditTrail />
       </div>
       <div hidden={tab !== 'redteam'}>
         <RedTeam />

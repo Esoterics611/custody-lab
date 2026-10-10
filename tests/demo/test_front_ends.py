@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 from custody_lab.demo import (
     attacks,
+    audit_trail,
     ceremonies,
     cli,
     clocks,
@@ -380,3 +381,55 @@ def test_the_red_team_streams_and_prints(tmp_path: Path, monkeypatch: pytest.Mon
     assert list(client.get("/api/redteam/steps").json()) == list(redteam.STEPS)
     assert result.exit_code == 0, result.output
     assert "reconciled: true" in result.output
+
+
+ENTRY = {
+    "seq": 2,
+    "time": "2026-10-10T17:40:50.123456+00:00",
+    "event": "authorised",
+    "payload": {"amount": "0.85"},
+    "prev_hash": "e3bca011ed" + "0" * 54,
+    "hash": "091b88d77d" + "0" * 54,
+    "about": "settle-cycle-1: 0.85 BTC to exchange-settlement-address",
+}
+
+
+def _a_short_audit(emit: pipeline.Emit) -> dict[str, Any]:
+    emit(pipeline.Event("authorised", "running", audit_trail.STEPS["authorised"]))
+    emit(
+        pipeline.Event("authorised", "done", audit_trail.STEPS["authorised"], {"entries": [ENTRY]})
+    )
+    says = "entry 2 (authorised): amount 0.85 BTC -> 0.085 BTC; entry 2: content does not match"
+    detail = {"forgeries": [{"entry": 2, "breaks_at": 2, "says": says}], "shown": 2}
+    emit(pipeline.Event("edited", "done", audit_trail.STEPS["edited"], detail))
+    return {"entries": 1}
+
+
+def test_the_audit_log_streams_and_prints_one_line_per_entry_and_forgery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(audit_trail, "run", _a_short_audit)
+    monkeypatch.setenv("COLUMNS", "200")
+    client = TestClient(server.create_app(tmp_path, tmp_path / "no-dashboard", tmp_path))
+
+    events = _events(client.post("/api/audit"))
+    result = CliRunner().invoke(cli.app, ["audit"])
+
+    assert [(e["step"], e["status"]) for e in events] == [
+        ("authorised", "running"),
+        ("authorised", "done"),
+        ("edited", "done"),
+    ]
+    assert events[1]["detail"]["entries"] == [ENTRY]  # for the dashboard's chain
+    assert list(client.get("/api/audit/steps").json()) == list(audit_trail.STEPS)
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert (
+        "      entry 2  authorised             e3bca011ed -> 091b88d77d  "
+        "settle-cycle-1: 0.85 BTC to exchange-settlement-address"
+    ) in lines
+    assert (
+        "      entry 2 (authorised): amount 0.85 BTC -> 0.085 BTC; entry 2: content does not match"
+        in lines
+    )
+    assert "shown" not in result.output

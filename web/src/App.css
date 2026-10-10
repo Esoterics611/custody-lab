@@ -107,6 +107,11 @@ button.link {
   background: var(--err-bg);
 }
 
+.verdict.warn {
+  color: var(--run);
+  background: var(--run-bg);
+}
+
 /* Flow: where the run is */
 
 .flow {
@@ -1416,6 +1421,247 @@ table.messages button.link {
   width: auto;
 }
 
+/* The audit log */
+
+.audit-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+}
+
+.forger {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr); /* else the longest entry in the picker sets the width */
+  gap: 10px;
+}
+
+.forger h2,
+.chain-card h2,
+.anchors h2 {
+  font-size: 1rem;
+}
+
+.forger .verdict,
+.round .verdict {
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.pick select {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 400;
+  color: var(--fg);
+  background: var(--card);
+}
+
+.moves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.moves button.chosen {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.chain-card {
+  display: grid;
+  gap: 8px;
+}
+
+.chain {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chain .genesis {
+  padding: 6px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+/* The link from an entry up to the one before: a line, red with words where it does not hold. */
+.chain .link {
+  min-height: 14px;
+  margin-left: 22px;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--ok);
+  font-size: 0.8rem;
+}
+
+.chain .link.bad {
+  border-left: 2px dashed var(--err);
+  font-weight: 600;
+  color: var(--err);
+}
+
+.entry {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  transition:
+    border-color 0.3s,
+    background 0.3s;
+}
+
+.entry.fresh {
+  border-color: var(--accent);
+  animation: arrive 0.5s ease-out;
+}
+
+.entry.edited {
+  border-color: var(--run);
+  background: var(--run-bg);
+}
+
+.entry.broken {
+  border-color: var(--err);
+  background: var(--err-bg);
+}
+
+.entry.rehashed:not(.edited) {
+  border-style: dashed;
+  border-color: var(--run);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+}
+
+.entry .seq {
+  font: 600 0.85rem var(--mono);
+  color: var(--muted);
+}
+
+.entry .when {
+  margin-left: auto;
+  font-family: var(--mono);
+}
+
+.entry p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.entry .edit {
+  font-weight: 600;
+  color: var(--run);
+}
+
+.entry .edit s {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.tag {
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.tag.re {
+  color: var(--run);
+  background: var(--run-bg);
+}
+
+.hashes {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 8px;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.hashes dt {
+  color: var(--muted);
+}
+
+.hashes dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mismatch {
+  font-weight: 600;
+  color: var(--err);
+}
+
+.entry .anchor {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.entry .anchor.ok {
+  color: var(--auth);
+  background: var(--auth-bg);
+}
+
+.entry .anchor.bad {
+  color: var(--err);
+  background: var(--err-bg);
+}
+
+.anchors {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.anchor-card {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--auth);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.anchor-card .ok {
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.anchor-card .bad {
+  font-weight: 600;
+  color: var(--err);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1448,8 +1694,9 @@ table.messages button.link {
     display: none;
   }
 
-  .protocol aside {
-    order: 1; /* the stage first; the round list is long */
+  .protocol aside,
+  .audit aside {
+    order: 1; /* the stage or the chain first; the step lists are long */
   }
 }
 

@@ -20,8 +20,9 @@ def test_untouched_chain_verifies(clock: FakeClock) -> None:
 def test_edited_entry_is_detected(clock: FakeClock) -> None:
     entries = list(_log(clock).entries)
     entries[1] = replace(entries[1], payload={"instruction_id": "ins-1", "status": "approved"})
-    with pytest.raises(AuditChainBroken, match="entry 1"):
+    with pytest.raises(AuditChainBroken, match="entry 1: content does not match") as broken:
         verify_chain(entries)
+    assert broken.value.entry == 1
 
 
 def test_deleted_or_reordered_entries_are_detected(clock: FakeClock) -> None:
