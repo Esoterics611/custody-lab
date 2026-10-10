@@ -2,6 +2,102 @@
 
 Newest first.
 
+## 2026-10-10: The audit log: every entry through two settlements, then a forger's copy
+
+The next item on the ideas list: a live audit-log timeline with a switch that edits one entry and
+shows where the hash chain breaks, and where the head anchored in a reserves snapshot exposes a
+re-hashed log (vector 10.2). The owner asked for the documents and the course to be updated in
+parallel, to the same standard; a second agent wrote them while this one built the code.
+
+**Audit log.** `AuditChainBroken` now carries the entry where the check stopped (`entry`); its
+message is unchanged.
+
+**Audit-trail demo** (`custody_lab.demo.audit_trail`, `custody-lab audit`, `POST /api/audit`,
+`GET /api/audit/steps`). The policy engine and bob's and carol's devices in processes of their
+own, as in the settlement run, and a 2-of-3 cluster; no chain (a stand-in sighash, block height 0,
+assets taken equal to liabilities, as in the attack panel). Eleven steps. Seven write the log: a
+0.85 BTC settlement pending with one approval (entry 0), authorised with two and signed (entries 1
+and 2), a payment to an address off the whitelist denied (entry 3), a snapshot anchoring entry 3's
+hash under the custody key's signature (its attestation is entry 4), a 0.40 BTC settlement
+(entries 5 and 6), a second snapshot anchoring entry 6 (entry 7). Four play a forger editing a copy
+exported from the engine's process, for every entry in turn, with the real `verify_chain`: the edit
+breaks the chain at that entry; replacing its stored hash moves the break to the next link (the
+last entry then verifies); re-hashing every later entry makes the copy verify; each snapshot's
+signed head is then looked for in the copy. The edits: an evaluation's status flipped, an
+authorisation's amount cut to a tenth, an attestation's time moved an hour earlier.
+
+Measured (observed, `custody-lab audit` and a scripted run): 8 entries; snapshots anchor entries 3
+and 6; entries 0 to 3 re-hashed are exposed by snapshot 1, entries 4 to 6 by snapshot 2, entry 7 by
+none; a snapshot whose head is replaced by the forged copy's no longer verifies under the custody
+key (both snapshots). A run takes 0.4 to 0.7 s, most of it starting six processes.
+
+**Dashboard.** A tab, **The audit log**: a player (Previous, Play, Next, four speeds) through the
+eleven steps; the chain as entry boxes with their links, the genesis value, and anchor badges; a
+step card; the forger's switch (an entry picker and four positions: untouched, edit it, also
+replace its hash, re-hash every later entry), quoting `verify_chain`'s words and which snapshot
+exposes the copy; an anchors card per snapshot. Playing steps 8 to 11 sets the switch to entry 2.
+The switch shows what the run computed; the browser hashes nothing.
+
+**Verified.** Full suite: 293 passed (66 s; the starlette deprecation warning, present before),
+documents included. `ruff check`, `ruff format --check src tests`, `mypy` strict (86 files),
+`oxlint` and `npm --prefix web run build` clean. New tests: `tests/demo/test_audit_trail.py` (each entry
+links to the one before and hashes exactly as the dashboard shows it; each snapshot anchors the head
+before its own attestation; breaks at the entry, then at the next link; re-hashed copies verify and
+only an anchor at or after the edit exposes them; a moved head fails the signature), the stream and
+CLI test, and `AuditChainBroken.entry`. Dashboard driven headless (Playwright 1.63.0, headless shell
+1243) at 1280 and 390 px and in dark mode: steps 3, 5, 8, 9 and 11, then entry 4 re-hashed, entry 7
+with its hash replaced and re-hashed, entry 0 edited; screenshots inspected; no console messages; no
+horizontal scroll. Three defects found that way and fixed: at 390 px the entry picker's longest
+option widened the page to 489 px; the page's global `header` rule put a blank band in every entry
+box; the verdict repeated "entry N". The empty band above the right column in a full-page
+screenshot of step 11 is not a layout defect: with the page at the top both columns start at 412
+px (measured); the sticky column was captured at the scroll offset that choosing step 11 left.
+
+**Course and documents** (written by the second agent, reviewed here against the code and the
+screenshots).
+- Walkthrough: a section, "The audit log", to the writing standard: the problem (an exported copy
+  edited before an auditor sees it), the three moves and the anchored head, a bank's end-of-day
+  balance confirmation as the counterpart and where it stops holding, the eleven steps with the
+  observed entries, the switch on entry 2 through its four positions, and how far each anchor
+  reaches. Tab counts, a troubleshooting row, recap items for the clocks (missing until now) and the
+  audit log.
+- Chapter 4: a first-principles section, "A forger's copy and the anchored head", worked by hand
+  and run on the engine's `AuditLog` with `verify_chain`, with a FIX MsgSeqNum counterpart; the
+  formal statement of which edits an anchor exposes; a cell with the head inside a BIP340-signed
+  snapshot; Exercise 6. Re-rendered, 26 pages (from 20).
+- Chapter 6 said a rewritten log always disagrees with the published head; it now says so only for
+  a rewrite reaching the anchored entry. Re-rendered, 16 pages.
+- Glossary: anchored head, audit log, genesis value, link, re-hash, tamper-evident log, unanchored
+  tail. "Hash chain" gave only the Winternitz sense while chapter 4 uses it for the log; it now
+  gives both.
+- Atlas `policy/audit-trail.md`, attack vectors 10.1 and 10.2 (statuses unchanged; the unanchored
+  tail and the copy model named as what stays open), ideas list, README, CLAUDE.md (layout,
+  commands, module status, a Proposed decision).
+- Corrected in review: a quoted on-screen string, the run time, a CLAUDE.md comment that said one
+  settlement.
+
+**Open.** The CLI line and the switch's verdict name the first snapshot that exposes a copy; for
+entries 0 to 3 both do, which the anchors panel and the walkthrough show. Chapter 4's production
+paragraph on clocks recommends NTP with monitoring and does not mention the signed time the Clocks
+tab uses (found by the second agent, outside this work, not edited).
+
+### Deliverables
+
+- The dashboard has a new tab that shows the policy engine's audit log entry by entry as two
+  settlements and two reserves snapshots are processed, each entry linked to the one before by its
+  hash.
+- A switch on the tab edits any entry of an exported copy and shows where the chain check stops:
+  at the edited entry, at the next link once its hash is replaced, and nowhere once every later
+  entry is re-hashed.
+- The tab shows which signed snapshot exposes each re-hashed copy, that an edit after the last
+  snapshot is caught by none until the next one, and that moving a snapshot's head breaks the
+  custody key's signature.
+- Every result on the tab is computed by the real chain check in Python; the browser only displays
+  it, and a test confirms each entry hashes exactly as shown.
+- The walkthrough, chapter 4, chapter 6, the glossary, the atlas and the attack-vector analysis now
+  teach the forger's three moves, the anchored head and the unanchored tail, and a defect in the
+  glossary's "hash chain" entry was fixed.
+
 ## 2026-10-10: Watching the protocol: every message through the coordinator, field by field
 
 The owner asked to continue with the next idea, to make it a showcase, and to update the course and
