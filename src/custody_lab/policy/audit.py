@@ -22,7 +22,9 @@ Clock = Callable[[], datetime]
 
 
 class AuditChainBroken(Exception):
-    pass
+    def __init__(self, entry: int, reason: str) -> None:
+        super().__init__(f"entry {entry}: {reason}")
+        self.entry = entry  # the first entry that does not match
 
 
 @dataclass(frozen=True)
@@ -71,7 +73,7 @@ def verify_chain(entries: Sequence[AuditEntry]) -> None:
     prev = GENESIS
     for expected_seq, entry in enumerate(entries):
         if entry.seq != expected_seq or entry.prev_hash != prev:
-            raise AuditChainBroken(f"entry {expected_seq}: sequence or link broken")
+            raise AuditChainBroken(expected_seq, "sequence or link broken")
         if sha256(canonical_json(entry.body())).hex() != entry.hash:
-            raise AuditChainBroken(f"entry {expected_seq}: content does not match its hash")
+            raise AuditChainBroken(expected_seq, "content does not match its hash")
         prev = entry.hash
