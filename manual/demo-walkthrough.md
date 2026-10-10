@@ -13,18 +13,20 @@ The reader is assumed to know trading infrastructure: FIX sessions, signed excha
 maker-checker approval, clearing and netting. Where one of those has a counterpart in the demo,
 the walkthrough names it and says where the comparison stops holding.
 
-The dashboard has seven more tabs, explained after the run. [A day at the
+The dashboard has eight more tabs, explained after the run. [A day at the
 custodian](#a-day-at-the-custodian) runs a busier day: deposits, a double spend, two clients
 trading, netting across them, withdrawals and three refusals, with the books compared to the chain
 after every step. [Key ceremonies](#key-ceremonies) shows a share stolen before a refresh failing to
 combine with one stolen after it, and a lost share rebuilt. [Watching the
 protocol](#watching-the-protocol) shows every message of every ceremony as it passes through the
-coordinator, split into its fields, and which of them the coordinator cannot open. [Clocks](#clocks) shows an
-authorisation's 60-second life, signers whose clocks are set back accepting an expired one, and
-signers on a time authority's signed time refusing it. [Red team](#red-team) runs a reorganised
-deposit, coins borrowed for a snapshot, a misdirected withdrawal and a forged fill, each against a
-weak rule and then the defence. [Attacking the
-design](#attacking-the-design) tries twenty attacks against the demo's own code and shows which
+coordinator, split into its fields, and which of them the coordinator cannot open. [Clocks](#clocks)
+shows an authorisation's 60-second life, signers whose clocks are set back accepting an expired one,
+and signers on a time authority's signed time refusing it. [The audit log](#the-audit-log) shows
+each entry the policy engine writes through two settlements, and a switch that edits one entry of a
+copy to show where the hash chain breaks and which signed snapshot exposes the copy once it is
+re-hashed. [Red team](#red-team) runs a reorganised deposit, coins borrowed for a snapshot, a
+misdirected withdrawal and a forged fill, each against a weak rule and then the defence. [Attacking
+the design](#attacking-the-design) tries twenty attacks against the demo's own code and shows which
 component refuses each. [Checking a client's balance](#checking-a-clients-balance) lets each client
 recompute its own place in the published snapshot. [Taking a signer
 offline](#taking-a-signer-offline) runs the demo with signers missing, and [Replaying a recorded
@@ -147,7 +149,7 @@ browser at the same address; if the page does not load there while the `curl` ch
 **The page before a run.** The header holds the title, a one-line summary and the red banner.
 Under it, a row of six boxes traces a settlement's path through the design: Exchange, Netting,
 Policy, Signers, Bitcoin and Reserves. During a run each box turns amber while one of its steps is
-running and green once all of them are done. Below the row are eight tabs, and the page opens on
+running and green once all of them are done. Below the row are nine tabs, and the page opens on
 **Settlement run**. That tab has a blue **Run the demo** button beside a progress bar reading
 "0 of 9 steps", and under them the nine numbered steps, each marked PENDING. On the right, the
 **Key shares** panel shows Signer 1, Signer 2 and Signer 3, each "not started" and each with a
@@ -1178,6 +1180,168 @@ the same computer as the signers. And in the demo the coordinator relays the sig
 the design each signer would ask the time authority itself; the relay gains nothing, because it
 can neither change a signed time nor substitute an earlier one (step 7).
 
+## The audit log
+
+**The problem.** The policy engine's decisions are the evidence afterwards. An auditor checking
+that every payment had two approvals, a regulator after an incident and a client disputing a
+refusal all read the engine's audit log, and the custodian's own staff export it and hand it over.
+An insider with something to hide, a payment that went out with one approval or a refusal that
+should have been an approval, changes the copy before handing it over. The demo's log is a hash
+chain, which [chapter 4](chapters/04-policy.md#a-log-that-shows-its-own-edits) builds: every entry
+stores the previous entry's hash, its **link**, and its own hash covers that link, so an edit shows
+wherever a stored hash no longer matches. But the hashes use no secret, and the insider can
+recompute them as easily as the auditor can. A log that only its writer has seen can be rewritten
+into another log that checks just as well.
+
+**The idea in plain words.** Two records settle it: the chain, and a copy of its head published
+where the insider cannot reach it.
+
+The chain makes the forger work. Hiding an edit takes three moves, and the check follows each one
+([chapter 4, A forger's copy and the anchored
+head](chapters/04-policy.md#a-forgers-copy-and-the-anchored-head)):
+
+1. *Edit the entry.* Its stored hash no longer matches its contents, and the check stops at that
+   entry.
+2. *Replace its stored hash* with the hash of the new contents. The entry now checks, but the next
+   entry's link still names the old hash, and the check stops there instead.
+3. *Recompute every later entry*, each link set to the new hash before it. The chain checks from
+   end to end, and the copy is **re-hashed**.
+
+The published head ends the forgery. The head is the hash of the newest entry, and the demo writes
+it into every proof-of-reserves snapshot, which the custody key signs ([step
+9](#step-9-proof-of-reserves-snapshot-with-proof-of-control)). Once published, the snapshot is out
+of the insider's reach, and the signature covers the head, so the head cannot be changed later; it
+is an **anchored head**. A re-hashed copy differs from the genuine log in every hash from the
+edited entry to the end, and in none before it. So a snapshot taken when the edited entry, or a
+later one, was the newest no longer finds its head anywhere in the copy, and exposes it. A snapshot
+taken before the edited entry was written finds its head unchanged and sees nothing. The entries
+written since the latest snapshot are covered by no snapshot: they are the log's **unanchored
+tail**, and they stay in it until the next snapshot is published.
+
+The counterpart is a bank's end-of-day balance confirmation. At the close, the bank confirms each
+account's closing balance to the client, who keeps the confirmation. If the bank later rewrote a
+posting from that day or an earlier one, the closing balance it recomputes would no longer agree
+with the confirmation the client holds. A rewrite of today's postings before tonight's confirmation
+leaves nothing to disagree with until tonight. The anchored head is the closing confirmation, and
+the unanchored tail is the day not yet closed. The comparison stops at what is confirmed. A balance
+is a total, so two edits that cancel, a sum moved from one posting to another, leave it unchanged.
+A head is a hash over every byte of every entry up to it, so any edit at or before the anchored
+entry changes it. The chain alone has a second counterpart, a FIX session's sequence numbers;
+chapter 4 sets out that comparison and where it stops.
+
+**Worked example.** Press **Run the settlements** on **The audit log** tab;
+`uv run custody-lab audit` prints the same steps in the terminal, one line for each entry. It needs
+no chain. As in the attack panel, a 32-byte hash of each instruction stands in for its transaction's
+sighash, and each snapshot carries block height 0 and assets taken equal to its liabilities: only
+the snapshot's head, and the custody key's signature over it, matter here. The run takes under a
+second (0.4 to 0.7 seconds in the runs measured), most of it starting six processes and generating
+the key, and the tab then plays its eleven steps one at a time, 3.2 seconds each at 1×.
+**Previous**, **Pause** and **Next** step through them, the speed runs from 0.5× to 4×, and the
+**Steps** list on the right goes to any step that has arrived.
+
+The middle of the tab is the chain. At its top, in a dashed box, is the **genesis value**, 64
+zeros, which entry 0 links to because no entry comes before it. Each entry below it is a box: its
+number, its event, its time, a line saying what it records, and two fingerprints, the first ten hex
+digits of its link (**prev**) and of its own hash. The green line between two boxes is the link;
+it turns red, with words, where it no longer holds. The boxes the current step added arrive with a
+coloured border. Hashes differ in every run, so the fingerprints quoted below are left out.
+
+1. *Start* (step 1). The policy engine, bob's and carol's devices, and the three signers each start
+   in a process of their own, as in the settlement run, and the signers run key generation. The
+   engine keeps the log in its own process; the coordinator only ever reads a copy. The log is
+   empty, so its head is the genesis value.
+2. *Pending* (step 2). ops-desk raises `settle-cycle-1`, 0.85 BTC to the exchange, and only bob
+   approves it. The tier needs two approvals: "pending: 1 of 2 required approvals". Entry 0, an
+   `evaluated` entry, links to the genesis value.
+3. *Authorised and signed* (step 3). carol approves too, and the engine writes two entries: entry
+   1, the evaluation, "approved, 2 of 2 required approvals", and entry 2, `authorised`, which
+   records the amount, the destination and the exact message the signers may sign. Signers 1 and 3
+   sign under the authorisation and keep its identifier.
+4. *Denied* (step 4). `withdrawal-1`, 0.30 BTC to `unlisted-address`, approved by both, is refused
+   before the approvals are counted: "denied: destination unlisted-address is not whitelisted". A
+   refusal is evidence too, and it is entry 3.
+5. *The first snapshot* (step 5). The snapshot carries the head, entry 3's hash, and liabilities of
+   4.15 BTC (the 5.00 BTC ledger less the 0.85 BTC settled), and signers 1 and 3 sign it under the
+   custody key. The **Heads anchored in signed snapshots** panel on the right lists it, and entry
+   3's box gains the badge "Snapshot 1 anchored" with the head. The engine then records the
+   snapshot's attestation authorisation as entry 4. A snapshot can never anchor its own attestation
+   entry: the head is part of the statement the custody key signs, the policy engine's permission
+   to sign is issued over that statement, and issuing it appends an entry, which changes the head.
+   So the log always ends with at least one entry that no snapshot covers.
+6. *A second settlement* (step 6). `settle-cycle-2`, 0.40 BTC, approved by both, authorised and
+   signed: entries 5 and 6. Snapshot 1 covers neither.
+7. *The second snapshot* (step 7). It anchors entry 6's hash, with liabilities of 3.75 BTC, and its
+   attestation is entry 7.
+
+Steps 8 to 11 belong to the forger. The run takes the log as exported from the engine's process
+after entry 7, the copy an auditor would be handed, and checks that it verifies untouched. Then,
+for each of the eight entries in turn, it makes an edit a forger would want, plays the three moves,
+and checks each result with the engine's own `verify_chain` and against both snapshots. The edits
+are: an evaluation's status reversed (pending to approved, approved to denied, denied to approved),
+an authorisation's amount cut to a tenth, and an attestation's time moved an hour earlier. The tab
+hashes nothing itself. **The forger's switch**, above the chain, shows the run's results for one
+entry: its **Entry** list names each entry with its edit, and four buttons say what the forger has
+done to the copy, **Untouched**, **Edit it**, **Also replace its hash** and **Re-hash every later
+entry**. The chain's heading changes to "The forger's copy" while the switch is off **Untouched**.
+Playing steps 8 to 11 sets the switch to entry 2, the 0.85 BTC authorisation, with one move per
+step:
+
+8. *Edit it* (step 8). Entry 2's box turns red and shows "amount: 0.85 BTC → 0.085 BTC", and beside
+   its hash, "stored; its content now hashes to" a different fingerprint. The switch's verdict
+   reads "verify_chain: entry 2: content does not match its hash."
+9. *Also replace its hash* (step 9). Entry 2 now carries the new hash, tagged "hash replaced", and
+   checks. The link above entry 3 turns red: "entry 3 still links to" the old fingerprint, while
+   entry 2 now hashes to the new one. The verdict: "verify_chain: entry 3: sequence or link
+   broken." The break has moved one entry down, not gone.
+10. *Re-hash every later entry* (step 10). Entries 2 to 7 are tagged "re-hashed": entry 2 with its
+    new contents and their hash, entries 3 to 7 each with a new link and a new hash. Every link is
+    green: "verify_chain: the copy verifies." A chain check alone cannot tell this copy from the
+    genuine log.
+11. *The anchors* (step 11). Each snapshot's head is looked for in the copy. Entry 3 has a new hash
+    in the copy, so snapshot 1's head is nowhere in it: entry 3's badge adds "this copy has a
+    different hash here", and the panel on the right reads "Not in the forger's copy, whose entry 3
+    is" followed by the new fingerprint, ": exposed". Snapshot 2's head, at entry 6, is missing for
+    the same reason. The verdict: "Exposed by snapshot 1: the head it signed is not in this copy."
+    The step also tries the forger's last resort, moving each snapshot's head to the copy's hash at
+    the anchored entry, and the step card answers for both snapshots: "the custody key's signature
+    no longer verifies". The custody key signed the old head.
+
+With the switch at **Re-hash every later entry**, choosing other entries shows how far each anchor
+reaches. An edit to any of entries 0 to 3 changes entry 3's hash in the copy, and with it entry
+6's, so both snapshots expose it. An edit to entry 4, 5 or 6, all written after snapshot 1, leaves
+entries 0 to 3 as they were: the panel reads "Found in the forger's copy at entry 3" for snapshot
+1, which sees nothing, and only snapshot 2 exposes the copy. An edit to entry 7, snapshot 2's own
+attestation moved an hour earlier, leaves both heads in the copy: "Not exposed yet: every anchored
+head is still in this copy. The next snapshot will anchor the engine's own head." Entry 7 is the
+unanchored tail. It is also the one entry whose copy verifies at **Also replace its hash**: "No
+entry follows the last one, so no link gives it away." The newest entry is the cheapest to rewrite.
+`custody-lab audit` ends with the same result in its `exposed_by` line, which names the first
+snapshot that exposes each entry's re-hashed copy, and `null` for entry 7. The table summarises it:
+
+| Edited entry | Snapshot 1 (anchors entry 3) | Snapshot 2 (anchors entry 6) | Exposed by |
+|--------------|------------------------------|------------------------------|------------|
+| 0 to 3 | head not in the copy | head not in the copy | both snapshots |
+| 4 to 6 | head found at entry 3 | head not in the copy | snapshot 2 |
+| 7 | head found at entry 3 | head found at entry 6 | none yet |
+
+**What breaks without it.** Without the anchors, the re-hashed copy of step 10 is the only evidence,
+and it says the custodian authorised 0.085 BTC where it authorised 0.85 BTC. For a settlement on
+chain, reconciling the log against the chain would catch that edit, because the transaction pays
+0.85 BTC ([Two records that must agree](#two-records-that-must-agree)). It would not catch entry 3's
+refusal turned into an approval, or entry 0's pending decision turned into one, because neither
+leaves anything on the chain. The signers' record of the authorisations they signed under catches a
+deleted payment ([Attacking the design](#attacking-the-design)), but the signers never see a refusal
+or a pending decision. Those edits are caught by the anchored heads alone. With anchors published
+rarely, the unanchored tail is long: in the demo a snapshot follows each settlement batch, so the
+tail is the entries since the last batch, and at least the last snapshot's own attestation. And the
+anchors assume that the forger changes a copy, not the log the engine writes to. The next snapshot
+anchors the head of the engine's own log, which is why the copy is exposed; an insider who could
+rewrite the engine's own log before the next snapshot would have that snapshot anchor the forged
+head. The demo keeps the log in the engine's memory; the design keeps it on write-once storage
+outside the engine's control ([chapter 4](chapters/04-policy.md#how-this-shows-up-in-production)),
+and the attack-vector analysis lists both gaps under 10.2 ([attack
+vectors](attack-vectors.md#10-the-records)).
+
 ## Red team
 
 **The problem.** Some weaknesses only show under attack. A rule that looks prudent, such as
@@ -1575,6 +1739,7 @@ shown as it was, and nothing is recomputed or signed again.
 | `curl` in terminal 2 works, but the Windows browser does not load the page | WSL's forwarding of `localhost` to Windows | Check the WSL networking settings, or open the page in a browser inside WSL |
 | A signer's switch does not move | Is a run going? | The switches unlock when the run ends; they set the next run |
 | The balance tab says to run the demo first | Has a run on this page reached step 9? A page reload clears the screen | Run the demo, or replay a recorded run that settled |
+| On **The audit log** the forger's switch reads "From step 8 on" after the run has finished | Which step is the player on? The switch follows the step shown, not the run | Press **Next** up to step 8, or choose step 8 in the **Steps** list |
 | On **Watch the protocol** the packets jump from end to end instead of travelling | The operating system's setting to reduce motion (`prefers-reduced-motion`) | None needed: the tab honours that setting; **Pause** and **Next** step through the rounds at any pace |
 | No list of recorded runs under **Run the demo** | `ls var/demo/*/events.jsonl` | A run has to finish before it is listed; the list refreshes when a run ends |
 | Any other step turns red | The `error` line under the step, the traceback in terminal 1, and the run's `events.jsonl` | The error names the failed check; the chapter for that step explains it |
@@ -1627,7 +1792,14 @@ This table summarises what each step has already explained, as a list of what to
     or a signed authorisation. It holds no share and opens no sub-share; only the channel keys at
     start-up are trusted to it. The authorisations, not the threshold protocol, are most of the
     bytes (Watching the protocol).
-13. A deposit counts once it can no longer be cheaply undone, and books that agree with the chain
+13. An authorisation lives 60 seconds, checked against the signers' clocks; signers whose clocks
+    are set back accept an expired one, and signers that read a time authority's signed time, bound
+    to a nonce of their own, refuse it (Clocks).
+14. A forger can edit a copy of the audit log and re-hash it until the chain checks again; the
+    break follows each move from the edited entry to the next link and then disappears. The head
+    anchored in a signed snapshot exposes the copy when the anchored entry is at or after the edit,
+    and the entries since the latest snapshot are covered by none until the next (The audit log).
+15. A deposit counts once it can no longer be cheaply undone, and books that agree with the chain
     can still hide a payment to the wrong client: only a check of the destination against the
     client catches it (Red team).
 

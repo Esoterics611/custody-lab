@@ -113,6 +113,7 @@ uv run custody-lab day       # a day: deposits, a double spend, trading, withdra
 uv run custody-lab ceremonies  # share refresh against a thief, and a lost share repaired; no chain
 uv run custody-lab protocol    # every message between coordinator and signers, split into fields; no chain
 uv run custody-lab clocks      # signers' clocks set back, and signed time from a time authority; no chain
+uv run custody-lab audit       # the policy audit log through two settlements, then a forger's copy; no chain
 uv run custody-lab redteam     # a reorganised deposit and a misdirected withdrawal, weak rule then defence
 uv run custody-lab attacks   # twenty attacks on the design, each refused; needs no Bitcoin node
 ```
@@ -122,8 +123,10 @@ results of each step after it, and ends with the settlement's transaction id, `r
 1.00000`, and the directory under `var/demo/` that holds the run's event log, policy audit log
 and reserves snapshot. `custody-lab run --offline 1` stops signer 1's process before signing, and
 signers 2 and 3 settle instead. `custody-lab day` runs eleven steps, comparing the ledger with the
-coins on chain after each, and ends with `reserve_ratio: 1.00000`. `custody-lab attacks` lists each
-attack with the component that
+coins on chain after each, and ends with `reserve_ratio: 1.00000`. `custody-lab audit` prints eight
+audit entries and two anchored heads, then where a forger's edit of each entry is caught; its
+summary gives `anchored_entries: [3,6]` and, for each entry, the first snapshot that exposes a
+re-hashed copy (none for entry 7). `custody-lab attacks` lists each attack with the component that
 refused it and ends with `20 of 20 attacks refused`.
 
 To watch a run in the browser instead:
@@ -134,14 +137,16 @@ npm --prefix web run build   # build the dashboard into web/dist
 uv run custody-lab serve     # then open http://127.0.0.1:8000 and press "Run the demo"
 ```
 
-**Expect:** eight tabs. On **Settlement run**, nine numbered steps turn from pending to running
+**Expect:** nine tabs. On **Settlement run**, nine numbered steps turn from pending to running
 to done as the events arrive, and a key-shares panel lists signers 1, 2 and 3 with their process
 ids and a switch that takes each offline for the next run. **A day at the custodian**, **Key
 ceremonies**, **Clocks** and **Red team** each play one scenario. **Watch the protocol** animates
 every message between the coordinator and the signers through key generation, signing, refresh and
-repair, splits each into its fields, and counts what the coordinator could not open. **Attack the
-design** runs the twenty attacks. **Check a client's balance** recomputes a client's inclusion
-proof in the browser after a run. [The demo walkthrough](manual/demo-walkthrough.md) takes one run through the
+repair, splits each into its fields, and counts what the coordinator could not open. **The audit
+log** shows each entry the policy engine writes through two settlements, and a switch that edits
+one entry of a copy to show where the hash chain breaks and which signed snapshot exposes it.
+**Attack the design** runs the twenty attacks. **Check a client's balance** recomputes a client's
+inclusion proof in the browser after a run. [The demo walkthrough](manual/demo-walkthrough.md) takes one run through the
 dashboard step by step: what each value on the screen means, and how to check the run's files
 afterwards.
 

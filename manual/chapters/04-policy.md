@@ -1,6 +1,6 @@
 # Module 4: Policy and Authorisation
 
-2026-10-08
+2026-10-10
 
 Previous: [Chapter 3, Key Storage](03-key-storage.md) \| [All
 chapters](../README.md) \| Next: [Chapter 5, Trading to
@@ -71,8 +71,8 @@ By the end of this chapter the following should be clear:
   not count, and why everything signed must be encoded canonically;
 - what the authorisation contains, the four checks every signer makes on
   it, and the attack each check stops;
-- what a hash-chained audit log detects, what it does not, and how
-  anchoring closes the gap.
+- what a hash-chained audit log detects, what it does not, how anchoring
+  closes the gap, and which entries an anchor cannot yet cover.
 
 <a id="first-principles"></a>
 
@@ -284,11 +284,11 @@ file can be edited by anyone with write access, and the edit leaves no
 trace.
 
 **The idea.** In a **hash chain**, each entry includes the hash of the
-entry before it, and its own hash covers that link. Editing an entry
-changes its hash, which no longer matches the link stored in the next
-entry, which breaks the chain from that point on. The cell builds a
-three-entry chain with the engine’s own canonical encoding, edits the
-middle entry, and finds the break:
+entry before it, its **link**, and its own hash covers that link.
+Editing an entry changes its hash, which no longer matches the link
+stored in the next entry, which breaks the chain from that point on. The
+cell builds a three-entry chain with the engine’s own canonical
+encoding, edits the middle entry, and finds the break:
 
 ``` python
 def chain(events):
@@ -338,7 +338,220 @@ cannot change. Publishing the head this way is **anchoring**. [Chapter
 which the custody key signs.
 
 **Recap.** A hash chain makes any edit inside the log visible; anchoring
-the head makes a rewrite or a truncation visible too.
+the head makes a rewrite or a truncation visible too, as far back as the
+anchor reaches. The next section works out how far that is.
+
+<a id="a-forgers-copy-and-the-anchored-head"></a>
+
+### A forger’s copy and the anchored head
+
+**The problem.** The chain above shows an edit to anyone who recomputes
+the hashes. But the hashes use no secret: they are computed by the same
+software that writes the log, and anyone who can change an entry can run
+it too. Suppose an insider wants an auditor to believe that the 9.9 BTC
+request was approved, not denied. The insider exports a copy of the log
+for the auditor, edits the entry, and repairs the chain before handing
+the copy over. The auditor’s chain check passes. Only something the
+insider cannot repair can expose the copy.
+
+**The idea in plain words.** A log built as a hash chain is
+**tamper-evident**: an edit cannot be prevented, only made visible to
+whoever checks. Hiding the edit again takes three moves, each mending
+the break that the move before it left:
+
+1.  *Edit the entry.* Its contents change, but its stored hash is still
+    the hash of the old contents. The check stops at the edited entry:
+    its content does not match its hash.
+2.  *Replace the edited entry’s stored hash* with the hash of its new
+    contents. The entry now agrees with itself, but the next entry’s
+    link still names the old hash, so the check stops one entry later,
+    at that link.
+3.  *Re-hash every later entry*: set each one’s link to the new hash of
+    the entry before it, then recompute its own hash. Every entry agrees
+    with itself and with its neighbour, and the check passes. The copy
+    is now a **re-hashed** log.
+
+A re-hashed copy differs from the genuine log in every hash from the
+edited entry to the end, and in nothing before it. That is what an
+anchor uses. An anchored head is the head at the moment it was
+published: the hash of whichever entry was newest then, written into a
+document the insider cannot change. In the demo that document is a
+proof-of-reserves snapshot, signed by the custody key ([chapter
+6](06-reserves.md)). The auditor looks for the anchored hash among the
+copy’s hashes:
+
+- If the anchored entry is the edited one or a later one, its hash
+  changed, and the anchored value is nowhere in the copy. The anchor
+  exposes the copy.
+- If the anchored entry is earlier than the edited one, its hash did not
+  change, and the anchored value is found. That anchor cannot see the
+  edit.
+
+So the entries written after the latest anchor are covered by no anchor
+until the next one is published. They are the log’s **unanchored tail**,
+and how long an entry stays in it is the time between anchors.
+
+This assumes the insider changes a copy, not the log the engine itself
+writes to: the next snapshot anchors the head of the engine’s own log,
+so it exposes the copy. An insider who could rewrite the engine’s own
+log before the next snapshot would change what that snapshot anchors as
+well, which is why a production log sits on write-once storage outside
+the engine’s control (“How this shows up in production”).
+
+The counterpart is a FIX session’s sequence numbers. Every message
+carries MsgSeqNum (tag 34), one more than the message before it, and a
+gap tells the receiver that a message is missing, so it asks for a
+resend. A sequence number does not depend on a message’s contents, so it
+shows a missing message but not an altered one. The CheckSum (tag 10)
+does depend on the contents, but anyone who alters a message recomputes
+it; the red team’s forged fill does exactly that ([walkthrough, A forged
+fill](../demo-walkthrough.md#a-forged-fill)). A hash link is a sequence
+number that also covers the contents, so changing an entry changes every
+link after it. The comparison stops at who holds the second copy. Both
+ends of a FIX session log every message, so a dispute compares two logs
+written by two firms. The audit log has one writer, and a re-hashed copy
+is complete and consistent; the anchored head is the second party’s
+copy, reduced to one hash.
+
+**Worked example.** Take the three entries above: entry 0 approves 0.5,
+entry 1 denies 9.9, entry 2 approves 9.5. Write $H(\dots)$ for the hash
+of an entry’s contents together with its link, and $h_0$, $h_1$, $h_2$
+for the genuine hashes:
+
+- $h_0 = H(0, \text{approve } 0.5, 0\dots0)$, linking to the 64 zeros
+  that start every chain;
+- $h_1 = H(1, \text{deny } 9.9, h_0)$;
+- $h_2 = H(2, \text{approve } 9.5, h_1)$.
+
+The custodian published a snapshot after entry 1, so the anchored head
+is $h_1$. The insider edits entry 1 to read “approve 9.9”:
+
+1.  Entry 1’s contents now hash to
+    $h_1' = H(1, \text{approve } 9.9, h_0)$, but the entry still stores
+    $h_1$. The two differ, so the check stops at entry 1.
+2.  The insider stores $h_1'$ in entry 1, which now agrees with itself.
+    Entry 2’s link is still $h_1$, and the entry before it now has the
+    hash $h_1'$, so the check stops at entry 2.
+3.  The insider sets entry 2’s link to $h_1'$ and its hash to
+    $h_2' = H(2, \text{approve } 9.5, h_1')$. Entry 0 links to the
+    zeros, entry 1 to $h_0$, entry 2 to $h_1'$, and each hash matches
+    its contents: the check passes. The head is now $h_2'$, not $h_2$.
+4.  The auditor looks for the anchored $h_1$ among the copy’s hashes,
+    $h_0$, $h_1'$ and $h_2'$. It is not there: the copy is exposed. The
+    insider cannot replace $h_1$ in the snapshot with $h_1'$, because
+    the custody key’s signature covers the snapshot’s exact contents,
+    the head included.
+
+Now suppose the insider edits entry 2 instead, to approve 0.95. The
+re-hashed copy’s hashes are $h_0$, $h_1$ and a new $h_2''$. The anchored
+$h_1$ is found, and this anchor sees nothing wrong: entry 2 was written
+after the snapshot, in the unanchored tail. Only a later snapshot, which
+anchors the head of the engine’s own log, exposes the copy.
+
+**The code.** The cell builds the same three entries with the policy
+engine’s own `AuditLog`, under a clock fixed at one moment, and records
+the head after entry 1 as the anchor. `forge` plays the three moves on a
+copy, and `check` runs the engine’s `verify_chain` on the copy after
+each move.
+
+``` python
+from dataclasses import replace
+
+from custody_lab.foundations.hashing import sha256
+from custody_lab.policy.audit import AuditChainBroken, AuditLog, verify_chain
+
+t0 = datetime(2026, 9, 24, 9, tzinfo=UTC)
+log = AuditLog(lambda: t0)
+log.append("approve", {"amount": Decimal("0.5")})
+log.append("deny", {"amount": Decimal("9.9")})
+anchored = log.head  # published now, inside a signed snapshot
+log.append("approve", {"amount": Decimal("9.5")})
+genuine = list(log.entries)
+
+
+def check(entries):
+    try:
+        verify_chain(entries)
+    except AuditChainBroken as broken:
+        return str(broken)
+    return "verifies"
+
+
+def own_hash(entry):
+    return sha256(canonical_json(entry.body())).hex()
+
+
+def forge(entries, k, **edit):
+    """The copy after each of the three moves, editing entry k."""
+    copy = list(entries)
+    copy[k] = replace(copy[k], **edit)
+    yield "1 edit entry", list(copy)
+    copy[k] = replace(copy[k], hash=own_hash(copy[k]))
+    yield "2 replace its hash", list(copy)
+    for i in range(k + 1, len(copy)):
+        copy[i] = replace(copy[i], prev_hash=copy[i - 1].hash)
+        copy[i] = replace(copy[i], hash=own_hash(copy[i]))
+    yield "3 re-hash the rest", list(copy)
+
+
+moves = list(forge(genuine, 1, event="approve"))
+for move, copy in moves:
+    print(f"{move:<20}{check(copy)}")
+assert [check(copy) for _, copy in moves] == [
+    "entry 1: content does not match its hash",
+    "entry 2: sequence or link broken",
+    "verifies",
+]
+copy = moves[-1][1]
+for g, c in zip(genuine, copy):
+    print(g.seq, g.hash[:12], c.hash[:12], "same" if g.hash == c.hash else "changed")
+found = any(e.hash == anchored for e in copy)
+print("anchored head", anchored[:12], "found in the copy:", found)
+assert not found
+
+later = list(forge(genuine, 2, payload={"amount": Decimal("0.95")}))[-1][1]
+found = any(e.hash == anchored for e in later)
+print("entry 2 edited and re-hashed:", check(later), "; anchor found:", found)
+assert check(later) == "verifies" and found
+```
+
+    1 edit entry        entry 1: content does not match its hash
+    2 replace its hash  entry 2: sequence or link broken
+    3 re-hash the rest  verifies
+    0 0a3fa36c1b60 0a3fa36c1b60 same
+    1 f43827b36909 ed7b4fe6b526 changed
+    2 22d375f72b29 f2631559571d changed
+    anchored head f43827b36909 found in the copy: False
+    entry 2 edited and re-hashed: verifies ; anchor found: True
+
+The first three printed lines are the check after each move: the break
+at entry 1, then at entry 2’s link, then none. The next three compare
+each entry’s hash in the genuine log (the second column) and in the
+re-hashed copy (the third): entry 0’s is the same, and entries 1 and 2
+changed. The seventh line looks for the anchored head in the copy and
+does not find it. The last line is the edit of entry 2, after the
+anchor: the re-hashed copy verifies, and the anchored head is still
+found. The hashes are the same at every build, because the clock is
+fixed and nothing in the entries is random.
+
+**What breaks without it.** A chain check alone proves only that whoever
+produced the copy ran the hash function, so without an anchor the
+auditor in this example accepts the forged approval. An anchor published
+rarely leaves a long unanchored tail: with one snapshot a day, a rewrite
+of the day’s entries passes every published check until that evening.
+The demo anchors once per settlement batch, so its unanchored tail is
+the entries since the last batch. The dashboard’s **The audit log** tab
+plays the three moves on the demo’s own log, entry by entry, against two
+snapshots ([walkthrough, The audit
+log](../demo-walkthrough.md#the-audit-log)).
+
+**Recap.** A forger mends a chain in three moves: the break moves from
+the edited entry to the next link, and disappears once every later entry
+is re-hashed. The re-hashed copy changes every hash from the edit
+onward, so an anchored head at or after the edit is missing from it, and
+an edit in the unanchored tail stays hidden until the next anchor. The
+formal statement is in “Hash-chained audit log” below, and the code
+walkthrough checks the anchor inside a signed snapshot.
 
 <a id="formal-treatment"></a>
 
@@ -436,12 +649,26 @@ message, which in FROST would reveal the signer’s share (Exercise 2).
 Entry $n$ stores
 $h_n = H(n \,\|\, t_n \,\|\, \text{event}_n \,\|\, \text{payload}_n \,\|\, h_{n-1})$,
 computed over the canonical encoding, with $h_{-1} = 0^{256}$ (32 zero
-bytes). Editing, deleting or reordering an entry changes its hash and
-breaks every link after it. Two changes pass verification: rewriting the
-whole chain, and cutting entries off the end. Both are caught only by
-comparing the head $h_{\text{last}}$ with a copy published elsewhere:
-anchoring. [Chapter 6](06-reserves.md) publishes the head with each
-proof-of-reserves snapshot.
+bytes, written as 64 zeros in hex), the **genesis value**. Editing,
+deleting or reordering an entry changes its hash and breaks every link
+after it. Two changes pass verification: rewriting the whole chain, and
+cutting entries off the end. Both are caught only by comparing the head
+$h_{\text{last}}$ with a copy published elsewhere: anchoring. [Chapter
+6](06-reserves.md) publishes the head with each proof-of-reserves
+snapshot.
+
+How far an anchor reaches follows from the links. Let a copy $C$ of the
+log $L$ pass verification and differ from it first at entry $k$. Then
+$C_j = L_j$ for every $j < k$. For every $j \ge k$, $h(C_j) \ne h(L_j)$
+unless SHA-256 has a collision: entry $k$’s contents differ, and each
+later hash covers the link before it. An anchor $h(L_m)$ is therefore
+among the copy’s hashes exactly when $m < k$. With anchors at entries
+$m_1 < m_2 < \dots < m_r$, a re-hashed copy is exposed when $k \le m_r$,
+by every anchor with $m_i \ge k$, and by none when $k > m_r$. The
+entries after $m_r$ are the unanchored tail. The anchor cannot be moved
+to the copy’s new hash, because it is part of the snapshot’s statement
+and the custody key’s signature covers the statement ([chapter
+6](06-reserves.md)).
 
 <a id="worked-example"></a>
 
@@ -589,10 +816,10 @@ print(len(engine.audit.entries), "entries; chain verifies; head", engine.audit.h
 ```
 
     0 evaluated  approved 0000000000 -> b54b5dcd33
-    1 authorised          b54b5dcd33 -> 5443af802f
-    2 evaluated  pending  5443af802f -> 0b672e3e87
-    3 evaluated  approved 0b672e3e87 -> 3f47519e2c
-    13 entries; chain verifies; head c1718fa08353
+    1 authorised          b54b5dcd33 -> c24cb0098d
+    2 evaluated  pending  c24cb0098d -> e797c02384
+    3 evaluated  approved e797c02384 -> 80b04ffabd
+    13 entries; chain verifies; head 208969d1e5d1
 
 The first four rows are the first instruction’s evaluation and
 authorisation, then the second instruction’s two evaluations: PENDING
@@ -617,6 +844,69 @@ except AuditChainBroken as exc:
 ```
 
     detected: entry 5: content does not match its hash
+
+<a id="the-anchored-head-inside-a-signed-snapshot"></a>
+
+### The anchored head inside a signed snapshot
+
+The edit above stops at the forger’s first move. A forger who makes all
+three moves (“A forger’s copy and the anchored head”) hands over a copy
+that verifies, and only the anchor exposes it. The cell takes the head
+as it stood just after the 9.9 BTC denial, which is what a snapshot
+taken at that moment would anchor, and puts it in a snapshot signed with
+a BIP340 key ([chapter 1](01-foundations.md)). The key is a single key
+standing in for the demo’s 2-of-3 signing cluster, which produces the
+same kind of signature, and the snapshot’s other figures are stand-ins:
+only its head matters here. The cell then uses `forge` from the
+first-principles cell to turn the denial into an approval and re-hash
+every later entry.
+
+``` python
+from custody_lab.foundations import schnorr
+from custody_lab.reserves.snapshot import Snapshot
+
+entries = list(engine.audit.entries)
+m = next(i for i, e in enumerate(entries) if e.payload.get("status") == "denied")
+custody_secret = sha256(b"chapter 4: a stand-in custody key")
+custody_key = schnorr.pubkey_gen(custody_secret)
+snapshot = Snapshot(
+    taken_at=entries[m].time,
+    block_height=0,
+    block_hash="00" * 32,
+    liabilities_root="00" * 32,
+    liabilities=Decimal("20"),
+    clients=1,
+    assets=Decimal("20"),
+    custody_output_key=custody_key.hex(),
+    audit_head=entries[m].hash,  # the head when the snapshot was taken
+)
+signature = schnorr.sign(snapshot.attestation_message(), custody_secret, bytes(32))
+print(len(entries), "entries; the snapshot anchors entry", m, snapshot.audit_head[:12])
+
+approved = {**entries[m].payload, "status": "approved"}
+copy = list(forge(entries, m, payload=approved))[-1][1]
+print("re-hashed copy:", check(copy), "; its head", copy[-1].hash[:12])
+found = any(e.hash == snapshot.audit_head for e in copy)
+print("anchored head found in the copy:", found)
+moved = replace(snapshot, audit_head=copy[m].hash)
+valid = schnorr.verify(moved.attestation_message(), custody_key, signature)
+print("signature valid with the head moved to the copy's:", valid)
+assert schnorr.verify(snapshot.attestation_message(), custody_key, signature)
+assert check(copy) == "verifies" and not found and not valid
+```
+
+    13 entries; the snapshot anchors entry 5 406825707201
+    re-hashed copy: verifies ; its head b6b6e6b7686b
+    anchored head found in the copy: False
+    signature valid with the head moved to the copy's: False
+
+The first printed line gives the log’s length and the anchored entry,
+the 9.9 BTC denial, with the start of its hash. The second shows the
+forged copy passing the chain check, with a head of its own. The third
+shows that the anchored head is not among the copy’s hashes, so the
+snapshot exposes the copy. The last shows the forger’s remaining option
+failing: a snapshot whose head is replaced with the copy’s hash no
+longer matches the custody key’s signature.
 
 <a id="signers-enforce-the-authorisation"></a>
 
@@ -705,7 +995,10 @@ dependency.
 **Audit evidence.** Denials with reasons, approver identities and
 anchored log heads are the evidence behind SOC 2 controls ([chapter
 8](08-industry.md)). The log must also be on write-once storage outside
-the engine’s control; here it lives in memory.
+the engine’s control; here it lives in memory. Anchors are published as
+often as the unanchored tail must be short: the demo anchors once per
+settlement batch, and a log that also published its head on a fixed
+schedule would bound the tail in time even on a day without settlements.
 
 **Binding the message to the instruction.** In this chapter’s cells the
 caller supplies the sighash with the instruction, and the engine takes
@@ -734,8 +1027,12 @@ message.”
     expiry and a unique identifier, with both Ed25519 and ML-DSA-65.
     Each signer checks the signatures, the expiry, the message and the
     identifier, and discards its nonces before checking.
-6.  The audit log is hash-chained, so edits inside it are detected;
-    anchoring its head elsewhere detects rewrites and truncation.
+6.  The audit log is hash-chained, so an edit inside it is detected at
+    the edited entry, or at the next link once the entry’s own hash is
+    replaced. A copy re-hashed from the edit onward passes the chain
+    check; an anchored head, published in a signed snapshot, exposes it
+    when the anchored entry is at or after the edit. Entries after the
+    latest anchor, the unanchored tail, wait for the next one.
 
 [Chapter 5](05-settlement.md) builds the transaction whose sighash the
 authorisation names, and settles it on regtest.
@@ -757,6 +1054,10 @@ authorisation names, and settles it on regtest.
     log. Does `verify_chain` detect it? What does?
 5.  **Design.** Propose rules for adding an address to the whitelist,
     and explain what each rule defends against.
+6.  **Compute.** A log has eight entries, numbered 0 to 7. Snapshot 1
+    anchored entry 3’s hash and snapshot 2 anchored entry 6’s. A forger
+    re-hashes a copy from entry $k$. For each $k$ from 0 to 7, which
+    snapshots find their head in the copy, and which expose it?
 
 <a id="solutions"></a>
 
@@ -784,7 +1085,9 @@ assert engine.evaluate(ins, ok).status.value == "approved"
     the nonce-reuse attack of [chapter 1](01-foundations.md) in
     threshold form. Burning first makes every nonce single-use whatever
     happens next.
+
 3.  Without the authority key, two things stop them:
+
     - The token’s signature covers $A$, so a changed token fails
       verification.
     - Every signer compares the message inside the FROST signing package
@@ -796,10 +1099,13 @@ assert engine.evaluate(ins, ok).status.value == "approved"
     that independently decodes the transaction and checks it against its
     own copy of the policy. That is why production systems protect the
     authority key like a signing quorum.
+
 4.  No. The remaining prefix is still a valid chain. Comparing the
     current head with the last anchored head detects it: the published
     hash no longer matches any entry, or matches one before the end.
+
 5.  One reasonable set:
+
     - The addition requires a quorum distinct from payment approvers,
       which stops a payment quorum approving its own escape route.
     - A cooling-off period, for example 24 hours, runs before the
@@ -811,6 +1117,20 @@ assert engine.evaluate(ins, ok).status.value == "approved"
       from its owner, which stops typosquatted or substituted addresses.
     - The change is itself an audited, anchored event, so it cannot
       later be denied.
+
+6.  An anchor is found exactly when its entry comes before the edit
+    (“Hash-chained audit log”):
+
+    | $k$ | Snapshot 1 (entry 3) | Snapshot 2 (entry 6) | Exposed by |
+    |----|----|----|----|
+    | 0 to 3 | not found | not found | both |
+    | 4 to 6 | found | not found | snapshot 2 |
+    | 7 | found | found | neither, until a third snapshot |
+
+    Entry 7 is the unanchored tail. This is the demo’s own layout; the
+    dashboard’s audit-log tab shows the same answer for each entry
+    ([walkthrough, The audit
+    log](../demo-walkthrough.md#the-audit-log)).
 
 <a id="further-reading"></a>
 

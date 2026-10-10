@@ -1,6 +1,6 @@
 # Module 6: Proof of Reserves
 
-2026-10-08
+2026-10-10
 
 Previous: [Chapter 5, Trading to Settlement](05-settlement.md) \| [All
 chapters](../README.md) \| Next: [Chapter 7, Post-Quantum
@@ -579,8 +579,12 @@ client can check for itself, between audits.
 
 **Frequency and anchoring.** The demo publishes a snapshot per
 settlement batch and anchors the policy audit head in it ([chapter
-4](04-policy.md)). A truncated or rewritten audit log then disagrees
-with a head that was already published.
+4](04-policy.md)). A copy of the audit log truncated or rewritten at or
+before the anchored entry then no longer contains a head that was
+already published. Entries written after the latest snapshot are covered
+only by the next one, so the frequency of snapshots also sets how long a
+rewrite of the newest entries goes unnoticed ([chapter 4](04-policy.md),
+“A forger’s copy and the anchored head”).
 
 <a id="recap"></a>
 

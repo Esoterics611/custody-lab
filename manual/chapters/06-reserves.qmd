@@ -476,8 +476,11 @@ such as SOC 2 (chapter 8). A published proof of reserves adds evidence that a cl
 itself, between audits.
 
 **Frequency and anchoring.** The demo publishes a snapshot per settlement batch and anchors the
-policy audit head in it (chapter 4). A truncated or rewritten audit log then disagrees with a head
-that was already published.
+policy audit head in it (chapter 4). A copy of the audit log truncated or rewritten at or before
+the anchored entry then no longer contains a head that was already published. Entries written after
+the latest snapshot are covered only by the next one, so the frequency of snapshots also sets how
+long a rewrite of the newest entries goes unnoticed (chapter 4, "A forger's copy and the anchored
+head").
 
 ## Recap
 
