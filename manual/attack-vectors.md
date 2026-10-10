@@ -369,16 +369,27 @@ movement. *Status:* refused, demonstrated (the day's books panel; chapter 10's r
 
 ### 10. The records
 
-**10.1 Editing an audit entry.** *Stopped by:* the hash chain. *Status:* refused, demonstrated
-(attack panel, "Edit an amount in the audit log").
+**10.1 Editing an audit entry.** *Stopped by:* the hash chain: the check stops at the edited
+entry, and at the next entry's link if the forger also replaces the edited entry's own hash.
+*Status:* refused, demonstrated (attack panel, "Edit an amount in the audit log"; the audit-log tab,
+whose switch edits any entry of a copy and shows where the check stops after each move).
 
-**10.2 Cutting or rewriting entries.** *Attack:* delete or change entries and recompute every later
-fingerprint, so the chain verifies; entries after the last snapshot are not covered by its anchored
-head. *Stopped by:* a record the forger does not hold: the signers keep the identifier of every
-authorisation they signed under, and reconciling it against the log shows a deleted payment.
-*Status:* refused, demonstrated (attack panel, "Delete a signed payment from the audit log and
-re-hash it"). A deleted refusal or pending decision, which the signers never saw, is still caught
-only by the next snapshot's head.
+**10.2 Cutting or rewriting entries.** *Attack:* delete or change entries in a copy of the log and
+recompute every later fingerprint, so the chain verifies; entries after the last snapshot are not
+covered by its anchored head. *Stopped by:* two records the forger does not hold. The first is the
+head anchored in each signed snapshot: a copy re-hashed from an entry at or before the anchored one
+no longer contains the anchored head, and moving the snapshot's head to the forged one breaks the
+custody key's signature. The second, for a deleted payment, is the signers' own record: they keep
+the identifier of every authorisation they signed under, and reconciling it against the log shows
+the payment missing. *Status:* refused, demonstrated (the audit-log tab re-hashes a copy from each
+entry in turn against two snapshots, with the result for every entry from the real `verify_chain`;
+attack panel, "Delete a signed payment from the audit log and re-hash it"). Two gaps remain. An
+edit in the unanchored tail, after the latest snapshot, passes every published check until the next
+snapshot; the tab shows it on the last entry. A deleted refusal or pending decision, which the
+signers never saw, is caught only by that next snapshot's head. Both defences assume the forger
+changes a copy, not the log the engine writes to: the next snapshot anchors the engine's own head.
+The design keeps that log on write-once storage outside the engine's control (chapter 4, "How this
+shows up in production"); the demo keeps it in the engine's memory.
 
 **10.3 Editing a run's event file.** The dashboard's replay shows whatever `events.jsonl` says, and
 the file is not signed. *Status:* open; it is a display record, not the system of record.

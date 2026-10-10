@@ -64,6 +64,15 @@ Status: **done** (merged, tested), **next** (being built), **open** (not started
   `custody-lab protocol`, the walkthrough section, a new cell in chapter 2 and the atlas entry
   `mpc/protocol-messages.md`. A test searches every relayed byte for every signer's share of each
   period and finds none.
+- **A live audit-log timeline** (2026-10-10). The policy engine's audit log entry by entry through
+  two settlements and two signed snapshots, each entry with its link and its hash, and a switch on a
+  forger's copy of it: edit an entry (the chain check stops there), replace its hash as well (the
+  check stops at the next link), re-hash every later entry (the chain verifies), then each
+  snapshot's anchored head, which exposes the re-hashed copy when the anchored entry is at or after
+  the edit; an edit after the last snapshot is exposed by none yet. Every position for every entry
+  is computed by the run with the real `verify_chain`. `custody_lab.demo.audit_trail`, the dashboard
+  tab, `custody-lab audit`, the walkthrough section, a new section and two cells in chapter 4, and
+  vectors 10.1 and 10.2 in the attack-vector analysis.
 
 ## Next
 
@@ -87,8 +96,6 @@ in `manual/attack-vectors.md`.
   protocol.
 - **A client portal.** One client's view: its balance, its inclusion proof and the custodian's
   signature, all checked in the browser.
-- **A live audit-log timeline**, with a switch that edits one entry and shows where the hash chain
-  breaks.
 - **Replay a day.** Recorded days in `var/day` can be listed and replayed like runs.
 - **The time authority on the protocol tab.** Signing with signed time adds a round: each signer's
   nonce out, the time authority's signed time back. Showing it needs the time authority's exchange
