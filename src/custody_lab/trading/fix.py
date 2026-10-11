@@ -11,10 +11,9 @@ here is the minimum the demo needs:
 - No heartbeats, resend requests or gap fill.
 - The toy exchange fills every limit order in full at its limit price.
 
-Execution reports follow the house FIX 5.0 SP2 rules of engagement (``ROE.md``):
-LastQty/LastPx and TradeDate/TransactTime on each fill, and no AvgPx (optional in FIX 5.0 SP2);
-any average is the receiver's arithmetic. Execution reports are the only input to settlement; the
-rest of the system never sees FIX.
+Each execution report carries LastQty/LastPx and TradeDate/TransactTime for its fill, and no
+AvgPx (optional in FIX 5.0 SP2); any average is the receiver's arithmetic. Execution reports are
+the only input to settlement; the rest of the system never sees FIX.
 """
 
 from __future__ import annotations
