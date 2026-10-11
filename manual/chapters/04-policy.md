@@ -816,10 +816,10 @@ print(len(engine.audit.entries), "entries; chain verifies; head", engine.audit.h
 ```
 
     0 evaluated  approved 0000000000 -> b54b5dcd33
-    1 authorised          b54b5dcd33 -> c24cb0098d
-    2 evaluated  pending  c24cb0098d -> e797c02384
-    3 evaluated  approved e797c02384 -> 80b04ffabd
-    13 entries; chain verifies; head 208969d1e5d1
+    1 authorised          b54b5dcd33 -> 3aa213bc14
+    2 evaluated  pending  3aa213bc14 -> 813e249fbe
+    3 evaluated  approved 813e249fbe -> 105d079993
+    13 entries; chain verifies; head b094535de456
 
 The first four rows are the first instruction’s evaluation and
 authorisation, then the second instruction’s two evaluations: PENDING
@@ -895,8 +895,8 @@ assert schnorr.verify(snapshot.attestation_message(), custody_key, signature)
 assert check(copy) == "verifies" and not found and not valid
 ```
 
-    13 entries; the snapshot anchors entry 5 406825707201
-    re-hashed copy: verifies ; its head b6b6e6b7686b
+    13 entries; the snapshot anchors entry 5 6e399e1fe6a5
+    re-hashed copy: verifies ; its head bc2244dff8b9
     anchored head found in the copy: False
     signature valid with the head moved to the copy's: False
 
@@ -986,11 +986,54 @@ data for transfers between virtual-asset service providers (FATF
 Recommendation 16; **verify current**). They are further checks in the
 same default-deny chain.
 
-**Clocks.** Token expiry is checked against each signer’s clock. A
-signer whose clock is stepped or skewed rejects valid tokens or accepts
-stale ones, so signer hosts need disciplined time (NTP with monitoring).
-Short token lifetimes shrink the replay window but tighten this
-dependency.
+**Clocks.** Each signer checks an authorisation’s expiry against a time,
+and whoever can set that time decides whether an expired authorisation
+still counts. A signer that reads its own machine’s clock leaves that
+decision to two people: an administrator of the machine, who sets the
+clock directly, and an attacker who answers the machine’s requests for
+the time. Machines set their clocks from a time server over NTP, the
+Network Time Protocol, and without an authentication extension such as
+Network Time Security (RFC 8915) nothing proves that an answer came from
+that server. The threshold helps only while the signers’ clocks are
+independent: two signers that take their time from one server are set
+back together by one false answer, and both then accept an authorisation
+that expired four minutes earlier ([walkthrough,
+Clocks](../demo-walkthrough.md#clocks), step 5). Network Time Security
+stops the false answer on the network; it does not stop the
+administrator. Disciplined, monitored time on the signer machines
+therefore narrows accidental drift but does not take the decision away
+from whoever controls them.
+
+**Signed time.** The defence the demo runs is a **time authority**: a
+server outside the custodian that signs the time on request. Before it
+checks an authorisation, a signer draws a fresh random number for this
+one request, a nonce, sends it to the time authority, and receives the
+time signed together with that nonce: a **signed time**. The signer
+verifies the signature under the time authority’s public key, which it
+was given when it started, checks that the nonce is the one it drew, and
+compares the expiry with the signed time; it never reads its own clock.
+The nonce is what stops a recorded answer being used again: a signed
+time recorded while an authorisation was still valid answers the nonce
+of that earlier request, and a signer refuses any signed time whose
+nonce is not the one it has just drawn. `custody_lab.policy.signed_time`
+implements this exchange, the core of Roughtime (RFC 10049,
+Experimental; **verify current**), and the Clocks tab runs it against
+signers whose clocks are set back five minutes: they refuse the expired
+authorisation, and refuse a signed time drawn for a nonce the
+coordinator chose (steps 6 and 7). The trust then moves to the time
+authority, and one that signs a slow time reopens the window. Roughtime
+therefore has a client ask several independent servers in a chain, each
+request derived from the previous answer, so that a server whose time
+contradicts the others can be proven to have lied; the demo has one time
+authority, and this stays open ([attack-vector
+analysis](../attack-vectors.md#4-the-policy-engine-and-its-authorisations),
+vector 4.10). The lifetime still sets a tolerance: the policy engine
+writes the expiry from its own clock, so an engine whose clock runs more
+than 60 seconds behind the time the signers use issues authorisations
+that are already expired when they arrive, which is how the Clocks tab
+plays an authorisation held back for five minutes (step 3). The
+settlement run, the day and the red team start their signers without a
+time authority, on their own clocks.
 
 **Audit evidence.** Denials with reasons, approver identities and
 anchored log heads are the evidence behind SOC 2 controls ([chapter
