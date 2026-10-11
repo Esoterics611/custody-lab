@@ -86,7 +86,7 @@ of another chapter is a link.
    that teaches it, and in the [atlas](atlas/index.md), one entry per concept.
 
 Every code listing in the manual ran when the chapter was built, and the numbers in the text are
-the numbers that code printed. Every chapter follows the manual's writing standard.
+the numbers that code printed.
 
 ## Running it
 
@@ -211,7 +211,7 @@ Five components are third-party software. Everything else is written for this pr
 | [`web/`](web) | The dashboard: Vite, React and TypeScript |
 | [`tests/`](tests) | pytest and Hypothesis |
 | [`manual/`](manual) | Chapter sources (`.qmd`), the Markdown shown on GitHub (`.md`), and the build settings |
-| [`atlas/`](atlas) | The glossary, one entry per concept, and the project records |
+| [`atlas/`](atlas) | The glossary and one entry per concept |
 | [`scripts/`](scripts) | `regtest.sh` (a standalone regtest node) and `render-manual.sh` |
 
 ## Licence

@@ -31,7 +31,7 @@ liabilities must achieve and gives a scheme using a sparse Merkle tree and Bulle
 
 ## In the demo
 
-Not implemented: a chapter section only, as the build plan states.
+Not implemented: a chapter section only.
 
 ## In the manual
 

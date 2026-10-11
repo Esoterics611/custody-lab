@@ -397,8 +397,8 @@ the file is not signed. *Status:* open; it is a display record, not the system o
 
 **11.1 A malicious or vulnerable dependency.** *Attack:* a library the demo installs is replaced or
 has a flaw. *Stopped by:* pinned versions in
-`uv.lock`, `Cargo.lock` and `web/package-lock.json`; libraries chosen for their audits, recorded in
-the build plan; `npm audit --omit=dev` reports nothing in what ships. *Status:* contained. No build
+`uv.lock`, `Cargo.lock` and `web/package-lock.json`; libraries chosen for their audits;
+`npm audit --omit=dev` reports nothing in what ships. *Status:* contained. No build
 is reproducible or attested.
 
 ### 12. The demo's own surfaces
